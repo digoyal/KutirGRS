@@ -1,0 +1,103 @@
+/* ── kutirGRS mobile-responsive utilities ─────────────────────────── */
+
+/* Keep icon-button text visible on desktop */
+.grs-ibtn { white-space: nowrap; }
+
+/* Filter-toggle button: hidden on desktop, visible on mobile */
+.grs-filter-toggle { display: none !important; }
+
+/* Hidden filter bar (toggled by state on mobile) */
+.grs-fbar--hidden { display: none !important; }
+
+@media (max-width: 640px) {
+  /* Tighten page padding */
+  .grs-page { padding: 14px 12px !important; }
+
+  /* Icon-only buttons: hide text, tighten padding */
+  .grs-ibtn .grs-lbl { display: none; }
+  .grs-ibtn { padding: 7px 9px !important; gap: 0 !important; }
+
+  /* Reveal filter toggle button */
+  .grs-filter-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #4a5568;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  /* Make primary action button text not overflow */
+  .grs-primary-btn { white-space: nowrap; }
+}
+
+/* ── Dashboard sidebar – mobile overlay ──────────────────────────── */
+.grs-hamburger {
+  display: none; /* hidden on desktop */
+}
+.grs-nav-overlay {
+  display: none; /* hidden on desktop */
+}
+
+@media (max-width: 768px) {
+  /* Sidebar slides in as overlay */
+  .grs-sidebar {
+    position: fixed !important;
+    left: -240px !important;
+    top: 0 !important;
+    height: 100vh !important;
+    z-index: 300 !important;
+    transition: left 0.22s ease !important;
+    box-shadow: none !important;
+    overflow-y: auto !important;
+  }
+  .grs-sidebar--open {
+    left: 0 !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  /* Backdrop when sidebar is open */
+  .grs-nav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 299;
+  }
+
+  /* Main content takes full width (sidebar is overlay now) */
+  .grs-main {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Show hamburger button */
+  .grs-hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 400;
+    width: 40px;
+    height: 40px;
+    background: #1a365d;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+
+  /* Push page content down slightly so hamburger doesn't overlap heading */
+  .grs-page { padding-top: 56px !important; }
+}
