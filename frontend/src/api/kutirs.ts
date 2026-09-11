@@ -15,3 +15,4 @@ export const listKutirs = async (params?: { cluster_id?: number; district_id?: n
   (await api.get("/kutirs", { params })).data;
 export const createKutir = async (data: KutirCreate): Promise<Kutir> => (await api.post("/kutirs", data)).data;
 export const updateKutir = async (id: number, data: Partial<KutirCreate>): Promise<Kutir> => (await api.put(`/kutirs/${id}`, data)).data;
+export const deleteKutir = async (id: number): Promise<void> => { await api.delete(`/kutirs/${id}`); };

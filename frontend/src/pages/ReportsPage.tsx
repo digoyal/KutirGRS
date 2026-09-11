@@ -65,17 +65,17 @@ function FunnelReport({ year }: { year: number }) {
     { eligible: 0, applied: 0, appeared: 0, selected: 0, admitted: 0 }
   );
 
-  if (isLoading) return <p style={{ color: "#718096" }}>Loading…</p>;
-  if (rows.length === 0) return <p style={{ color: "#a0aec0", padding: "32px 0", textAlign: "center" }}>No exam data for {year}.</p>;
+  if (isLoading) return <p style={{ color: "var(--text-secondary)" }}>Loading…</p>;
+  if (rows.length === 0) return <p style={{ color: "var(--text-secondary)", padding: "32px 0", textAlign: "center" }}>No exam data for {year}.</p>;
 
-  const numCol: React.CSSProperties = { padding: "9px 12px", textAlign: "center", borderBottom: "1px solid #e2e8f0", fontVariantNumeric: "tabular-nums" };
-  const hdrCol: React.CSSProperties = { padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#2c5282", borderBottom: "2px solid #bee3f8" };
+  const numCol: React.CSSProperties = { padding: "9px 12px", textAlign: "center", borderBottom: "1px solid var(--border)", fontVariantNumeric: "tabular-nums" };
+  const hdrCol: React.CSSProperties = { padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "var(--badge-blue-fg)", borderBottom: "2px solid var(--badge-blue-bg)" };
 
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
         <thead>
-          <tr style={{ background: "#ebf4ff" }}>
+          <tr style={{ background: "var(--badge-blue-bg)" }}>
             <th style={{ ...hdrCol, textAlign: "left" }}>Kutir</th>
             <th style={hdrCol}>Eligible</th>
             <th style={hdrCol}>Applied</th>
@@ -87,18 +87,18 @@ function FunnelReport({ year }: { year: number }) {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.kutir.id} style={{ background: i % 2 === 0 ? "#fff" : "#f7fafc" }}>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0" }}>
-                <Link to={`/kutirs/${r.kutir.id}`} style={{ color: "#2c5282", textDecoration: "none", fontWeight: 600 }}>
+            <tr key={r.kutir.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--bg-input)" }}>
+              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
+                <Link to={`/kutirs/${r.kutir.id}`} style={{ color: "var(--badge-blue-fg)", textDecoration: "none", fontWeight: 600 }}>
                   {r.kutir.name}
                 </Link>
-                <span style={{ fontSize: "0.75rem", color: "#718096", marginLeft: 6 }}>{r.kutir.code}</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: 6 }}>{r.kutir.code}</span>
               </td>
               <td style={numCol}>{r.eligible}</td>
               <td style={numCol}>{r.applied}</td>
               <td style={numCol}>{r.appeared}</td>
-              <td style={{ ...numCol, color: r.selected > 0 ? "#276749" : undefined, fontWeight: r.selected > 0 ? 700 : 400 }}>{r.selected}</td>
-              <td style={{ ...numCol, color: r.admitted > 0 ? "#22543d" : undefined, fontWeight: r.admitted > 0 ? 700 : 400 }}>{r.admitted}</td>
+              <td style={{ ...numCol, color: r.selected > 0 ? "var(--status-success-fg)" : undefined, fontWeight: r.selected > 0 ? 700 : 400 }}>{r.selected}</td>
+              <td style={{ ...numCol, color: r.admitted > 0 ? "var(--status-success-fg)" : undefined, fontWeight: r.admitted > 0 ? 700 : 400 }}>{r.admitted}</td>
               <td style={numCol}>
                 {r.eligible > 0 ? `${Math.round((r.admitted / r.eligible) * 100)}%` : "—"}
               </td>
@@ -106,12 +106,12 @@ function FunnelReport({ year }: { year: number }) {
           ))}
         </tbody>
         <tfoot>
-          <tr style={{ background: "#ebf4ff", fontWeight: 700 }}>
-            <td style={{ padding: "9px 12px", borderTop: "2px solid #bee3f8", color: "#2c5282" }}>Total</td>
+          <tr style={{ background: "var(--badge-blue-bg)", fontWeight: 700 }}>
+            <td style={{ padding: "9px 12px", borderTop: "2px solid var(--badge-blue-bg)", color: "var(--badge-blue-fg)" }}>Total</td>
             {[totals.eligible, totals.applied, totals.appeared, totals.selected, totals.admitted].map((v, i) => (
-              <td key={i} style={{ ...numCol, borderTop: "2px solid #bee3f8", fontWeight: 700, color: "#1a365d" }}>{v}</td>
+              <td key={i} style={{ ...numCol, borderTop: "2px solid var(--badge-blue-bg)", fontWeight: 700, color: "var(--text-primary)" }}>{v}</td>
             ))}
-            <td style={{ ...numCol, borderTop: "2px solid #bee3f8", fontWeight: 700, color: "#1a365d" }}>
+            <td style={{ ...numCol, borderTop: "2px solid var(--badge-blue-bg)", fontWeight: 700, color: "var(--text-primary)" }}>
               {totals.eligible > 0 ? `${Math.round((totals.admitted / totals.eligible) * 100)}%` : "—"}
             </td>
           </tr>
@@ -167,25 +167,25 @@ function AdmittedReport({ year }: { year: number }) {
     URL.revokeObjectURL(url);
   }
 
-  if (isLoading) return <p style={{ color: "#718096" }}>Loading…</p>;
-  if (admitted.length === 0) return <p style={{ color: "#a0aec0", textAlign: "center", padding: "32px 0" }}>No admitted students for {year}.</p>;
+  if (isLoading) return <p style={{ color: "var(--text-secondary)" }}>Loading…</p>;
+  if (admitted.length === 0) return <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "32px 0" }}>No admitted students for {year}.</p>;
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span style={{ fontSize: "0.875rem", color: "#4a5568" }}>
-          <strong style={{ color: "#276749" }}>{admitted.length}</strong> students admitted in {year}
+        <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+          <strong style={{ color: "var(--status-success-fg)" }}>{admitted.length}</strong> students admitted in {year}
         </span>
-        <button onClick={exportCSV} style={{ background: "#f0fff4", color: "#276749", border: "1px solid #9ae6b4", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}>
+        <button onClick={exportCSV} style={{ background: "var(--status-success-bg)", color: "var(--status-success-fg)", border: "1px solid var(--status-success-fg)", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}>
           ↓ Export CSV
         </button>
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
           <thead>
-            <tr style={{ background: "#f0fff4" }}>
+            <tr style={{ background: "var(--status-success-bg)" }}>
               {["Student", "Kutir", "Admitted School", "Type", "App #", "Roll #"].map((h) => (
-                <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 600, color: "#276749", borderBottom: "2px solid #9ae6b4" }}>{h}</th>
+                <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 600, color: "var(--status-success-fg)", borderBottom: "2px solid var(--status-success-fg)" }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -195,27 +195,27 @@ function AdmittedReport({ year }: { year: number }) {
               const kutir = kutirMap.get(s?.kutir_id ?? 0);
               const school = schoolMap.get(e.admitted_school_id!);
               return (
-                <tr key={e.id} style={{ background: i % 2 === 0 ? "#fff" : "#f0fff4" }}>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0" }}>
-                    <Link to={`/students/${e.student_id}`} style={{ color: "#276749", textDecoration: "none", fontWeight: 600 }}>
+                <tr key={e.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--status-success-bg)" }}>
+                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
+                    <Link to={`/students/${e.student_id}`} style={{ color: "var(--status-success-fg)", textDecoration: "none", fontWeight: 600 }}>
                       {s ? `${s.first_name} ${s.last_name}` : `#${e.student_id}`}
                     </Link>
                   </td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0", fontSize: "0.82rem", color: "#4a5568" }}>
-                    {kutir ? <Link to={`/kutirs/${kutir.id}`} style={{ color: "#2c5282", textDecoration: "none" }}>{kutir.name}</Link> : "—"}
+                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                    {kutir ? <Link to={`/kutirs/${kutir.id}`} style={{ color: "var(--badge-blue-fg)", textDecoration: "none" }}>{kutir.name}</Link> : "—"}
                   </td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0", fontWeight: 600, color: "#2d3748" }}>
+                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontWeight: 600, color: "var(--text-primary)" }}>
                     {school?.name ?? `#${e.admitted_school_id}`}
                   </td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
                     {school && (
-                      <span style={{ background: "#ebf4ff", color: "#2c5282", borderRadius: 4, padding: "2px 7px", fontSize: "0.75rem", fontWeight: 600 }}>
+                      <span style={{ background: "var(--badge-blue-bg)", color: "var(--badge-blue-fg)", borderRadius: 4, padding: "2px 7px", fontSize: "0.75rem", fontWeight: 600 }}>
                         {school.school_type}
                       </span>
                     )}
                   </td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0", fontSize: "0.82rem", color: "#718096" }}>{e.application_number ?? "—"}</td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0", fontSize: "0.82rem", color: "#718096" }}>{e.roll_number ?? "—"}</td>
+                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>{e.application_number ?? "—"}</td>
+                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>{e.roll_number ?? "—"}</td>
                 </tr>
               );
             })}
@@ -260,8 +260,8 @@ function VisitSummaryReport() {
     .filter((r) => r.count > 0)
     .sort((a, b) => b.avgPerf - a.avgPerf);
 
-  if (isLoading) return <p style={{ color: "#718096" }}>Loading…</p>;
-  if (rows.length === 0) return <p style={{ color: "#a0aec0", textAlign: "center", padding: "32px 0" }}>No visits recorded yet.</p>;
+  if (isLoading) return <p style={{ color: "var(--text-secondary)" }}>Loading…</p>;
+  if (rows.length === 0) return <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "32px 0" }}>No visits recorded yet.</p>;
 
   function stars(n: number) {
     const full = Math.round(n);
@@ -272,36 +272,36 @@ function VisitSummaryReport() {
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
         <thead>
-          <tr style={{ background: "#fffaf0" }}>
+          <tr style={{ background: "var(--badge-amber-bg)" }}>
             {["Kutir", "Visits", "Avg Performance", "Avg Cleanliness", "Timetable OK", "Last Visit"].map((h) => (
-              <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 600, color: "#744210", borderBottom: "2px solid #fbd38d" }}>{h}</th>
+              <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 600, color: "var(--badge-amber-fg)", borderBottom: "2px solid #fbd38d" }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.kutir.id} style={{ background: i % 2 === 0 ? "#fff" : "#fffaf0" }}>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0" }}>
-                <Link to={`/kutirs/${r.kutir.id}`} style={{ color: "#744210", textDecoration: "none", fontWeight: 600 }}>
+            <tr key={r.kutir.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--badge-amber-bg)" }}>
+              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
+                <Link to={`/kutirs/${r.kutir.id}`} style={{ color: "var(--badge-amber-fg)", textDecoration: "none", fontWeight: 600 }}>
                   {r.kutir.name}
                 </Link>
-                <span style={{ fontSize: "0.75rem", color: "#718096", marginLeft: 6 }}>{r.kutir.code}</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: 6 }}>{r.kutir.code}</span>
               </td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0", fontVariantNumeric: "tabular-nums" }}>{r.count}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0" }}>
-                <span style={{ color: "#f6ad55" }}>{stars(r.avgPerf)}</span>
-                <span style={{ fontSize: "0.78rem", color: "#718096", marginLeft: 6 }}>{r.avgPerf.toFixed(1)}</span>
+              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontVariantNumeric: "tabular-nums" }}>{r.count}</td>
+              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ color: "var(--star-active)" }}>{stars(r.avgPerf)}</span>
+                <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginLeft: 6 }}>{r.avgPerf.toFixed(1)}</span>
               </td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0" }}>
-                <span style={{ color: "#f6ad55" }}>{stars(r.avgClean)}</span>
-                <span style={{ fontSize: "0.78rem", color: "#718096", marginLeft: 6 }}>{r.avgClean.toFixed(1)}</span>
+              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ color: "var(--star-active)" }}>{stars(r.avgClean)}</span>
+                <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginLeft: 6 }}>{r.avgClean.toFixed(1)}</span>
               </td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0" }}>
-                <span style={{ color: r.timetableOk >= 70 ? "#276749" : r.timetableOk >= 40 ? "#744210" : "#c53030", fontWeight: 600 }}>
+              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ color: r.timetableOk >= 70 ? "var(--status-success-fg)" : r.timetableOk >= 40 ? "var(--badge-amber-fg)" : "var(--status-danger-fg)", fontWeight: 600 }}>
                   {r.timetableOk}%
                 </span>
               </td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #e2e8f0", fontSize: "0.82rem", color: "#4a5568" }}>
+              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
                 {r.lastDate
                   ? new Date(r.lastDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
                   : "—"}
@@ -341,24 +341,24 @@ export default function ReportsPage() {
     return (
       <div style={{ padding: "24px 28px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h2 style={{ margin: 0, color: "#1a365d" }}>Detailed Reports</h2>
+          <h2 style={{ margin: 0, color: "var(--text-primary)" }}>Detailed Reports</h2>
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            style={{ border: "1px solid #cbd5e0", borderRadius: 6, padding: "6px 12px", fontSize: "0.875rem" }}
+            style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: "0.875rem" }}
           >
             {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map((y) => (
               <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
             ))}
           </select>
         </div>
-        <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--border)", marginBottom: 20 }}>
           {tabs.map((t) => (
             <button key={t.key} style={{
               background: "transparent", border: "none", cursor: "pointer",
               padding: "9px 20px", fontSize: "0.875rem",
               fontWeight: tab === t.key ? 700 : 400,
-              color: tab === t.key ? "#2c5282" : "#718096",
+              color: tab === t.key ? "var(--badge-blue-fg)" : "var(--text-secondary)",
               borderBottom: tab === t.key ? "2px solid #2c5282" : "2px solid transparent",
               marginBottom: -2, transition: "color 0.15s",
             }}>{t.label}</button>
@@ -373,12 +373,12 @@ export default function ReportsPage() {
   return (
     <div style={{ padding: "24px 28px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2 style={{ margin: 0, color: "#1a365d" }}>Summary Reports</h2>
+        <h2 style={{ margin: 0, color: "var(--text-primary)" }}>Summary Reports</h2>
         {summaryTab === "funnel" && (
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            style={{ border: "1px solid #cbd5e0", borderRadius: 6, padding: "6px 12px", fontSize: "0.875rem" }}
+            style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: "0.875rem" }}
           >
             {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map((y) => (
               <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
@@ -386,7 +386,7 @@ export default function ReportsPage() {
           </select>
         )}
       </div>
-      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--border)", marginBottom: 20 }}>
         {summaryTabs.map((t) => (
           <button
             key={t.key}
@@ -395,7 +395,7 @@ export default function ReportsPage() {
               background: "transparent", border: "none", cursor: "pointer",
               padding: "9px 20px", fontSize: "0.875rem",
               fontWeight: summaryTab === t.key ? 700 : 400,
-              color: summaryTab === t.key ? "#2c5282" : "#718096",
+              color: summaryTab === t.key ? "var(--badge-blue-fg)" : "var(--text-secondary)",
               borderBottom: summaryTab === t.key ? "2px solid #2c5282" : "2px solid transparent",
               marginBottom: -2, transition: "color 0.15s",
             }}

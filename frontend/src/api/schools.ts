@@ -40,3 +40,7 @@ export async function updateSchool(id: number, payload: Partial<SchoolCreate>): 
   const { data } = await api.patch(`/schools/${id}`, payload);
   return data;
 }
+
+export async function deleteSchool(id: number): Promise<void> {
+  await api.delete(`/schools/${id}`);
+}

@@ -36,8 +36,8 @@ export default function StudentDetailPage() {
     onError: (e: any) => setSaveError(e?.response?.data?.detail ?? "Save failed"),
   });
 
-  if (isLoading) return <p style={{ color: "#718096" }}>Loading…</p>;
-  if (!student) return <p style={{ color: "#c53030" }}>Student not found.</p>;
+  if (isLoading) return <p style={{ color: "var(--text-secondary)" }}>Loading…</p>;
+  if (!student) return <p style={{ color: "var(--status-danger-fg)" }}>Student not found.</p>;
 
   const s = student as Student;
 
@@ -138,10 +138,10 @@ export default function StudentDetailPage() {
                 onChange={e => editing && setForm(f => ({ ...f, [key]: e.target.checked }))}
                 style={{ width: 16, height: 16 }}
               />
-              <span style={{ fontSize: "0.9rem", color: (editing ? form[key] : s[key]) ? "#276749" : "#4a5568" }}>{label}</span>
+              <span style={{ fontSize: "0.9rem", color: (editing ? form[key] : s[key]) ? "var(--status-success-fg)" : "var(--text-secondary)" }}>{label}</span>
               {(editing ? form[key] : s[key])
-                ? <span style={{ fontSize: "0.75rem", background: "#c6f6d5", color: "#276749", padding: "1px 6px", borderRadius: 10 }}>✓</span>
-                : <span style={{ fontSize: "0.75rem", background: "#fed7d7", color: "#c53030", padding: "1px 6px", borderRadius: 10 }}>Missing</span>}
+                ? <span style={{ fontSize: "0.75rem", background: "var(--status-success-bg)", color: "var(--status-success-fg)", padding: "1px 6px", borderRadius: 10 }}>✓</span>
+                : <span style={{ fontSize: "0.75rem", background: "var(--status-danger-bg)", color: "var(--status-danger-fg)", padding: "1px 6px", borderRadius: 10 }}>Missing</span>}
             </label>
           ))}
         </div>
@@ -149,7 +149,7 @@ export default function StudentDetailPage() {
 
       <section style={styles.section}>
         <h3 style={styles.sectionTitle}>Record</h3>
-        <p style={{ fontSize: "0.8rem", color: "#718096" }}>
+        <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
           Added: {new Date(s.created_at).toLocaleString("en-IN")} &nbsp;·&nbsp;
           Updated: {new Date(s.updated_at).toLocaleString("en-IN")}
         </p>
@@ -160,15 +160,15 @@ export default function StudentDetailPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   topbar: { display: "flex", alignItems: "center", gap: 16, marginBottom: 24 },
-  backBtn: { background: "none", border: "none", color: "#2b6cb0", cursor: "pointer", fontSize: "0.9rem", padding: 0 },
-  primaryBtn: { background: "#2b6cb0", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
-  secondaryBtn: { background: "#e2e8f0", color: "#2d3748", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
-  section: { background: "#f7fafc", borderRadius: 8, padding: "1rem 1.25rem", marginBottom: 16 },
-  sectionTitle: { margin: "0 0 12px", fontSize: "0.85rem", fontWeight: 700, color: "#2c5282", textTransform: "uppercase", letterSpacing: "0.05em" },
+  backBtn: { background: "none", border: "none", color: "var(--link-color)", cursor: "pointer", fontSize: "0.9rem", padding: 0 },
+  primaryBtn: { background: "var(--link-color)", color: "white", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
+  secondaryBtn: { background: "var(--border)", color: "var(--text-primary)", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
+  section: { background: "var(--bg-card)", borderRadius: 8, padding: "1rem 1.25rem", marginBottom: 16 },
+  sectionTitle: { margin: "0 0 12px", fontSize: "0.85rem", fontWeight: 700, color: "var(--badge-blue-fg)", textTransform: "uppercase", letterSpacing: "0.05em" },
   grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 20px" },
   field: { display: "flex", flexDirection: "column", gap: 3 },
-  fieldLabel: { fontSize: "0.75rem", fontWeight: 600, color: "#718096" },
-  fieldVal: { fontSize: "0.9rem", color: "#2d3748" },
-  input: { padding: "6px 8px", border: "1px solid #cbd5e0", borderRadius: 4, fontSize: "0.875rem" },
-  error: { color: "#c53030", background: "#fff5f5", border: "1px solid #fc8181", borderRadius: 5, padding: "8px 12px", marginBottom: 12, fontSize: "0.85rem" },
+  fieldLabel: { fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", textAlign: "left" as const },
+  fieldVal: { fontSize: "0.9rem", color: "var(--text-primary)" },
+  input: { padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 4, fontSize: "0.875rem" },
+  error: { color: "var(--status-danger-fg)", background: "var(--status-danger-bg)", border: "1px solid var(--badge-red-fg)", borderRadius: 5, padding: "8px 12px", marginBottom: 12, fontSize: "0.85rem" },
 };

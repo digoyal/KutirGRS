@@ -1,3 +1,4 @@
+import { grs } from "../styles/grs";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
@@ -24,11 +25,11 @@ export default function DashboardPage() {
       {navOpen && <div className="grs-nav-overlay" onClick={closeNav} />}
 
       <aside style={styles.sidebar} className={`grs-sidebar${navOpen ? " grs-sidebar--open" : ""}`}>
-        <div style={styles.logo}>KutirGRS</div>
+        <div style={grs.navLogo}>KutirGRS</div>
         <nav style={styles.nav}>
           {navItems.map(({ to, label, divider, sub }) => (
             divider
-              ? <div key={label} style={styles.divider}>{label}</div>
+              ? <div key={label} style={grs.navSectionLabel}>{label}</div>
               : (
                 <NavLink
                   key={to}
@@ -36,10 +37,10 @@ export default function DashboardPage() {
                   end={to === "/"}
                   onClick={closeNav}
                   style={({ isActive }) => ({
-                    ...styles.link,
-                    ...(sub ? styles.subLink : {}),
+                    ...grs.navLink,
+                    ...(sub ? grs.navSubLink : {}),
                     background: isActive ? "rgba(255,255,255,0.12)" : "transparent",
-                    color: isActive ? "#fff" : sub ? "#90cdf4" : "#bee3f8",
+                    color: isActive ? "var(--nav-fg)" : sub ? "var(--nav-accent)" : "var(--nav-muted)",
                   })}
                 >
                   {sub ? "↳ " : ""}{label}
@@ -48,10 +49,10 @@ export default function DashboardPage() {
           ))}
         </nav>
         <div style={styles.userInfo}>
-          <div style={{ fontSize: "0.8rem", color: "#90cdf4" }}>{user?.username}</div>
-          <div style={{ fontSize: "0.7rem", color: "#718096" }}>{user?.title}</div>
+          <div style={{ fontSize: "0.8rem", color: "var(--nav-accent)" }}>{user?.username}</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>{user?.title}</div>
         </div>
-        <button style={styles.logoutBtn} onClick={logout}>Sign out</button>
+        <button style={grs.navLogoutBtn} onClick={logout}>Sign out</button>
       </aside>
 
       <main style={styles.main} className="grs-main">
@@ -73,6 +74,7 @@ const navItems: { to?: string; label: string; divider?: boolean; sub?: boolean }
   { to: "/reports/summary", label: "Summary", sub: true },
   { divider: true, label: "ADMIN" },
   { to: "/schools", label: "Govt. Res. Schools" },
+  { to: "/exam-centers", label: "Exam Centers" },
   { to: "/geo", label: "Geography" },
   { to: "/lookups", label: "Lookups" },
   { to: "/users", label: "Users" },
@@ -82,45 +84,15 @@ const styles: Record<string, React.CSSProperties> = {
   layout: { display: "flex", minHeight: "100vh", fontFamily: "sans-serif" },
   sidebar: {
     width: 220,
-    background: "#1a365d",
-    color: "#fff",
+    background: "var(--nav-bg)",
+    color: "var(--nav-fg)",
     display: "flex",
     flexDirection: "column",
     padding: "1.5rem 1rem",
     gap: 8,
     flexShrink: 0,
   },
-  logo: { fontSize: "1.25rem", fontWeight: 700, marginBottom: 24, color: "#fff" },
   nav: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
-  link: {
-    textDecoration: "none",
-    padding: "8px 10px",
-    borderRadius: 6,
-    fontSize: "0.9rem",
-    transition: "background 0.15s",
-  },
-  subLink: {
-    paddingLeft: 22,
-    fontSize: "0.82rem",
-  },
-  divider: {
-    fontSize: "0.65rem",
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    color: "#4a6fa5",
-    padding: "12px 10px 4px",
-    textTransform: "uppercase",
-  },
-  userInfo: { marginTop: "auto", padding: "8px 0", borderTop: "1px solid #2d4a7a" },
-  logoutBtn: {
-    background: "transparent",
-    border: "1px solid #4a6fa5",
-    color: "#bee3f8",
-    padding: "8px",
-    borderRadius: 6,
-    cursor: "pointer",
-    fontSize: "0.875rem",
-    marginTop: 8,
-  },
+  userInfo: { marginTop: "auto", padding: "8px 0", borderTop: "1px solid #2d4a7a", textAlign: "left" as const },
   main: { flex: 1, padding: "0", overflowY: "auto" },
 };

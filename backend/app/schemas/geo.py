@@ -85,7 +85,10 @@ class ClusterOut(ClusterBase):
 class ExamCenterBase(BaseModel):
     name: str
     district_id: int
-    address: Optional[str] = None
+    street: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
 
 class ExamCenterCreate(ExamCenterBase):
     pass
@@ -93,7 +96,10 @@ class ExamCenterCreate(ExamCenterBase):
 class ExamCenterUpdate(BaseModel):
     name: Optional[str] = None
     district_id: Optional[int] = None
-    address: Optional[str] = None
+    street: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
 
 class ExamCenterOut(ExamCenterBase):
     id: int
