@@ -38,3 +38,35 @@ class KutirUpdate(BaseModel):
 class KutirOut(KutirBase):
     id: int
     model_config = {"from_attributes": True}
+
+
+# ── Detail schema for GET /kutirs/{id} ────────────────────────────────────────
+
+class ZoneMin(BaseModel):
+    id: int; name: str
+    model_config = {"from_attributes": True}
+
+class DistrictMin(BaseModel):
+    id: int; name: str
+    zone: Optional[ZoneMin] = None
+    model_config = {"from_attributes": True}
+
+class AreaMin(BaseModel):
+    id: int; name: str
+    district: Optional[DistrictMin] = None
+    model_config = {"from_attributes": True}
+
+class ClusterMin(BaseModel):
+    id: int; name: str
+    area: Optional[AreaMin] = None
+    model_config = {"from_attributes": True}
+
+class TeacherMin(BaseModel):
+    id: int; username: str; title: Optional[str] = None
+    first_name: Optional[str] = None; last_name: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+class KutirDetail(KutirOut):
+    cluster: Optional[ClusterMin] = None
+    teacher: Optional[TeacherMin] = None
+    model_config = {"from_attributes": True}

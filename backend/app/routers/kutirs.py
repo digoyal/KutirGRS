@@ -1,12 +1,14 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.auth import get_current_user, require_admin
 from app.models.kutirs import Kutir
-from app.schemas.kutirs import KutirCreate, KutirUpdate, KutirOut
+from app.models.geo import Cluster, Area, District, Zone
+from app.schemas.kutirs import KutirCreate, KutirUpdate, KutirOut, KutirDetail
 
 router = APIRouter(prefix="/kutirs", tags=["Kutirs"])
 
@@ -39,9 +41,19 @@ async def create_kutir(body: KutirCreate, db: AsyncSession = Depends(get_db), _=
     return obj
 
 
-@router.get("/{kutir_id}", response_model=KutirOut)
+@router.get("/{kutir_id}", response_model=KutirDetail)
 async def get_kutir(kutir_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
-    obj = await db.get(Kutir, kutir_id)
+    q = (
+        select(Kutir)
+        .where(Kutir.id == kutir_id)
+        .options(
+            selectinload(Kutir.cluster).selectinload(Cluster.area)
+            .selectinload(Area.district).selectinload(District.zone),
+            selectinload(Kutir.teacher),
+        )
+    )
+    result = await db.execute(q)
+    obj = result.scalar_one_or_none()
     if not obj:
         raise HTTPException(404, "Kutir not found")
     return obj

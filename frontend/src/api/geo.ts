@@ -14,3 +14,25 @@ export const createZone = async (data: { name: string }): Promise<Zone> => (awai
 export const createDistrict = async (data: { name: string; zone_id: number }): Promise<District> => (await api.post("/geo/districts", data)).data;
 export const createArea = async (data: { name: string; district_id: number }): Promise<Area> => (await api.post("/geo/areas", data)).data;
 export const createCluster = async (data: { name: string; area_id: number }): Promise<Cluster> => (await api.post("/geo/clusters", data)).data;
+
+// ── Exam Centers ─────────────────────────────────────────────────────────────
+export interface ExamCenter { id: number; name: string; district_id?: number | null; street?: string | null; city?: string | null; state?: string | null; pincode?: string | null; }
+export const listExamCenters = async (): Promise<ExamCenter[]> => (await api.get("/geo/exam-centers")).data;
+
+// ── Lookups ──────────────────────────────────────────────────────────────────
+export interface ExamCategory   { id: number; name: string; }
+export interface NoExamReason   { id: number; reason: string; }
+export interface NoAdmitReason  { id: number; reason: string; }
+
+export const listExamCategories  = async (): Promise<ExamCategory[]>  => (await api.get("/lookups/exam-categories")).data;
+export const listNoExamReasons   = async (): Promise<NoExamReason[]>  => (await api.get("/lookups/no-exam-reasons")).data;
+export const listNoAdmitReasons  = async (): Promise<NoAdmitReason[]> => (await api.get("/lookups/no-admit-reasons")).data;
+
+export interface Category    { id: number; name: string; }
+export interface SubCategory { id: number; name: string; category_id: number; }
+
+export const listCategories    = async (): Promise<Category[]>    => (await api.get("/lookups/categories")).data;
+export const listSubCategories = async (category_id?: number): Promise<SubCategory[]> => {
+  const params = category_id ? { category_id } : {};
+  return (await api.get("/lookups/sub-categories", { params })).data;
+};

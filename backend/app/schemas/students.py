@@ -86,7 +86,7 @@ class StudentOut(StudentBase):
 # ── StudentExamScore ─────────────────────────────────────────────────────────
 class ExamScoreBase(BaseModel):
     subject_id: int
-    score: Optional[Decimal] = None
+    score: Optional[float] = None
 
 class ExamScoreCreate(ExamScoreBase):
     pass
@@ -95,7 +95,7 @@ class ExamScoreOut(BaseModel):
     id: int
     subject_id: int
     subject: SubjectRef
-    score: Optional[Decimal] = None
+    score: Optional[float] = None
     model_config = {"from_attributes": True}
 
 
@@ -117,10 +117,10 @@ class StudentExamBase(BaseModel):
     exam_center_id: Optional[int] = None
     roll_number: Optional[str] = None
     no_exam_reason_id: Optional[int] = None
-    math: Optional[Decimal] = None
-    english: Optional[Decimal] = None
-    reasoning: Optional[Decimal] = None
-    evs: Optional[Decimal] = None
+    math: Optional[float] = None
+    english: Optional[float] = None
+    reasoning: Optional[float] = None
+    evs: Optional[float] = None
 
 class StudentExamCreate(StudentExamBase):
     scores: list[ExamScoreCreate] = []
@@ -139,10 +139,10 @@ class StudentExamUpdate(BaseModel):
     exam_center_id: Optional[int] = None
     roll_number: Optional[str] = None
     no_exam_reason_id: Optional[int] = None
-    math: Optional[Decimal] = None
-    english: Optional[Decimal] = None
-    reasoning: Optional[Decimal] = None
-    evs: Optional[Decimal] = None
+    math: Optional[float] = None
+    english: Optional[float] = None
+    reasoning: Optional[float] = None
+    evs: Optional[float] = None
     scores: Optional[list[ExamScoreCreate]] = None
 
 class StudentExamOut(StudentExamBase):

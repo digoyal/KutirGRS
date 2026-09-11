@@ -1,9 +1,32 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listUsers, createUser, updateUser, type UserCreate } from "../api/users";
+import { GrsTable, type Col } from "../components/GrsTable";
+import { grs } from "../styles/grs";
 
-const TITLES = ["Teacher", "Cluster Coordinator", "Education Coordinator", "District Anchor", "Zonal Head", "Admin"];
+const TITLES = ["Teacher", "Cluster Coordinator", "Education Coordinator", "District Anchor", "Regional Head", "Admin"];
 const EMPTY: UserCreate = { username: "", password: "", title: "Teacher", first_name: null, last_name: null, phone: null, email: null, is_active: true };
+
+type User = { id: number; username: string; title: string | null; first_name: string | null; last_name: string | null; phone: string | null; email: string | null; is_active: boolean };
+
+const COLS: Col<User>[] = [
+  { key: "username", label: "Username", sortable: true, render: u => <strong>{u.username}</strong> },
+  { key: "name", label: "Name", render: u => [u.first_name, u.last_name].filter(Boolean).join(" ") || "—" },
+  { key: "title", label: "Role", sortable: true, render: u => u.title ?? "—" },
+  { key: "phone", label: "Phone", render: u => u.phone ?? "—" },
+  {
+    key: "is_active", label: "Status", sortable: true,
+    render: u => (
+      <span style={{
+        ...grs.badge,
+        background: u.is_active ? "var(--badge-active-bg)" : "var(--badge-inactive-bg)",
+        color: u.is_active ? "var(--badge-active-fg)" : "var(--badge-inactive-fg)",
+      }}>
+        {u.is_active ? "Active" : "Inactive"}
+      </span>
+    ),
+  },
+];
 
 export default function UsersPage() {
   const qc = useQueryClient();
@@ -28,7 +51,7 @@ export default function UsersPage() {
 
   function closeForm() { setShowForm(false); setEditId(null); setForm(EMPTY); setFormError(""); }
 
-  function openEdit(u: any) {
+  function openEdit(u: User) {
     setEditId(u.id);
     setForm({ username: u.username, password: "", title: u.title, first_name: u.first_name, last_name: u.last_name, phone: u.phone, email: u.email, is_active: u.is_active });
     setShowForm(true);
@@ -49,52 +72,40 @@ export default function UsersPage() {
 
   const isPending = createMut.isPending || updateMut.isPending;
 
+  const colsWithActions: Col<User>[] = [
+    ...COLS,
+
+  ];
+
   return (
     <div style={{ padding: "24px 28px" }}>
-      <div style={styles.header}>
-        <h2 style={{ margin: 0 }}>Users</h2>
-        <button style={styles.primaryBtn} onClick={() => { setShowForm(true); setFormError(""); }}>+ Add User</button>
-      </div>
-
-      {isLoading ? <p style={{ color: "#718096" }}>Loading…</p> : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={styles.table}>
-            <thead><tr style={{ background: "#ebf4ff" }}>
-              <th style={styles.th}>Username</th>
-              <th style={styles.th}>Name</th>
-              <th style={styles.th}>Role</th>
-              <th style={styles.th}>Phone</th>
-              <th style={styles.th}>Status</th>
-              <th style={styles.th}>Actions</th>
-            </tr></thead>
-            <tbody>
-              {users.map((u, i) => (
-                <tr key={u.id} style={{ background: i % 2 === 0 ? "#fff" : "#f7fafc" }}>
-                  <td style={styles.td}><strong>{u.username}</strong></td>
-                  <td style={styles.td}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || "—"}</td>
-                  <td style={styles.td}>{u.title ?? "—"}</td>
-                  <td style={styles.td}>{u.phone ?? "—"}</td>
-                  <td style={styles.td}>
-                    <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: "0.75rem", fontWeight: 600, background: u.is_active ? "#c6f6d5" : "#e2e8f0", color: u.is_active ? "#276749" : "#718096" }}>
-                      {u.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    <button style={styles.editBtn} onClick={() => openEdit(u)}>Edit</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {users.length === 0 && <p style={{ color: "#718096" }}>No users found.</p>}
-        </div>
-      )}
+      <GrsTable
+        title="Users"
+        columns={colsWithActions}
+        data={users as User[]}
+        rowKey={u => u.id}
+        isLoading={isLoading}
+        emptyMessage="No users found."
+        actions={u => ({ onEdit: () => openEdit(u) })}
+        searchable
+        searchFn={(u, q) => {
+          const s = q.toLowerCase();
+          return u.username.toLowerCase().includes(s)
+            || (u.first_name ?? "").toLowerCase().includes(s)
+            || (u.last_name ?? "").toLowerCase().includes(s)
+            || (u.title ?? "").toLowerCase().includes(s);
+        }}
+        exportFilename="users"
+        printTitle="Users"
+        onAdd={() => { setShowForm(true); setFormError(""); }}
+        addLabel="Add User"
+      />
 
       {showForm && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h3 style={{ margin: "0 0 1rem" }}>{editId ? "Edit User" : "Add User"}</h3>
-            {formError && <p style={styles.error}>{formError}</p>}
+        <div style={grs.overlay}>
+          <div style={grs.modal}>
+            <h3 style={grs.modalTitle}>{editId ? "Edit User" : "Add User"}</h3>
+            {formError && <div style={grs.errorBox}>{formError}</div>}
             <form onSubmit={handleSubmit}>
               {[
                 { label: "Username *", key: "username" as const },
@@ -105,23 +116,29 @@ export default function UsersPage() {
                 { label: "Email", key: "email" as const, type: "email" },
               ].map(({ label, key, type = "text" }) => (
                 <div key={key} style={{ marginBottom: 10 }}>
-                  <label style={styles.label}>{label}</label>
-                  <input style={styles.input} type={type} value={(form[key] as string) ?? ""} onChange={e => setForm(f => ({ ...f, [key]: e.target.value || null }))} disabled={editId !== null && key === "username"} />
+                  <label style={grs.fieldLabel}>{label}</label>
+                  <input
+                    style={grs.input}
+                    type={type}
+                    value={(form[key] as string) ?? ""}
+                    onChange={e => setForm(f => ({ ...f, [key]: e.target.value || null }))}
+                    disabled={editId !== null && key === "username"}
+                  />
                 </div>
               ))}
               <div style={{ marginBottom: 10 }}>
-                <label style={styles.label}>Role</label>
-                <select style={styles.input} value={form.title ?? ""} onChange={e => setForm(f => ({ ...f, title: e.target.value || null }))}>
+                <label style={grs.fieldLabel}>Role</label>
+                <select style={grs.select} value={form.title ?? ""} onChange={e => setForm(f => ({ ...f, title: e.target.value || null }))}>
                   {TITLES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                 <input type="checkbox" id="is_active" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} />
-                <label htmlFor="is_active" style={{ fontSize: "0.875rem" }}>Active</label>
+                <label htmlFor="is_active" style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>Active</label>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                <button type="submit" style={styles.primaryBtn} disabled={isPending}>{isPending ? "Saving…" : "Save"}</button>
-                <button type="button" style={styles.secondaryBtn} onClick={closeForm}>Cancel</button>
+                <button type="submit" style={grs.btnPrimary} disabled={isPending}>{isPending ? "Saving…" : "Save"}</button>
+                <button type="button" style={grs.btnSecondary} onClick={closeForm}>Cancel</button>
               </div>
             </form>
           </div>
@@ -130,18 +147,3 @@ export default function UsersPage() {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" },
-  th: { padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#2c5282", borderBottom: "2px solid #bee3f8" },
-  td: { padding: "10px 12px", borderBottom: "1px solid #e2e8f0" },
-  primaryBtn: { background: "#2b6cb0", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
-  secondaryBtn: { background: "#e2e8f0", color: "#2d3748", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
-  editBtn: { background: "#ebf4ff", color: "#2b6cb0", border: "1px solid #bee3f8", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: "0.75rem" },
-  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 },
-  modal: { background: "#fff", borderRadius: 10, padding: "1.5rem", width: 400, maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto" },
-  label: { display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#4a5568", marginBottom: 3 },
-  input: { width: "100%", padding: "7px 10px", border: "1px solid #cbd5e0", borderRadius: 5, fontSize: "0.875rem", boxSizing: "border-box" },
-  error: { color: "#c53030", background: "#fff5f5", border: "1px solid #fc8181", borderRadius: 5, padding: "8px 12px", marginBottom: 12, fontSize: "0.85rem" },
-};

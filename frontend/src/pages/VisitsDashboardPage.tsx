@@ -15,9 +15,9 @@ const pct = (count: number, total: number) =>
 function Star({ v }: { v: number }) {
   const filled = Math.round(v);
   return (
-    <span style={{ color: "#f6ad55", fontSize: "1rem", letterSpacing: 1 }}>
+    <span style={{ color: "var(--star-active)", fontSize: "1rem", letterSpacing: 1 }}>
       {"★".repeat(filled)}
-      <span style={{ color: "#e2e8f0" }}>{"★".repeat(5 - filled)}</span>
+      <span style={{ color: "var(--star-inactive)" }}>{"★".repeat(5 - filled)}</span>
     </span>
   );
 }
@@ -37,38 +37,38 @@ function StatCard({
   return (
     <div
       style={{
-        background: "#fff",
+        background: "var(--bg-card)",
         border: "1px solid #e2e8f0",
         borderRadius: 12,
         padding: "20px 24px",
-        borderLeft: `4px solid ${accent ?? "#4a6fa5"}`,
+        borderLeft: `4px solid ${accent ?? "var(--link-color)"}`,
         flex: "1 1 160px",
         minWidth: 140,
       }}
     >
-      <div style={{ fontSize: "0.75rem", color: "#718096", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
         {label}
       </div>
-      <div style={{ fontSize: "2rem", fontWeight: 700, color: "#1a365d", lineHeight: 1 }}>
+      <div style={{ fontSize: "2rem", fontWeight: 700, color: "var(--text-primary)", lineHeight: 1 }}>
         {value}
       </div>
-      {sub && <div style={{ fontSize: "0.78rem", color: "#718096", marginTop: 4 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }
 
 function RatingBar({ label, value }: { label: string; value: number }) {
   const pctW = Math.round((value / 5) * 100);
-  const color = value >= 4 ? "#48bb78" : value >= 3 ? "#f6ad55" : "#fc8181";
+  const color = value >= 4 ? "var(--status-success-fg)" : value >= 3 ? "var(--star-active)" : "var(--badge-red-fg)";
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: "0.82rem", color: "#4a5568" }}>{label}</span>
-        <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#2d3748" }}>
+        <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{label}</span>
+        <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>
           {value.toFixed(1)} / 5
         </span>
       </div>
-      <div style={{ height: 7, background: "#edf2f7", borderRadius: 4, overflow: "hidden" }}>
+      <div style={{ height: 7, background: "var(--bg-input)", borderRadius: 4, overflow: "hidden" }}>
         <div style={{ width: `${pctW}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.5s" }} />
       </div>
     </div>
@@ -81,7 +81,7 @@ function DonutSlice({
   slices: { label: string; count: number; color: string }[];
 }) {
   const total = slices.reduce((s, sl) => s + sl.count, 0);
-  if (!total) return <div style={{ color: "#a0aec0", fontSize: "0.85rem" }}>No data</div>;
+  if (!total) return <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>No data</div>;
 
   let offset = 0;
   const r = 54;
@@ -108,21 +108,21 @@ function DonutSlice({
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
       <svg width={140} height={140} viewBox="0 0 140 140">
-        <circle cx={70} cy={70} r={r} fill="none" stroke="#edf2f7" strokeWidth={20} />
+        <circle cx={70} cy={70} r={r} fill="none" stroke="var(--bg-input)" strokeWidth={20} />
         {paths}
-        <text x={70} y={74} textAnchor="middle" style={{ fontSize: 14, fontWeight: 700, fill: "#2d3748" }}>
+        <text x={70} y={74} textAnchor="middle" style={{ fontSize: 14, fontWeight: 700, fill: "var(--text-primary)" }}>
           {total}
         </text>
-        <text x={70} y={88} textAnchor="middle" style={{ fontSize: 9, fill: "#718096" }}>total</text>
+        <text x={70} y={88} textAnchor="middle" style={{ fontSize: 9, fill: "var(--text-secondary)" }}>total</text>
       </svg>
       <div>
         {slices.map((sl) => (
           <div key={sl.label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
             <div style={{ width: 10, height: 10, borderRadius: 2, background: sl.color, flexShrink: 0 }} />
-            <span style={{ fontSize: "0.82rem", color: "#4a5568" }}>
+            <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
               {sl.label}
             </span>
-            <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#2d3748", marginLeft: "auto", paddingLeft: 12 }}>
+            <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)", marginLeft: "auto", paddingLeft: 12 }}>
               {sl.count} ({pct(sl.count, total)}%)
             </span>
           </div>
@@ -160,17 +160,17 @@ function MonthlyChart({ visits }: { visits: KutirVisit[] }) {
               title={`${ym}: ${count} visits`}
               style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}
             >
-              <span style={{ fontSize: "0.62rem", color: "#718096", fontWeight: 600 }}>{count}</span>
+              <span style={{ fontSize: "0.62rem", color: "var(--text-secondary)", fontWeight: 600 }}>{count}</span>
               <div
                 style={{
                   width: "100%",
                   height: h,
-                  background: "#4a6fa5",
+                  background: "var(--link-color)",
                   borderRadius: "3px 3px 0 0",
                   opacity: 0.85,
                 }}
               />
-              <span style={{ fontSize: "0.6rem", color: "#a0aec0", whiteSpace: "nowrap" }}>{label}</span>
+              <span style={{ fontSize: "0.6rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{label}</span>
             </div>
           );
         })}
@@ -223,20 +223,20 @@ export default function VisitsDashboardPage() {
     const planYes = visits.filter((v) => v.follow_monthly_plan).length;
 
     const wbSlices = [
-      { label: "Upto Date",         count: visits.filter((v) => v.workbook_completion === "Upto Date").length,         color: "#48bb78" },
-      { label: "Partial Upto Date", count: visits.filter((v) => v.workbook_completion === "Partial Upto Date").length, color: "#f6ad55" },
-      { label: "Not Upto Date",     count: visits.filter((v) => v.workbook_completion === "Not Uptodate").length,      color: "#fc8181" },
+      { label: "Upto Date",         count: visits.filter((v) => v.workbook_completion === "Upto Date").length,         color: "var(--status-success-fg)" },
+      { label: "Partial Upto Date", count: visits.filter((v) => v.workbook_completion === "Partial Upto Date").length, color: "var(--star-active)" },
+      { label: "Not Upto Date",     count: visits.filter((v) => v.workbook_completion === "Not Uptodate").length,      color: "var(--status-danger-fg)" },
     ];
 
     const physSlices = [
-      { label: "Matched",     count: visits.filter((v) => v.physical_vs_registered === "Matched").length,     color: "#48bb78" },
-      { label: "Not Matched", count: visits.filter((v) => v.physical_vs_registered === "Not Matched").length, color: "#fc8181" },
+      { label: "Matched",     count: visits.filter((v) => v.physical_vs_registered === "Matched").length,     color: "var(--status-success-fg)" },
+      { label: "Not Matched", count: visits.filter((v) => v.physical_vs_registered === "Not Matched").length, color: "var(--status-danger-fg)" },
     ];
 
     const bookSlices = [
-      { label: "Sufficient",         count: visits.filter((v) => v.book_availability === "Sufficient").length,         color: "#48bb78" },
-      { label: "Lacking",            count: visits.filter((v) => v.book_availability === "Lacking").length,            color: "#fc8181" },
-      { label: "More than required", count: visits.filter((v) => v.book_availability === "More than required").length, color: "#63b3ed" },
+      { label: "Sufficient",         count: visits.filter((v) => v.book_availability === "Sufficient").length,         color: "var(--status-success-fg)" },
+      { label: "Lacking",            count: visits.filter((v) => v.book_availability === "Lacking").length,            color: "var(--status-danger-fg)" },
+      { label: "More than required", count: visits.filter((v) => v.book_availability === "More than required").length, color: "var(--badge-sky-fg)" },
     ];
 
     // top 5 kutirs by avg kutir_performance
@@ -254,7 +254,7 @@ export default function VisitsDashboardPage() {
   }, [visits, thisYear, thisMonth]);
 
   const card: React.CSSProperties = {
-    background: "#fff",
+    background: "var(--bg-card)",
     border: "1px solid #e2e8f0",
     borderRadius: 12,
     padding: 24,
@@ -264,13 +264,13 @@ export default function VisitsDashboardPage() {
     fontWeight: 700,
     letterSpacing: "0.08em",
     textTransform: "uppercase",
-    color: "#4a6fa5",
+    color: "var(--link-color)",
     marginBottom: 16,
   };
 
   if (visLoading) {
     return (
-      <div className="grs-page" style={{ padding: "32px 24px", color: "#718096" }}>
+      <div className="grs-page" style={{ padding: "32px 24px", color: "var(--text-secondary)" }}>
         Loading visits…
       </div>
     );
@@ -281,18 +281,18 @@ export default function VisitsDashboardPage() {
       {/* header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1a365d", margin: 0 }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
             Kutir Visits Dashboard
           </h1>
-          <p style={{ margin: "4px 0 0", fontSize: "0.875rem", color: "#718096" }}>
+          <p style={{ margin: "4px 0 0", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
             Summary and progress across all kutir visits
           </p>
         </div>
         <button
           onClick={() => navigate("/visits/detail")}
           style={{
-            background: "#1a365d",
-            color: "#fff",
+            background: "var(--text-primary)",
+            color: "var(--chip-active-text)",
             border: "none",
             borderRadius: 8,
             padding: "10px 20px",
@@ -313,7 +313,7 @@ export default function VisitsDashboardPage() {
 
       {/* stat tiles */}
       <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
-        <StatCard label="Total Visits"         value={stats.total}         accent="#4a6fa5" />
+        <StatCard label="Total Visits"         value={stats.total}         accent="var(--link-color)" />
         <StatCard label="This Year"            value={stats.yearVisits}    sub={thisYear}                    accent="#38a169" />
         <StatCard label="This Month"           value={stats.monthVisits}   sub={new Date().toLocaleString("default", { month: "long" })} accent="#dd6b20" />
         <StatCard label="Kutirs Visited"       value={stats.uniqueKutirs}  sub="unique kutirs"               accent="#805ad5" />
@@ -346,26 +346,26 @@ export default function VisitsDashboardPage() {
           {/* timetable */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: "0.85rem", color: "#4a5568" }}>Following Timetable</span>
-              <span style={{ fontWeight: 700, color: "#2d3748" }}>{pct(stats.timetableYes, stats.total)}%</span>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Following Timetable</span>
+              <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{pct(stats.timetableYes, stats.total)}%</span>
             </div>
-            <div style={{ height: 10, background: "#edf2f7", borderRadius: 5, overflow: "hidden" }}>
-              <div style={{ width: `${pct(stats.timetableYes, stats.total)}%`, height: "100%", background: "#48bb78", borderRadius: 5 }} />
+            <div style={{ height: 10, background: "var(--bg-input)", borderRadius: 5, overflow: "hidden" }}>
+              <div style={{ width: `${pct(stats.timetableYes, stats.total)}%`, height: "100%", background: "var(--status-success-fg)", borderRadius: 5 }} />
             </div>
-            <div style={{ fontSize: "0.75rem", color: "#718096", marginTop: 4 }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
               {stats.timetableYes} of {stats.total} visits
             </div>
           </div>
           {/* monthly plan */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: "0.85rem", color: "#4a5568" }}>Following Monthly Plan</span>
-              <span style={{ fontWeight: 700, color: "#2d3748" }}>{pct(stats.planYes, stats.total)}%</span>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Following Monthly Plan</span>
+              <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{pct(stats.planYes, stats.total)}%</span>
             </div>
-            <div style={{ height: 10, background: "#edf2f7", borderRadius: 5, overflow: "hidden" }}>
-              <div style={{ width: `${pct(stats.planYes, stats.total)}%`, height: "100%", background: "#4299e1", borderRadius: 5 }} />
+            <div style={{ height: 10, background: "var(--bg-input)", borderRadius: 5, overflow: "hidden" }}>
+              <div style={{ width: `${pct(stats.planYes, stats.total)}%`, height: "100%", background: "var(--link-color)", borderRadius: 5 }} />
             </div>
-            <div style={{ fontSize: "0.75rem", color: "#718096", marginTop: 4 }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
               {stats.planYes} of {stats.total} visits
             </div>
           </div>
@@ -393,22 +393,22 @@ export default function VisitsDashboardPage() {
               <div key={k.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{
                   width: 24, height: 24, borderRadius: "50%",
-                  background: i === 0 ? "#d69e2e" : i === 1 ? "#a0aec0" : i === 2 ? "#c05621" : "#e2e8f0",
-                  color: i < 3 ? "#fff" : "#4a5568",
+                  background: i === 0 ? "var(--badge-amber-fg)" : i === 1 ? "var(--badge-grey-fg)" : i === 2 ? "var(--badge-amber-fg)" : "var(--border)",
+                  color: i < 3 ? "var(--chip-active-text)" : "var(--text-secondary)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: "0.75rem", fontWeight: 700, flexShrink: 0,
                 }}>
                   {i + 1}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#2d3748", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {kutirMap[k.id] ?? `Kutir #${k.id}`}
                   </div>
-                  <div style={{ fontSize: "0.75rem", color: "#718096" }}>{k.count} visit{k.count !== 1 ? "s" : ""}</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{k.count} visit{k.count !== 1 ? "s" : ""}</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                   <Star v={k.avg} />
-                  <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "#2d3748", minWidth: 28 }}>
+                  <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--text-primary)", minWidth: 28 }}>
                     {k.avg.toFixed(1)}
                   </span>
                 </div>

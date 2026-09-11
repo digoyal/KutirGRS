@@ -54,7 +54,7 @@
   width: 1126px;
   max-width: 100%;
   margin: 0 auto;
-  text-align: center;
+  text-align: left;
   border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
@@ -108,4 +108,116 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+/* ── App-wide semantic tokens ─────────────────────────────────────────── */
+:root {
+  --bg-card:       #ffffff;
+  --bg-input:      #f0f2f5;
+  --text-primary:  #08060d;
+  --text-secondary:#6b6375;
+  --bg-thead:      #dde5f8;
+  --bg-badge:      rgba(170, 59, 255, 0.08);
+  --border-input:  #b0b5c0;
+  --chip-active-text: white;
+  --link-color:    #2563eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-card:       #1e2029;
+    --bg-input:      #2a2d38;
+    --text-primary:  #f3f4f6;
+    --text-secondary:#9ca3af;
+    --bg-thead:      #1a1d28;
+    --bg-badge:      rgba(192, 132, 252, 0.15);
+    --border-input:  #555a66;
+    --chip-active-text: #0f172a;
+  }
+}
+
+/* ── GRS table header row ─────────────────────────────────────────────── */
+.grs-thead-th {
+  background-color: var(--bg-thead) !important;
+}
+
+/* ── Semantic badge tokens ─────────────────────────────────────────────────── */
+:root {
+  --badge-blue-bg:   #ebf4ff; --badge-blue-fg:   #2c5282;
+  --badge-green-bg:  #f0fff4; --badge-green-fg:  #276749;
+  --badge-purple-bg: #faf5ff; --badge-purple-fg: #553c9a;
+  --badge-amber-bg:  #fffaf0; --badge-amber-fg:  #744210;
+  --badge-red-bg:    #fff5f5; --badge-red-fg:    #c53030;
+  --badge-yellow-bg: #fef3c7; --badge-yellow-fg: #92400e;
+  --badge-teal-bg:   #e6fffa; --badge-teal-fg:   #234e52;
+  --badge-pink-bg:   #fff0f6; --badge-pink-fg:   #702459;
+  --badge-grey-bg:   #f3f4f6; --badge-grey-fg:   #6b7280;
+  --badge-indigo-bg: #e0e7ff; --badge-indigo-fg: #4338ca;
+  --badge-sky-bg:    #dbeafe; --badge-sky-fg:    #1d4ed8;
+  /* Status badges */
+  --badge-active-bg:   #c6f6d5; --badge-active-fg:   #276749;
+  --badge-inactive-bg: #e2e8f0; --badge-inactive-fg: #718096;
+  /* Status indicators */
+  --status-success-bg: #c6f6d5; --status-success-fg: #276749;
+  --status-danger-bg:  #fed7d7; --status-danger-fg:  #c53030;
+  --status-warn-bg:    #fef3c7; --status-warn-fg:    #744210;
+  --star-active:   #f6ad55;
+  --star-inactive: #e2e8f0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --badge-blue-bg:   #1e3a5f; --badge-blue-fg:   #90cdf4;
+    --badge-green-bg:  #1a3328; --badge-green-fg:  #9ae6b4;
+    --badge-purple-bg: #2d1b69; --badge-purple-fg: #d6bcfa;
+    --badge-amber-bg:  #3d2a0a; --badge-amber-fg:  #f6ad55;
+    --badge-red-bg:    #3d1a1a; --badge-red-fg:    #fc8181;
+    --badge-yellow-bg: #3d2a0a; --badge-yellow-fg: #fbd38d;
+    --badge-teal-bg:   #1a3333; --badge-teal-fg:   #81e6d9;
+    --badge-pink-bg:   #3d1a2d; --badge-pink-fg:   #fbb6ce;
+    --badge-grey-bg:   #374151; --badge-grey-fg:   #9ca3af;
+    --badge-indigo-bg: #1e1b4b; --badge-indigo-fg: #a5b4fc;
+    --badge-sky-bg:    #172554; --badge-sky-fg:    #93c5fd;
+    --badge-active-bg:   #1a3328; --badge-active-fg:   #9ae6b4;
+    --badge-inactive-bg: #374151; --badge-inactive-fg: #9ca3af;
+    --status-success-bg: #1a3328; --status-success-fg: #9ae6b4;
+    --status-danger-bg:  #3d1a1a; --status-danger-fg:  #fc8181;
+    --status-warn-bg:    #3d2a0a; --status-warn-fg:    #fbd38d;
+    --star-active:   #f6ad55;
+    --star-inactive: #4b5563;
+  }
+}
+:root[data-theme="dark"] {
+  --badge-blue-bg:   #1e3a5f; --badge-blue-fg:   #90cdf4;
+  --badge-green-bg:  #1a3328; --badge-green-fg:  #9ae6b4;
+  --badge-purple-bg: #2d1b69; --badge-purple-fg: #d6bcfa;
+  --badge-amber-bg:  #3d2a0a; --badge-amber-fg:  #f6ad55;
+  --badge-red-bg:    #3d1a1a; --badge-red-fg:    #fc8181;
+  --badge-yellow-bg: #3d2a0a; --badge-yellow-fg: #fbd38d;
+  --badge-teal-bg:   #1a3333; --badge-teal-fg:   #81e6d9;
+  --badge-pink-bg:   #3d1a2d; --badge-pink-fg:   #fbb6ce;
+  --badge-grey-bg:   #374151; --badge-grey-fg:   #9ca3af;
+  --badge-indigo-bg: #1e1b4b; --badge-indigo-fg: #a5b4fc;
+  --badge-sky-bg:    #172554; --badge-sky-fg:    #93c5fd;
+  --badge-active-bg:   #1a3328; --badge-active-fg:   #9ae6b4;
+  --badge-inactive-bg: #374151; --badge-inactive-fg: #9ca3af;
+  --status-success-bg: #1a3328; --status-success-fg: #9ae6b4;
+  --status-danger-bg:  #3d1a1a; --status-danger-fg:  #fc8181;
+  --status-warn-bg:    #3d2a0a; --status-warn-fg:    #fbd38d;
+  --star-active:   #f6ad55;
+  --star-inactive: #4b5563;
+}
+
+/* ── Nav sidebar tokens (always dark, theme-independent) ─────────────── */
+:root {
+  --nav-bg:          #1a365d;
+  --nav-fg:          white;
+  --nav-accent:      #90cdf4;
+  --nav-muted:       #bee3f8;
+}
+
+
+/* ── Table defaults ──────────────────────────────────────────────────── */
+table td {
+  font-size: 13px;
+  color: var(--text-primary);
 }

@@ -4,6 +4,7 @@ Students, StudentExams, StudentExamScores, StudentProgress, SchoolTypeSubjects
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import select, delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -166,12 +167,20 @@ async def create_exam(
     exam_data = data.model_dump(exclude={"scores"})
     exam = StudentExam(**exam_data)
     db.add(exam)
-    await db.flush()  # get exam.id
+    try:
+        await db.flush()  # get exam.id
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "An admission record for this student, school, and year already exists.")
 
     for s in scores:
         db.add(StudentExamScore(exam_id=exam.id, subject_id=s.subject_id, score=s.score))
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "An admission record for this student, school, and year already exists.")
     await db.refresh(exam)
     return exam
 
@@ -304,15 +313,23 @@ async def create_school_type_subject(
     _=Depends(require_admin),
 ):
     obj = SchoolTypeSubject(school_type=data.school_type)
-    if data.subject_ids:
-        subjects = (await db.execute(
-            select(Subject).where(Subject.id.in_(data.subject_ids))
-        )).scalars().all()
-        obj.subjects = subjects
     db.add(obj)
+    await db.flush()  # persist & get ID
+    # Capture scalar values before commit (commit expires the object)
+    new_id = obj.id
+    new_school_type = obj.school_type
+    if data.subject_ids:
+        await db.execute(
+            school_type_subject_subjects.insert(),
+            [{"school_type_subject_id": new_id, "subject_id": sid} for sid in data.subject_ids],
+        )
     await db.commit()
-    await db.refresh(obj)
-    return obj
+    # Build response manually — avoid any ORM relationship access (Mapped[list] bug)
+    subj_rows = []
+    if data.subject_ids:
+        res = await db.execute(select(Subject).where(Subject.id.in_(data.subject_ids)))
+        subj_rows = [{"id": s.id, "name": s.name} for s in res.scalars().all()]
+    return SchoolTypeSubjectOut(id=new_id, school_type=new_school_type, subjects=subj_rows)
 
 
 @router.get("/school-type-subjects/{id}", response_model=SchoolTypeSubjectOut, tags=["School Type Subjects"])
@@ -332,14 +349,28 @@ async def update_school_type_subject(
     obj = await db.get(SchoolTypeSubject, id)
     if not obj:
         raise HTTPException(404, "SchoolTypeSubject not found")
-    if data.subject_ids is not None:
-        subjects = (await db.execute(
-            select(Subject).where(Subject.id.in_(data.subject_ids))
-        )).scalars().all()
-        obj.subjects = subjects
+    # Capture scalar values before commit
+    obj_id = obj.id
+    obj_school_type = obj.school_type
+    final_subject_ids = data.subject_ids if data.subject_ids is not None else []
+    # Replace all subject associations via junction table directly
+    await db.execute(
+        school_type_subject_subjects.delete().where(
+            school_type_subject_subjects.c.school_type_subject_id == obj_id
+        )
+    )
+    if final_subject_ids:
+        await db.execute(
+            school_type_subject_subjects.insert(),
+            [{"school_type_subject_id": obj_id, "subject_id": sid} for sid in final_subject_ids],
+        )
     await db.commit()
-    await db.refresh(obj)
-    return obj
+    # Build response manually — avoid any ORM relationship access (Mapped[list] bug)
+    subj_rows = []
+    if final_subject_ids:
+        res = await db.execute(select(Subject).where(Subject.id.in_(final_subject_ids)))
+        subj_rows = [{"id": s.id, "name": s.name} for s in res.scalars().all()]
+    return SchoolTypeSubjectOut(id=obj_id, school_type=obj_school_type, subjects=subj_rows)
 
 
 @router.delete("/school-type-subjects/{id}", status_code=204, tags=["School Type Subjects"])

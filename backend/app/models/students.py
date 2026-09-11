@@ -28,7 +28,7 @@ class SchoolTypeSubject(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     school_type: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
 
-    subjects: Mapped[list] = relationship(
+    subjects: Mapped[list["Subject"]] = relationship(
         "Subject", secondary=school_type_subject_subjects, lazy="selectin"
     )
 
@@ -76,10 +76,10 @@ class Student(Base, TimestampMixin):
     sub_category: Mapped[Optional[object]] = relationship(
         "SubCategory", foreign_keys=[sub_category_id], lazy="selectin"
     )
-    exams: Mapped[list] = relationship(
+    exams: Mapped[list["StudentExam"]] = relationship(
         "StudentExam", back_populates="student", cascade="all, delete-orphan"
     )
-    progress_records: Mapped[list] = relationship(
+    progress_records: Mapped[list["StudentProgress"]] = relationship(
         "StudentProgress", back_populates="student", cascade="all, delete-orphan"
     )
 
@@ -141,7 +141,7 @@ class StudentExam(Base, TimestampMixin):
     admitted_school: Mapped[Optional[object]] = relationship(
         "GovtResidentialSchool", foreign_keys=[admitted_school_id], lazy="selectin"
     )
-    scores: Mapped[list] = relationship(
+    scores: Mapped[list["StudentExamScore"]] = relationship(
         "StudentExamScore", back_populates="exam",
         cascade="all, delete-orphan", lazy="selectin"
     )

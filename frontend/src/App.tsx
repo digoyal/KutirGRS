@@ -16,6 +16,7 @@ import AdmissionsPage from "./pages/AdmissionsPage";
 import StudentProgressPage from "./pages/StudentProgressPage";
 import ReportsPage from "./pages/ReportsPage";
 import LookupsPage from "./pages/LookupsPage";
+import ExamCentersPage from "./pages/ExamCentersPage";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,7 @@ function AppRoutes() {
         <Route path="geo" element={<GeoPage />} />
         <Route path="admissions" element={<AdmissionsPage />} />
         <Route path="lookups" element={<LookupsPage />} />
+        <Route path="exam-centers" element={<ExamCentersPage />} />
         <Route path="progress" element={<StudentProgressPage />} />
         <Route path="reports">
           <Route path="detailed" element={<ReportsPage />} />

@@ -39,6 +39,15 @@ export interface StudentCreate {
   mother_name?: string | null;
   street?: string | null;
   pincode?: string | null;
+  category_id?: number | null;
+  sub_category_id?: number | null;
+  alt_contact_name?: string | null;
+  alt_contact_phone?: string | null;
+  aadhaar?: boolean;
+  category_cert?: boolean;
+  birth_cert?: boolean;
+  residence_proof?: boolean;
+  medical?: boolean;
 }
 
 export interface StudentsListParams {

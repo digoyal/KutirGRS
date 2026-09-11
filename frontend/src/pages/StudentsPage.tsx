@@ -3,29 +3,51 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listStudents, createStudent, deleteStudent, type Student, type StudentCreate } from "../api/students";
 import { listKutirs } from "../api/kutirs";
-import { listDistricts, listAreas, listClusters } from "../api/geo";
+import { listDistricts, listAreas, listClusters, listCategories, listSubCategories, type Category, type SubCategory } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
+import { grs } from "../styles/grs";
+import { GrsTable, type Col } from "../components/GrsTable";
 
 const EMPTY_FORM: StudentCreate = {
   first_name: "", last_name: "", gender: "Boy",
-  kutir_id: null, dob: null, phone: null,
-  father_name: null, mother_name: null, street: null, pincode: null,
+  kutir_id: null, dob: null, phone: null, email: null,
+  father_name: null, mother_name: null,
+  category_id: null, sub_category_id: null,
+  alt_contact_name: null, alt_contact_phone: null,
+  aadhaar: false, category_cert: false, birth_cert: false,
+  residence_proof: false, medical: false,
 };
+
+type EnrichedStudent = Student & { docsCount: number; addedDate: string };
+
+function docCount(s: Student) {
+  return [s.aadhaar, s.category_cert, s.birth_cert, s.residence_proof, s.medical].filter(Boolean).length;
+}
 
 export default function StudentsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(() => window.innerWidth > 640);
+  const isAdmin = user?.title === "Admin";
+
   const [filterDistrict, setFilterDistrict] = useState<number | "">("");
   const [filterCluster, setFilterCluster] = useState<number | "">("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<StudentCreate>(EMPTY_FORM);
   const [formError, setFormError] = useState("");
+  const [formCategoryId, setFormCategoryId] = useState<number | null>(null);
+  const [formDistrict, setFormDistrict] = useState<number | null>(null);
+  const [formCluster, setFormCluster] = useState<number | null>(null);
+
+  const { data: categories = [] } = useQuery<Category[]>({ queryKey: ["categories"], queryFn: listCategories });
+  const { data: subCategories = [] } = useQuery<SubCategory[]>({
+    queryKey: ["sub-categories", formCategoryId],
+    queryFn: () => listSubCategories(formCategoryId ?? undefined),
+    enabled: formCategoryId !== null,
+  });
 
   const { data: students = [], isLoading } = useQuery({
-    queryKey: ["students", search],
-    queryFn: () => listStudents({ search: search || undefined, limit: 2000 }),
+    queryKey: ["students"],
+    queryFn: () => listStudents({ limit: 2000 }),
   });
 
   const { data: allKutirs = [] } = useQuery({ queryKey: ["all-kutirs"], queryFn: () => listKutirs() });
@@ -36,8 +58,11 @@ export default function StudentsPage() {
   const kutirMap = new Map(allKutirs.map(k => [k.id, k]));
   const areaMap = new Map(allAreas.map(a => [a.id, a]));
   const clusterMap = new Map(allClusters.map(c => [c.id, c]));
-  const filterClusters = allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict);
-  const displayed = students.filter(s => {
+  const filterClusters = allClusters.filter(c =>
+    filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict
+  );
+
+  const geoFiltered = students.filter(s => {
     if (filterCluster !== "") {
       const k = s.kutir_id != null ? kutirMap.get(s.kutir_id) : null;
       if (!k || k.cluster_id !== filterCluster) return false;
@@ -51,6 +76,12 @@ export default function StudentsPage() {
     }
     return true;
   });
+
+  const enriched: EnrichedStudent[] = geoFiltered.map(s => ({
+    ...s,
+    docsCount: docCount(s),
+    addedDate: new Date(s.created_at).toLocaleDateString("en-IN"),
+  }));
 
   const createMut = useMutation({
     mutationFn: createStudent,
@@ -69,175 +100,259 @@ export default function StudentsPage() {
     createMut.mutate(form);
   }
 
-  function docsBadge(s: Student) {
-    const count = [s.aadhaar, s.category_cert, s.birth_cert, s.residence_proof, s.medical].filter(Boolean).length;
-    return `${count}/5`;
-  }
+  const columns: Col<EnrichedStudent>[] = [
+    {
+      key: "name",
+      label: "Name",
+      sortable: true,
+      render: (s) => (
+        <Link to={`/students/${s.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
+          {s.first_name} {s.last_name}
+        </Link>
+      ),
+      csvValue: (s) => `${s.first_name} ${s.last_name}`,
+    },
+    { key: "gender", label: "Gender", sortable: true },
+    {
+      key: "phone",
+      label: "Phone",
+      sortable: true,
+      render: (s) => s.phone ?? "—",
+      csvValue: (s) => s.phone ?? "",
+    },
+    {
+      key: "father_name",
+      label: "Father",
+      sortable: true,
+      render: (s) => s.father_name ?? "—",
+      csvValue: (s) => s.father_name ?? "",
+    },
+    {
+      key: "mother_name",
+      label: "Mother",
+      sortable: true,
+      render: (s) => s.mother_name ?? "—",
+      csvValue: (s) => s.mother_name ?? "",
+    },
+    {
+      key: "docsCount",
+      label: "Docs",
+      sortable: true,
+      render: (s) => (
+        <span style={{
+          ...grs.badge,
+          background: s.docsCount === 5 ? "var(--status-success-bg)" : "var(--badge-yellow-bg)",
+          color: "var(--text-primary)",
+        }}>
+          {s.docsCount}/5
+        </span>
+      ),
+      csvValue: (s) => `${s.docsCount}/5`,
+    },
+    {
+      key: "addedDate",
+      label: "Added",
+      sortable: true,
+      csvValue: (s) => s.addedDate,
+    },
 
+  ];
 
-  function exportCSV() {
-    if (students.length === 0) return;
-    const headers = ["ID","First Name","Last Name","Gender","DOB","Phone","Father","Mother","Docs","Added"];
-    const rows = students.map(s => [
-      s.id, s.first_name, s.last_name, s.gender, s.dob ?? "",
-      s.phone ?? "", s.father_name ?? "", s.mother_name ?? "",
-      [s.aadhaar,s.category_cert,s.birth_cert,s.residence_proof,s.medical].filter(Boolean).length + "/5",
-      new Date(s.created_at).toLocaleDateString("en-IN"),
-    ]);
-    const csv = [headers, ...rows].map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "students.csv"; a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function printTable() {
-    const w = window.open("", "_blank")!;
-    const rows = displayed.map(s => `<tr><td>${s.first_name} ${s.last_name}</td><td>${s.gender ?? ""}</td><td>${s.phone ?? ""}</td><td>${s.father_name ?? ""}</td></tr>`).join("");
-    w.document.write(`<html><head><title>Students</title><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:13px}th{background:#f0f4ff}</style></head><body><h2>Students</h2><table><thead><tr><th>Name</th><th>Gender</th><th>Phone</th><th>Father</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-    w.document.close(); w.focus(); w.print();
-  }
+  const geoFilters = (
+    <>
+      <select
+        style={grs.filterSelect}
+        value={filterDistrict}
+        onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }}
+      >
+        <option value="">All Districts</option>
+        {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+      </select>
+      <select
+        style={grs.filterSelect}
+        value={filterCluster}
+        onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))}
+        disabled={filterDistrict === ""}
+      >
+        <option value="">All Clusters</option>
+        {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+    </>
+  );
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
-      <div style={styles.header}>
-        <h2 style={{ margin: 0 }}>Students</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={exportCSV} disabled={displayed.length === 0} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", border: "1px solid #cbd5e0", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: "0.8rem", color: "#4a5568", fontWeight: 500 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span className="grs-lbl">Export CSV</span>
-            </button>
-            <button onClick={printTable} title="Print" className="grs-ibtn" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", border: "1px solid #cbd5e0", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: "0.8rem", color: "#4a5568", fontWeight: 500 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-              <span className="grs-lbl">Print</span>
-            </button>
-            <button style={styles.primaryBtn} onClick={() => { setShowForm(true); setFormError(""); }}>+ Add Student</button>
-        </div>
-      </div>
-
-      <button className="grs-filter-toggle" onClick={() => setFiltersOpen(o => !o)}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-        <span>Filters {filtersOpen ? "▲" : "▼"}</span>
-      </button>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }} className={filtersOpen ? "grs-fbar" : "grs-fbar grs-fbar--hidden"}>
-        <input
-          style={{ ...styles.search, marginBottom: 0 }}
-          placeholder="Search by name, phone…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        <select
-          style={styles.filterSelect}
-          value={filterDistrict}
-          onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }}
-        >
-          <option value="">All Districts</option>
-          {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-        <select
-          style={styles.filterSelect}
-          value={filterCluster}
-          onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))}
-          disabled={filterDistrict === ""}
-        >
-          <option value="">All Clusters</option>
-          {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
-
-      {isLoading ? (
-        <p style={{ color: "#718096" }}>Loading…</p>
-      ) : displayed.length === 0 ? (
-        <p style={{ color: "#718096" }}>No students found.</p>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thead}>
-                <th style={styles.th}>Name</th>
-                <th style={styles.th}>Gender</th>
-                <th style={styles.th}>Phone</th>
-                <th style={styles.th}>Father</th>
-                <th style={styles.th}>Mother</th>
-                <th style={styles.th}>Docs</th>
-                <th style={styles.th}>Added</th>
-                {user?.title === "Admin" && <th style={styles.th}>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {displayed.map((s, i) => (
-                <tr key={s.id} style={{ background: i % 2 === 0 ? "#fff" : "#f7fafc" }}>
-                  <td style={styles.td}><Link to={`/students/${s.id}`} style={{ color: "#2b6cb0", textDecoration: "none", fontWeight: 600 }}>{s.first_name} {s.last_name}</Link></td>
-                  <td style={styles.td}>{s.gender}</td>
-                  <td style={styles.td}>{s.phone ?? "—"}</td>
-                  <td style={styles.td}>{s.father_name ?? "—"}</td>
-                  <td style={styles.td}>{s.mother_name ?? "—"}</td>
-                  <td style={styles.td}>
-                    <span style={{ ...styles.badge, background: docsBadge(s) === "5/5" ? "#c6f6d5" : "#fefcbf", color: "#2d3748" }}>
-                      {docsBadge(s)}
-                    </span>
-                  </td>
-                  <td style={styles.td}>{new Date(s.created_at).toLocaleDateString("en-IN")}</td>
-                  {user?.title === "Admin" && (
-                    <td style={styles.td}>
-                      <button
-                        style={styles.dangerBtn}
-                        onClick={() => { if (confirm(`Delete ${s.first_name} ${s.last_name}?`)) deleteMut.mutate(s.id); }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <GrsTable
+        title="Students"
+        columns={columns}
+        data={enriched}
+        rowKey={s => s.id}
+        isLoading={isLoading}
+        emptyMessage="No students found."
+        actions={s => ({ onView: () => window.location.href = `/students/${s.id}`, onDelete: isAdmin ? () => { if (confirm(`Delete ${s.first_name} ${s.last_name}?`)) deleteMut.mutate(s.id); } : undefined })}
+        searchable
+        searchPlaceholder="Search by name, phone…"
+        searchFn={(s: EnrichedStudent, q: string) => {
+          const lq = q.toLowerCase();
+          return (
+            `${s.first_name} ${s.last_name}`.toLowerCase().includes(lq) ||
+            (s.phone ?? "").toLowerCase().includes(lq) ||
+            (s.father_name ?? "").toLowerCase().includes(lq) ||
+            (s.mother_name ?? "").toLowerCase().includes(lq)
+          );
+        }}
+        filters={geoFilters}
+        exportFilename="students"
+        printTitle="Students"
+        onAdd={() => { setShowForm(true); setFormError(""); }}
+        addLabel="+ Add Student"
+      />
 
       {showForm && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h3 style={{ margin: "0 0 1rem" }}>Add Student</h3>
-            {formError && <p style={styles.error}>{formError}</p>}
+        <div style={grs.overlay}>
+          <div style={grs.modal}>
+            <h3 style={grs.modalTitle}>Add Student</h3>
+            {formError && <p style={grs.errorBox}>{formError}</p>}
             <form onSubmit={handleSubmit}>
-              <div style={styles.formRow}>
-                <label style={styles.label}>First Name *</label>
-                <input style={styles.input} value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} />
+              {/* Kutir selector: District → Cluster → Kutir */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label style={grs.fieldLabel}>District</label>
+                  <select style={grs.select} value={formDistrict ?? ""} onChange={e => {
+                    const id = Number(e.target.value) || null;
+                    setFormDistrict(id);
+                    setFormCluster(null);
+                    setForm(f => ({ ...f, kutir_id: null }));
+                  }}>
+                    <option value="">— any —</option>
+                    {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={grs.fieldLabel}>Cluster</label>
+                  <select style={grs.select} value={formCluster ?? ""} disabled={!formDistrict} onChange={e => {
+                    const id = Number(e.target.value) || null;
+                    setFormCluster(id);
+                    setForm(f => ({ ...f, kutir_id: null }));
+                  }}>
+                    <option value="">— any —</option>
+                    {allClusters
+                      .filter(c => !formDistrict || areaMap.get(c.area_id)?.district_id === formDistrict)
+                      .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={grs.fieldLabel}>Kutir</label>
+                  <select style={grs.select} value={form.kutir_id ?? ""} disabled={!formCluster} onChange={e => setForm(f => ({ ...f, kutir_id: Number(e.target.value) || null }))}>
+                    <option value="">— select —</option>
+                    {allKutirs
+                      .filter(k => !formCluster || k.cluster_id === formCluster)
+                      .map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+                  </select>
+                </div>
               </div>
-              <div style={styles.formRow}>
-                <label style={styles.label}>Last Name *</label>
-                <input style={styles.input} value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} />
+              {/* Row 1: First Name + Last Name */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={grs.fieldLabel}>First Name *</label>
+                  <input style={grs.input} value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={grs.fieldLabel}>Last Name *</label>
+                  <input style={grs.input} value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} />
+                </div>
               </div>
-              <div style={styles.formRow}>
-                <label style={styles.label}>Gender</label>
-                <select style={styles.input} value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}>
-                  <option>Boy</option>
-                  <option>Girl</option>
-                </select>
+              {/* Row 2: Gender + DOB */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={grs.fieldLabel}>Gender</label>
+                  <select style={grs.select} value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}>
+                    <option>Boy</option>
+                    <option>Girl</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={grs.fieldLabel}>Date of Birth</label>
+                  <input style={grs.input} type="date" value={form.dob ?? ""} onChange={e => setForm(f => ({ ...f, dob: e.target.value || null }))} />
+                </div>
               </div>
-              <div style={styles.formRow}>
-                <label style={styles.label}>Date of Birth</label>
-                <input style={styles.input} type="date" value={form.dob ?? ""} onChange={e => setForm(f => ({ ...f, dob: e.target.value || null }))} />
+              {/* Row 3: Category + Sub-Category */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={grs.fieldLabel}>Category</label>
+                  <select style={grs.select} value={formCategoryId ?? ""} onChange={e => {
+                    const id = Number(e.target.value) || null;
+                    setFormCategoryId(id);
+                    setForm(f => ({ ...f, category_id: id, sub_category_id: null }));
+                  }}>
+                    <option value="">— none —</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={grs.fieldLabel}>Sub-Category</label>
+                  <select style={grs.select} value={form.sub_category_id ?? ""} onChange={e => setForm(f => ({ ...f, sub_category_id: Number(e.target.value) || null }))} disabled={!formCategoryId}>
+                    <option value="">— none —</option>
+                    {subCategories.map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
+                  </select>
+                </div>
               </div>
-              <div style={styles.formRow}>
-                <label style={styles.label}>Phone</label>
-                <input style={styles.input} value={form.phone ?? ""} onChange={e => setForm(f => ({ ...f, phone: e.target.value || null }))} />
+              {/* Row 4: Father's Name + Mother's Name */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={grs.fieldLabel}>Father's Name</label>
+                  <input style={grs.input} value={form.father_name ?? ""} onChange={e => setForm(f => ({ ...f, father_name: e.target.value || null }))} />
+                </div>
+                <div>
+                  <label style={grs.fieldLabel}>Mother's Name</label>
+                  <input style={grs.input} value={form.mother_name ?? ""} onChange={e => setForm(f => ({ ...f, mother_name: e.target.value || null }))} />
+                </div>
               </div>
-              <div style={styles.formRow}>
-                <label style={styles.label}>Father's Name</label>
-                <input style={styles.input} value={form.father_name ?? ""} onChange={e => setForm(f => ({ ...f, father_name: e.target.value || null }))} />
+              {/* Row 5: Phone + Email */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={grs.fieldLabel}>Phone</label>
+                  <input style={grs.input} value={form.phone ?? ""} onChange={e => setForm(f => ({ ...f, phone: e.target.value || null }))} />
+                </div>
+                <div>
+                  <label style={grs.fieldLabel}>Email</label>
+                  <input style={grs.input} type="email" value={form.email ?? ""} onChange={e => setForm(f => ({ ...f, email: e.target.value || null }))} />
+                </div>
               </div>
-              <div style={styles.formRow}>
-                <label style={styles.label}>Mother's Name</label>
-                <input style={styles.input} value={form.mother_name ?? ""} onChange={e => setForm(f => ({ ...f, mother_name: e.target.value || null }))} />
+              {/* Row 6: Alt Contact Name + Alt Contact Phone */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={grs.fieldLabel}>Alt Contact Name</label>
+                  <input style={grs.input} value={form.alt_contact_name ?? ""} onChange={e => setForm(f => ({ ...f, alt_contact_name: e.target.value || null }))} />
+                </div>
+                <div>
+                  <label style={grs.fieldLabel}>Alt Contact Phone</label>
+                  <input style={grs.input} value={form.alt_contact_phone ?? ""} onChange={e => setForm(f => ({ ...f, alt_contact_phone: e.target.value || null }))} />
+                </div>
+              </div>
+              {/* Documents */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ ...grs.fieldLabel, marginBottom: 6 }}>Documents Collected</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  {([
+                    ["aadhaar", "Aadhaar"],
+                    ["category_cert", "Category Cert"],
+                    ["birth_cert", "Birth Cert"],
+                    ["residence_proof", "Residence Proof"],
+                    ["medical", "Medical"],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, cursor: "pointer", color: "var(--text-primary)" }}>
+                      <input type="checkbox" checked={!!form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.checked }))} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                <button type="submit" style={styles.primaryBtn} disabled={createMut.isPending}>
+                <button type="submit" style={grs.btnPrimary} disabled={createMut.isPending}>
                   {createMut.isPending ? "Saving…" : "Save"}
                 </button>
-                <button type="button" style={styles.secondaryBtn} onClick={() => { setShowForm(false); setForm(EMPTY_FORM); }}>
+                <button type="button" style={grs.btnSecondary} onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setFormCategoryId(null); setFormDistrict(null); setFormCluster(null); }}>
                   Cancel
                 </button>
               </div>
@@ -248,23 +363,3 @@ export default function StudentsPage() {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  search: { width: "100%", maxWidth: 360, padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: 6, marginBottom: 16, fontSize: "0.9rem", boxSizing: "border-box" },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" },
-  thead: { background: "#ebf4ff" },
-  th: { padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#2c5282", borderBottom: "2px solid #bee3f8" },
-  td: { padding: "10px 12px", borderBottom: "1px solid #e2e8f0", verticalAlign: "middle" },
-  badge: { padding: "2px 8px", borderRadius: 12, fontSize: "0.75rem", fontWeight: 600 },
-  primaryBtn: { background: "#2b6cb0", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
-  secondaryBtn: { background: "#e2e8f0", color: "#2d3748", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
-  dangerBtn: { background: "#fed7d7", color: "#c53030", border: "none", padding: "4px 10px", borderRadius: 4, cursor: "pointer", fontSize: "0.75rem" },
-  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 },
-  modal: { background: "#fff", borderRadius: 10, padding: "1.5rem", width: 420, maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto" },
-  formRow: { marginBottom: 12 },
-  label: { display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#4a5568", marginBottom: 4 },
-  input: { width: "100%", padding: "7px 10px", border: "1px solid #cbd5e0", borderRadius: 5, fontSize: "0.875rem", boxSizing: "border-box" },
-  error: { color: "#c53030", background: "#fff5f5", border: "1px solid #fc8181", borderRadius: 5, padding: "8px 12px", marginBottom: 12, fontSize: "0.85rem" },
-  filterSelect: { padding: "7px 12px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.875rem", minWidth: 160, background: "#fff", cursor: "pointer" },
-};
