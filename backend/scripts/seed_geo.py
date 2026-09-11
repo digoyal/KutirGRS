@@ -1,0 +1,153 @@
+"""
+Seed real geo data from parivaar_grs into kutirgrs_v2.
+Run: venv/bin/python scripts/seed_geo.py
+"""
+import asyncio
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select, text
+
+DB_URL = "postgresql+asyncpg://postgres:namo1996@localhost:5432/kutirgrs_v2"
+
+import app.models.lookups, app.models.geo, app.models.users, app.models.donors
+import app.models.schools, app.models.kutirs, app.models.students, app.models.visits
+
+from app.database import Base
+from app.models.geo import Zone, District, Area, Cluster
+
+ZONES = [
+    {"id": 20, "name": "Dewas"}, {"id": 21, "name": "Mandla"},
+    {"id": 22, "name": "Sheopur"}, {"id": 23, "name": "Barwani"},
+    {"id": 24, "name": "Chhindwara"}, {"id": 25, "name": "Sidhi"},
+    {"id": 26, "name": "Anuppur"},
+]
+
+DISTRICTS = [
+    {"id": 62, "name": "Balaghat", "zone_id": 21}, {"id": 63, "name": "Seoni", "zone_id": 21},
+    {"id": 64, "name": "Alirajpur", "zone_id": 23}, {"id": 65, "name": "Burhanpur", "zone_id": 20},
+    {"id": 66, "name": "Khandwa", "zone_id": 20}, {"id": 67, "name": "Anuppur", "zone_id": 26},
+    {"id": 68, "name": "Betul", "zone_id": 24}, {"id": 69, "name": "Chhindwara", "zone_id": 24},
+    {"id": 70, "name": "Sehore", "zone_id": 20}, {"id": 71, "name": "Sheopur", "zone_id": 22},
+    {"id": 72, "name": "Shivpuri", "zone_id": 22}, {"id": 73, "name": "Ratlam", "zone_id": 23},
+    {"id": 74, "name": "Guna", "zone_id": 22}, {"id": 75, "name": "Vidisha", "zone_id": 22},
+    {"id": 76, "name": "Jhabua", "zone_id": 23}, {"id": 77, "name": "Barwani", "zone_id": 23},
+    {"id": 78, "name": "Dewas", "zone_id": 20}, {"id": 79, "name": "Khargone", "zone_id": 20},
+    {"id": 80, "name": "Dindori", "zone_id": 21}, {"id": 81, "name": "Shahdol", "zone_id": 26},
+    {"id": 82, "name": "Sidhi", "zone_id": 25}, {"id": 83, "name": "Gaurela-Pendra-Marwahi", "zone_id": 26},
+    {"id": 84, "name": "Dhar", "zone_id": 23}, {"id": 85, "name": "Singrauli", "zone_id": 25},
+    {"id": 86, "name": "Harda", "zone_id": 20}, {"id": 87, "name": "Mandla", "zone_id": 21},
+]
+
+AREAS = [
+    {"id": 94, "name": "Alirajpur", "district_id": 64}, {"id": 95, "name": "Barwani", "district_id": 77},
+    {"id": 96, "name": "Jhabua", "district_id": 76}, {"id": 97, "name": "Ratlam", "district_id": 73},
+    {"id": 98, "name": "Dhar", "district_id": 84}, {"id": 99, "name": "Rajendragram", "district_id": 67},
+    {"id": 100, "name": "Karpa", "district_id": 67}, {"id": 101, "name": "Sarai", "district_id": 67},
+    {"id": 102, "name": "Shahdol", "district_id": 81}, {"id": 103, "name": "Balaghat", "district_id": 62},
+    {"id": 104, "name": "Bajak", "district_id": 80}, {"id": 105, "name": "Gadasarai", "district_id": 80},
+    {"id": 106, "name": "Mawai", "district_id": 87}, {"id": 107, "name": "Mandla", "district_id": 87},
+    {"id": 108, "name": "Seoni", "district_id": 63}, {"id": 109, "name": "Bhimpur", "district_id": 68},
+    {"id": 110, "name": "Rambha", "district_id": 68}, {"id": 111, "name": "Damjipura", "district_id": 68},
+    {"id": 112, "name": "Tamia", "district_id": 69}, {"id": 113, "name": "Harrai", "district_id": 69},
+    {"id": 114, "name": "Batka", "district_id": 69}, {"id": 115, "name": "Patalkot", "district_id": 69},
+    {"id": 116, "name": "Burhanpur", "district_id": 65}, {"id": 117, "name": "Dewas", "district_id": 78},
+    {"id": 118, "name": "Rahatgaon", "district_id": 86}, {"id": 119, "name": "Sirali", "district_id": 86},
+    {"id": 120, "name": "Khalwa", "district_id": 66}, {"id": 121, "name": "Gulai", "district_id": 66},
+    {"id": 122, "name": "Khargone", "district_id": 79}, {"id": 123, "name": "Sehore", "district_id": 70},
+    {"id": 124, "name": "Karahal", "district_id": 71}, {"id": 125, "name": "Veerpur", "district_id": 71},
+    {"id": 126, "name": "Sheopur", "district_id": 71}, {"id": 127, "name": "Shivpuri", "district_id": 72},
+    {"id": 128, "name": "Guna", "district_id": 74}, {"id": 129, "name": "Vidisha", "district_id": 75},
+    {"id": 130, "name": "Sidhi", "district_id": 82}, {"id": 131, "name": "Singrauli", "district_id": 85},
+]
+
+CLUSTERS = [
+    {"id": 34, "name": "Devpura", "area_id": 127}, {"id": 35, "name": "Majhigawan", "area_id": 130},
+    {"id": 36, "name": "Dharmapuri", "area_id": 122}, {"id": 37, "name": "Chilakda, Karajwani", "area_id": 94},
+    {"id": 38, "name": "Eklera, Umar", "area_id": 117}, {"id": 39, "name": "Mahi", "area_id": 96},
+    {"id": 40, "name": "Atraila", "area_id": 130}, {"id": 41, "name": "Pahadi", "area_id": 126},
+    {"id": 42, "name": "Moravan", "area_id": 126}, {"id": 43, "name": "Magardha", "area_id": 108},
+    {"id": 44, "name": "Tongra", "area_id": 126}, {"id": 45, "name": "Devpura", "area_id": 123},
+    {"id": 46, "name": "Kantaphod", "area_id": 117}, {"id": 47, "name": "Kariyadeh", "area_id": 126},
+    {"id": 48, "name": "Ratatalai", "area_id": 117}, {"id": 49, "name": "Heerapur", "area_id": 126},
+    {"id": 50, "name": "Punjapura, Ratatalai", "area_id": 117}, {"id": 51, "name": "Murum", "area_id": 103},
+    {"id": 52, "name": "Gata", "area_id": 94}, {"id": 53, "name": "Semarkhero", "area_id": 103},
+    {"id": 54, "name": "Sattalai", "area_id": 122}, {"id": 55, "name": "Rampura", "area_id": 127},
+    {"id": 56, "name": "Dhanayacha, Sironi", "area_id": 126}, {"id": 57, "name": "Rauhal", "area_id": 130},
+    {"id": 58, "name": "Silpuri", "area_id": 126}, {"id": 59, "name": "Chakaldi, Nayapura", "area_id": 123},
+    {"id": 60, "name": "Mathmath", "area_id": 96}, {"id": 61, "name": "Harla Cluster", "area_id": 95},
+    {"id": 62, "name": "Pyaripura", "area_id": 126}, {"id": 63, "name": "Dhanayacha", "area_id": 126},
+    {"id": 64, "name": "Khawasa", "area_id": 96}, {"id": 65, "name": "Bhotoopura", "area_id": 126},
+    {"id": 66, "name": "Chilakda, Roshiya", "area_id": 94}, {"id": 67, "name": "Awada, Bhela, Heerapur, Pyaripura", "area_id": 126},
+    {"id": 68, "name": "Umrai", "area_id": 127}, {"id": 69, "name": "Semliya Cluster", "area_id": 97},
+    {"id": 70, "name": "Budhera", "area_id": 126}, {"id": 71, "name": "Gara Cluster", "area_id": 95},
+    {"id": 72, "name": "Bondari", "area_id": 103}, {"id": 73, "name": "Aamwala, Bhotoopura, Kuno, Moravan, Sesaipura", "area_id": 126},
+    {"id": 74, "name": "Sironi", "area_id": 126}, {"id": 75, "name": "Shivni", "area_id": 95},
+    {"id": 76, "name": "Aamwala", "area_id": 126}, {"id": 77, "name": "Chubhawal", "area_id": 107},
+    {"id": 78, "name": "Kuli", "area_id": 95}, {"id": 79, "name": "Laxmipura", "area_id": 127},
+    {"id": 80, "name": "Binti Cluster", "area_id": 97}, {"id": 81, "name": "Gothra", "area_id": 126},
+    {"id": 82, "name": "Nagpokhar", "area_id": 130}, {"id": 83, "name": "Jhaprahva", "area_id": 131},
+    {"id": 84, "name": "Mahdewa", "area_id": 127}, {"id": 85, "name": "Bhitada", "area_id": 94},
+    {"id": 86, "name": "Mugwani", "area_id": 107}, {"id": 87, "name": "Chagohar", "area_id": 130},
+    {"id": 88, "name": "Piprahwa", "area_id": 131}, {"id": 89, "name": "Kiti", "area_id": 94},
+    {"id": 90, "name": "Budhera, Dhanayacha, Gothra, Pahadi, Sironi", "area_id": 126},
+    {"id": 91, "name": "Mahloni", "area_id": 127}, {"id": 92, "name": "Semari", "area_id": 128},
+    {"id": 93, "name": "Gara Cluster, Harla Cluster, Kherwani Cluster, Kuli, Ranipura Cluster, Shivni", "area_id": 95},
+    {"id": 94, "name": "Nichli", "area_id": 108}, {"id": 95, "name": "Awada", "area_id": 126},
+    {"id": 96, "name": "Kalibel", "area_id": 94}, {"id": 97, "name": "Bhela", "area_id": 126},
+    {"id": 98, "name": "Bankuri", "area_id": 126}, {"id": 99, "name": "Khategaon", "area_id": 117},
+    {"id": 100, "name": "Karwad", "area_id": 96}, {"id": 101, "name": "Kuno", "area_id": 126},
+    {"id": 102, "name": "Machhariya", "area_id": 108}, {"id": 103, "name": "Kakraj", "area_id": 129},
+    {"id": 104, "name": "Machwas", "area_id": 117}, {"id": 105, "name": "Suda", "area_id": 131},
+    {"id": 106, "name": "Parasari", "area_id": 127}, {"id": 107, "name": "Machla", "area_id": 107},
+    {"id": 108, "name": "Narsinghpura, Rupapada", "area_id": 96}, {"id": 109, "name": "Valpanee", "area_id": 122},
+]
+
+async def main():
+    engine = create_async_engine(DB_URL, echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with Session() as db:
+        existing = await db.execute(select(Zone).limit(1))
+        if existing.scalar_one_or_none():
+            print("Geo data already seeded. Skipping.")
+            return
+
+        await db.execute(text("SET session_replication_role = replica"))
+
+        for z in ZONES:
+            db.add(Zone(id=z["id"], name=z["name"]))
+        await db.flush()
+        print(f"  {len(ZONES)} zones")
+
+        for d in DISTRICTS:
+            db.add(District(id=d["id"], name=d["name"], zone_id=d["zone_id"]))
+        await db.flush()
+        print(f"  {len(DISTRICTS)} districts")
+
+        for a in AREAS:
+            db.add(Area(id=a["id"], name=a["name"], district_id=a["district_id"]))
+        await db.flush()
+        print(f"  {len(AREAS)} areas")
+
+        for c in CLUSTERS:
+            db.add(Cluster(id=c["id"], name=c["name"], area_id=c["area_id"]))
+        await db.flush()
+        print(f"  {len(CLUSTERS)} clusters")
+
+        await db.execute(text("SET session_replication_role = DEFAULT"))
+        await db.execute(text("SELECT setval('zones_id_seq', (SELECT MAX(id) FROM zones))"))
+        await db.execute(text("SELECT setval('districts_id_seq', (SELECT MAX(id) FROM districts))"))
+        await db.execute(text("SELECT setval('areas_id_seq', (SELECT MAX(id) FROM areas))"))
+        await db.execute(text("SELECT setval('clusters_id_seq', (SELECT MAX(id) FROM clusters))"))
+
+        await db.commit()
+        print("\n✓ Geo data seeded successfully.")
+    await engine.dispose()
+
+if __name__ == "__main__":
+    asyncio.run(main())
