@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import api from "../api/client";
 import { BLANK_VISIT, listVisits, createVisit, updateVisit, deleteVisit, uploadVisitPhoto } from "../api/visits";
@@ -6,9 +6,17 @@ import type { KutirVisit, KutirVisitCreate } from "../api/visits";
 import { useAuth } from "../context/AuthContext";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { grs } from "../styles/grs";
-import { RowActions } from "../components/RowActions";
+import { GrsTable } from "../components/GrsTable";
+import type { Col } from "../components/GrsTable";
+import { useFieldConfig } from "../hooks/useFieldConfig";
+import { VISITS_FIELDS } from "../constants/visitsFields";
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
+
+// ── Intentional design constants (dark-navy drawer header) ───────────────────
+const NAVY_BG     = "#1a365d";
+const NAVY_TEXT   = "#ffffff";
+const NAVY_ACCENT = "#90cdf4";
 
 interface Kutir {
   id: number;
@@ -239,10 +247,10 @@ function VisitModal({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            background: "#1a365d",
+            background: NAVY_BG,
           }}
         >
-          <span style={{ fontWeight: 700, fontSize: "1rem", color: "#fff" }}>
+          <span style={{ fontWeight: 700, fontSize: "1rem", color: NAVY_TEXT }}>
             {isEdit ? "Edit Visit" : "Log New Visit"}
           </span>
           <button
@@ -250,7 +258,7 @@ function VisitModal({
             style={{
               background: "transparent",
               border: "none",
-              color: "#90cdf4",
+              color: NAVY_ACCENT,
               fontSize: "1.4rem",
               cursor: "pointer",
               lineHeight: 1,
@@ -308,24 +316,68 @@ function VisitModal({
                 </select>
               </div>
             </div>
-            <div>
-              <label style={grs.fieldLabel}>Visit Date *</label>
-              <input type="date" value={form.visit_date} onChange={(e) => set("visit_date", e.target.value)} style={grs.input} />
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+              <div style={{ flex: 1 }}>
+                <label style={grs.fieldLabel}>Visit Date *</label>
+                <input type="date" value={form.visit_date} onChange={(e) => set("visit_date", e.target.value)} style={grs.input} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 0, border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", height: 34, flexShrink: 0 }}>
+                {(["Open", "Closed"] as const).map(opt => {
+                  const active = (opt === "Closed") === (form.kutir_closed ?? false);
+                  return (
+                    <button key={opt} type="button" onClick={() => set("kutir_closed", opt === "Closed")}
+                      style={{ padding: "0 14px", height: "100%", border: "none", cursor: "pointer", fontWeight: active ? 700 : 400, fontSize: 13,
+                        background: active ? (opt === "Closed" ? "var(--danger, #dc2626)" : "var(--status-success-bg, #d1fae5)") : "var(--bg-input)",
+                        color: active ? (opt === "Closed" ? "#fff" : "var(--status-success-fg, #065f46)") : "var(--text-secondary)" }}>
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div>
-              <label style={grs.fieldLabel}>Avg Attendance (last week)</label>
-              <input type="number" min={0} value={form.avg_attendance_last_week} onChange={(e) => set("avg_attendance_last_week", Number(e.target.value))} style={grs.input} />
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Regular Students</label>
-              <input type="number" min={0} value={form.regular_students ?? ""} onChange={(e) => set("regular_students", e.target.value === "" ? null : Number(e.target.value))} style={grs.input} />
+            <div style={{ gridColumn: "1 / -1" }}>
+              {/* 2×2 attendance grid: columns = metric, rows = session */}
+              <div style={{ display: "grid", gridTemplateColumns: "110px 1fr 1fr", gap: "6px 10px", alignItems: "center" }}>
+                {/* header row */}
+                <div />
+                <div style={{ ...grs.fieldLabel, textAlign: "center" as const }}>Avg Last Week Attendance</div>
+                <div style={{ ...grs.fieldLabel, textAlign: "center" as const }}>Regular (&gt;8 days) Students</div>
+                {/* morning row */}
+                <div style={{ ...grs.fieldLabel, paddingTop: 2 }}>Morning Shift</div>
+                <input type="number" min={0} value={form.avg_attendance_morning ?? ""} onChange={(e) => set("avg_attendance_morning", e.target.value === "" ? null : Number(e.target.value))} style={grs.input} placeholder="0" />
+                <input type="number" min={0} value={form.regular_students_morning ?? ""} onChange={(e) => set("regular_students_morning", e.target.value === "" ? null : Number(e.target.value))} style={grs.input} placeholder="—" />
+                {/* evening row */}
+                <div style={{ ...grs.fieldLabel, paddingTop: 2 }}>Evening Shift</div>
+                <input type="number" min={0} value={form.avg_attendance_evening ?? ""} onChange={(e) => set("avg_attendance_evening", e.target.value === "" ? null : Number(e.target.value))} style={grs.input} placeholder="0" />
+                <input type="number" min={0} value={form.regular_students_evening ?? ""} onChange={(e) => set("regular_students_evening", e.target.value === "" ? null : Number(e.target.value))} style={grs.input} placeholder="—" />
+              </div>
             </div>
           </div>
 
+          {form.kutir_closed && (
+            <div style={{ padding: "10px 12px", background: "var(--danger-bg, #fef2f2)", border: "1px solid var(--danger-border, #fca5a5)", borderRadius: 6, color: "var(--danger, #dc2626)", fontSize: 13, fontWeight: 600 }}>
+              🔒 Kutir is marked as Closed — other fields are disabled.
+            </div>
+          )}
+          <fieldset disabled={!!form.kutir_closed} style={{ border: "none", margin: 0, padding: 0, opacity: form.kutir_closed ? 0.45 : 1, pointerEvents: form.kutir_closed ? "none" : "auto" }}>
           <SectionHead label="Implementation" />
-          <CheckRow label="Follows Timetable" checked={form.follow_timetable} onChange={(v) => set("follow_timetable", v)} />
-          <CheckRow label="Follows Monthly Plan" checked={form.follow_monthly_plan} onChange={(v) => set("follow_monthly_plan", v)} />
-          {(!form.follow_timetable || !form.follow_monthly_plan) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "4px 0" }}>
+            <span style={{ ...grs.fieldLabel, margin: 0, minWidth: 180 }}>Follows Timetable</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={form.follow_timetable} onChange={e => set("follow_timetable", e.target.checked)} style={{ accentColor: "var(--link-color)" }} />
+              Yes
+            </label>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "4px 0" }}>
+            <span style={{ ...grs.fieldLabel, margin: 0, minWidth: 180 }}>Follows Monthly Teaching Plan</span>
+            {([["plan_hindi", "Hindi"], ["plan_math", "Math"], ["plan_english", "English"]] as [keyof KutirVisitCreate, string][]).map(([key, label]) => (
+              <label key={key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, cursor: "pointer" }}>
+                <input type="checkbox" checked={(form[key] as boolean) ?? false} onChange={e => set(key, e.target.checked)} style={{ accentColor: "var(--link-color)" }} />
+                {label}
+              </label>
+            ))}
+          </div>
+          {(!form.follow_timetable || !form.plan_hindi || !form.plan_math || !form.plan_english) && (
             <div style={{ marginTop: 8 }}>
               <label style={grs.fieldLabel}>Reason (if not following plan/timetable)</label>
               <textarea value={form.timetable_plan_reason ?? ""} onChange={(e) => set("timetable_plan_reason", e.target.value || null)} rows={2} style={{ ...grs.input, resize: "vertical" }} />
@@ -409,13 +461,13 @@ function VisitModal({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 24px", marginBottom: 4 }}>
             {(
               [
-                ["reg_admission_forms", "Admission Forms Register"],
+                ["reg_admission_forms", "Admission Forms File"],
                 ["reg_attendance_students", "Students Attendance Register"],
                 ["reg_daily_activity", "Daily Activity Register"],
                 ["reg_observation", "Observation Register"],
-                ["reg_students_data", "Students Data Register"],
+                ["reg_students_data", "Student Alive Data File"],
                 ["reg_attendance_teachers", "Teachers Attendance Register"],
-                ["reg_students_documents", "Students Documents Register"],
+                ["reg_students_documents", "Student Documents File"],
               ] as [keyof KutirVisitCreate, string][]
             ).map(([key, label]) => (
               <CheckRow key={key} label={label} checked={!!form[key]} onChange={(v) => set(key, v as any)} />
@@ -433,6 +485,7 @@ function VisitModal({
                 ["evs_proficiency", "EVS Proficiency"],
                 ["reasoning_proficiency", "Reasoning Proficiency"],
                 ["material_management", "Material Management"],
+                ["staff_behavior", "Kutir Staff Behavior"],
                 ["kutir_performance", "Kutir Performance"],
               ] as [keyof KutirVisitCreate, string][]
             ).map(([key, label]) => (
@@ -460,6 +513,7 @@ function VisitModal({
               )}
             </div>
           </div>
+          </fieldset>
         </div>
 
         {/* Footer */}
@@ -510,6 +564,7 @@ function VisitDetailDrawer({
     ["evs_proficiency", "EVS Proficiency"],
     ["reasoning_proficiency", "Reasoning Proficiency"],
     ["material_management", "Material Management"],
+    ["staff_behavior", "Kutir Staff Behavior"],
     ["kutir_performance", "Kutir Performance"],
   ];
 
@@ -520,14 +575,14 @@ function VisitDetailDrawer({
     >
       <div style={{ width: 480, maxWidth: "100vw", height: "100dvh", background: "var(--bg-card)", display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.18)" }}>
         {/* Header — intentional dark navy design */}
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", background: "#1a365d", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", background: NAVY_BG, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontWeight: 700, color: "#fff", fontSize: "0.95rem" }}>
+            <div style={{ fontWeight: 700, color: NAVY_TEXT, fontSize: "0.95rem" }}>
               Visit: {new Date(visit.visit_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
             </div>
-            <div style={{ fontSize: "0.8rem", color: "#90cdf4" }}>{kutirName}</div>
+            <div style={{ fontSize: "0.8rem", color: NAVY_ACCENT }}>{kutirName}</div>
           </div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#90cdf4", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: NAVY_ACCENT, fontSize: "1.4rem", cursor: "pointer" }}>×</button>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
@@ -536,9 +591,18 @@ function VisitDetailDrawer({
           )}
 
           <SectionHead label="Attendance" />
+          <div style={{ display: "grid", gridTemplateColumns: "110px 1fr 1fr", gap: "6px 10px", alignItems: "center", marginBottom: 12 }}>
+            <div />
+            <div style={{ ...detailLabel, textAlign: "center" as const, fontWeight: 600 }}>Avg Last Week Attendance</div>
+            <div style={{ ...detailLabel, textAlign: "center" as const, fontWeight: 600 }}>Regular (&gt;8 days) Students</div>
+            <span style={detailLabel}>Morning Shift</span>
+            <span style={{ textAlign: "center" as const }}>{visit.avg_attendance_morning ?? "—"}</span>
+            <span style={{ textAlign: "center" as const }}>{visit.regular_students_morning ?? "—"}</span>
+            <span style={detailLabel}>Evening Shift</span>
+            <span style={{ textAlign: "center" as const }}>{visit.avg_attendance_evening ?? "—"}</span>
+            <span style={{ textAlign: "center" as const }}>{visit.regular_students_evening ?? "—"}</span>
+          </div>
           <div style={detailGrid}>
-            <span style={detailLabel}>Avg Attendance</span><span>{visit.avg_attendance_last_week}</span>
-            <span style={detailLabel}>Regular Students</span><span>{visit.regular_students ?? "—"}</span>
             <span style={detailLabel}>Physical vs Registered</span>
             <span>
               <span style={{
@@ -549,10 +613,22 @@ function VisitDetailDrawer({
             </span>
           </div>
 
+          {visit.kutir_closed && (
+            <div style={{ padding: "6px 12px", background: "var(--danger-bg, #fef2f2)", border: "1px solid var(--danger-border, #fca5a5)", borderRadius: 6, color: "var(--danger, #dc2626)", fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              🔒 Kutir was Closed during this visit
+            </div>
+          )}
           <SectionHead label="Implementation" />
           <div style={detailGrid}>
             <span style={detailLabel}>Follows Timetable</span><span>{visit.follow_timetable ? "✓ Yes" : "✗ No"}</span>
-            <span style={detailLabel}>Follows Monthly Plan</span><span>{visit.follow_monthly_plan ? "✓ Yes" : "✗ No"}</span>
+            <span style={detailLabel}>Monthly Teaching Plan</span>
+            <span style={{ display: "flex", gap: 10, flexWrap: "wrap" as const }}>
+              {[["plan_hindi", "Hindi"], ["plan_math", "Math"], ["plan_english", "English"]].map(([k, l]) => (
+                <span key={k} style={{ color: (visit as any)[k] ? "var(--status-success-fg)" : "var(--text-secondary)", fontSize: 13 }}>
+                  {(visit as any)[k] ? "✓" : "✗"} {l}
+                </span>
+              ))}
+            </span>
             {visit.timetable_plan_reason && (<><span style={detailLabel}>Reason</span><span>{visit.timetable_plan_reason}</span></>)}
           </div>
 
@@ -589,13 +665,13 @@ function VisitDetailDrawer({
           <SectionHead label="Registers" />
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {[
-              [visit.reg_admission_forms, "Admission Forms"],
+              [visit.reg_admission_forms, "Admission Forms File"],
               [visit.reg_attendance_students, "Student Attendance"],
               [visit.reg_daily_activity, "Daily Activity"],
               [visit.reg_observation, "Observation"],
-              [visit.reg_students_data, "Students Data"],
+              [visit.reg_students_data, "Student Alive Data File"],
               [visit.reg_attendance_teachers, "Teacher Attendance"],
-              [visit.reg_students_documents, "Student Docs"],
+              [visit.reg_students_documents, "Student Documents File"],
             ].map(([val, name]) => (
               <span key={name as string} style={{ padding: "3px 10px", borderRadius: 12, fontSize: "0.78rem", background: val ? "var(--badge-blue-bg)" : "var(--bg-input)", color: val ? "var(--badge-blue-fg)" : "var(--text-secondary)", border: "1px solid var(--border)" }}>
                 {val ? "✓" : "✗"} {name}
@@ -649,14 +725,23 @@ function VisitDetailDrawer({
 export default function VisitsPage() {
   const { user } = useAuth();
   const isAdmin = user?.title === "Admin";
+
+  useEffect(() => {
+    if (window.location.search.includes("_=")) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) window.location.reload();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
   const qc = useQueryClient();
 
   const [filterKutir, setFilterKutir] = useState<number | "">("");
-  const [search, setSearch] = useState("");
   const [filterDistrict, setFilterDistrict] = useState<number | "">("");
   const [filterCluster, setFilterCluster] = useState<number | "">("");
   const [showAdd, setShowAdd] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(() => window.innerWidth > 640);
   const [viewVisit, setViewVisit] = useState<KutirVisit | null>(null);
   const [editVisit, setEditVisit] = useState<KutirVisit | null>(null);
 
@@ -664,15 +749,18 @@ export default function VisitsPage() {
     queryKey: ["kutirs"],
     queryFn: async () => (await api.get("/kutirs", { params: { limit: 500 } })).data,
   });
-  const kutirMap = new Map(kutirs.map((k) => [k.id, k]));
+  const kutirMap = useMemo(() => new Map(kutirs.map((k) => [k.id, k])), [kutirs]);
 
   const { data: allDistricts = [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
   const { data: allAreas = [] } = useQuery({ queryKey: ["all-areas"], queryFn: () => listAreas() });
   const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
 
-  const areaMap = new Map(allAreas.map(a => [a.id, a]));
-  const clusterMap = new Map(allClusters.map(c => [c.id, c]));
-  const filterClusters = allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict);
+  const areaMap    = useMemo(() => new Map(allAreas.map(a => [a.id, a])),    [allAreas]);
+  const clusterMap = useMemo(() => new Map(allClusters.map(c => [c.id, c])), [allClusters]);
+  const filterClusters = useMemo(
+    () => allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict),
+    [allClusters, filterDistrict, areaMap]
+  );
 
   const { data: visits = [], isLoading } = useQuery<KutirVisit[]>({
     queryKey: ["visits", filterKutir],
@@ -686,159 +774,274 @@ export default function VisitsPage() {
     onSuccess: refresh,
   });
 
-  const sorted = [...visits]
-    .filter(v => {
-      const kutir = kutirMap.get(v.kutir_id);
-      if (search && !kutir?.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterCluster !== "") {
-        if (!kutir || kutir.cluster_id !== filterCluster) return false;
-      } else if (filterDistrict !== "") {
-        if (!kutir) return false;
-        const cl = clusterMap.get(kutir.cluster_id);
-        if (!cl) return false;
-        const ar = areaMap.get(cl.area_id);
-        if (!ar || ar.district_id !== filterDistrict) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => new Date(b.visit_date).getTime() - new Date(a.visit_date).getTime());
+  // Geo filter — kutir-name search is handled by GrsTable's searchFn
+  const filtered = useMemo(() => visits.filter(v => {
+    const kutir = kutirMap.get(v.kutir_id);
+    if (filterCluster !== "") {
+      if (!kutir || kutir.cluster_id !== filterCluster) return false;
+    } else if (filterDistrict !== "") {
+      if (!kutir) return false;
+      const cl = clusterMap.get(kutir.cluster_id);
+      if (!cl) return false;
+      const ar = areaMap.get((cl as any).area_id);
+      if (!ar || (ar as any).district_id !== filterDistrict) return false;
+    }
+    return true;
+  }), [visits, filterKutir, filterCluster, filterDistrict, kutirMap, clusterMap, areaMap]);
 
-  function exportCsv() {
-    const headers = ["Date", "Kutir", "Avg Attendance", "Bal Sabha", "Sports", "Yoga", "Value Ed", "GK/Map", "Workbook", "Performance", "Cleanliness"];
-    const rows = sorted.map(v => {
-      const k = kutirMap.get(v.kutir_id);
-      return [v.visit_date, k?.name ?? v.kutir_id, v.avg_attendance_last_week, v.timeslot_bal_sabha ? "✓" : "", v.timeslot_sports ? "✓" : "", v.timeslot_yoga ? "✓" : "", v.timeslot_value_ed ? "✓" : "", v.timeslot_gk_map ? "✓" : "", v.workbook_completion ?? "", v.kutir_performance ?? "", v.cleanliness ?? ""];
-    });
-    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
-    const a = Object.assign(document.createElement("a"), { href: "data:text/csv," + encodeURIComponent(csv), download: "visits.csv" });
-    a.click();
-  }
+  // Pre-sort by date desc so default view is most-recent-first
+  const data = useMemo(
+    () => [...filtered].sort((a, b) => new Date(b.visit_date).getTime() - new Date(a.visit_date).getTime()),
+    [filtered]
+  );
 
-  function printTable() {
-    const w = window.open("", "_blank")!;
-    const rows = sorted.map(v => {
-      const k = kutirMap.get(v.kutir_id);
-      const slots = [v.timeslot_bal_sabha && "Bal Sabha", v.timeslot_sports && "Sports", v.timeslot_yoga && "Yoga", v.timeslot_value_ed && "Value Ed", v.timeslot_gk_map && "GK/Map"].filter(Boolean).join(", ");
-      return `<tr><td>${v.visit_date}</td><td>${k?.name ?? v.kutir_id}</td><td>${v.avg_attendance_last_week}</td><td>${slots}</td><td>${v.workbook_completion ?? ""}</td><td>${v.kutir_performance ?? ""}</td><td>${v.cleanliness ?? ""}</td></tr>`;
-    }).join("");
-    w.document.write(`<html><head><title>Kutir Visits</title><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:13px}th{background:#f0f4ff}</style></head><body><h2>Kutir Visits</h2><table><thead><tr><th>Date</th><th>Kutir</th><th>Avg Attendance</th><th>Timeslots</th><th>Workbook</th><th>Performance</th><th>Cleanliness</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-    w.document.close(); w.focus(); w.print();
-  }
+  const allColumns = useMemo<Col<KutirVisit>[]>(() => [
+    {
+      key: "visit_date",
+      label: "Date",
+      sortable: true,
+      render: v => new Date(v.visit_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+    },
+    {
+      key: "kutir_id",
+      label: "Kutir",
+      sortable: true,
+      sortValue: v => kutirMap.get(v.kutir_id)?.name ?? "",
+      csvValue: v => kutirMap.get(v.kutir_id)?.name ?? String(v.kutir_id),
+      render: v => {
+        const kutir = kutirMap.get(v.kutir_id);
+        return (
+          <>
+            <span style={{ fontWeight: 600, color: "var(--badge-blue-fg)" }}>{kutir?.name ?? `#${v.kutir_id}`}</span>
+            {kutir && <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: 6 }}>{kutir.code}</span>}
+          </>
+        );
+      },
+    },
+    {
+      key: "avg_attendance_morning" as keyof KutirVisit,
+      label: "Attendance M/E",
+      sortable: false,
+      render: (v: KutirVisit) => {
+        const m = v.avg_attendance_morning ?? "—";
+        const e = v.avg_attendance_evening ?? "—";
+        return <span>{m} / {e}</span>;
+      },
+      csvValue: v => `${v.avg_attendance_morning ?? ""}/${v.avg_attendance_evening ?? ""}`,
+    },
+    {
+      key: "regular_students_morning" as keyof KutirVisit,
+      label: "Regular Students M/E",
+      sortable: false,
+      render: (v: KutirVisit) => {
+        const m = v.regular_students_morning ?? "—";
+        const e = v.regular_students_evening ?? "—";
+        return <span>{m} / {e}</span>;
+      },
+      csvValue: v => `${v.regular_students_morning ?? ""}/${v.regular_students_evening ?? ""}`,
+    },
+    {
+      key: "physical_vs_registered",
+      label: "Physical vs Registered",
+      sortable: true,
+      render: v => (
+        <span style={{
+          background: v.physical_vs_registered === "Matched" ? "var(--status-success-bg)" : "var(--status-danger-bg)",
+          color: v.physical_vs_registered === "Matched" ? "var(--status-success-fg)" : "var(--status-danger-fg)",
+          borderRadius: 4, padding: "2px 8px", fontSize: "0.78rem",
+        }}>{v.physical_vs_registered}</span>
+      ),
+    },
+    {
+      key: "follow_timetable",
+      label: "Follows Timetable",
+      sortable: true,
+      render: v => <span style={{ color: v.follow_timetable ? "var(--status-success-fg)" : "var(--status-danger-fg)" }}>{v.follow_timetable ? "✓ Yes" : "✗ No"}</span>,
+      csvValue: v => v.follow_timetable ? "Yes" : "No",
+    },
+    {
+      key: "follow_monthly_plan",
+      label: "Follows Monthly Teaching Plan",
+      sortable: true,
+      render: v => <span style={{ color: v.follow_monthly_plan ? "var(--status-success-fg)" : "var(--status-danger-fg)" }}>{v.follow_monthly_plan ? "✓ Yes" : "✗ No"}</span>,
+      csvValue: v => v.follow_monthly_plan ? "Yes" : "No",
+    },
+    {
+      key: "timeslot_utilization",
+      label: "Timeslots",
+      sortable: true,
+      render: v => (
+        <span style={{
+          background: v.timeslot_utilization ? "var(--status-success-bg)" : "var(--status-danger-bg)",
+          color: v.timeslot_utilization ? "var(--status-success-fg)" : "var(--status-danger-fg)",
+          borderRadius: 4, padding: "2px 8px", fontSize: "0.78rem",
+        }}>
+          {v.timeslot_utilization ? "On Track" : "Missed"}
+        </span>
+      ),
+      csvValue: v => v.timeslot_utilization ? "On Track" : "Missed",
+    },
+    {
+      key: "workbook_percentage",
+      label: "Workbook %",
+      sortable: true,
+      render: v => (
+        <>
+          <span style={{ fontSize: "0.82rem", color: "var(--text-primary)" }}>{v.workbook_percentage}%</span>
+          <span style={{ marginLeft: 6, fontSize: "0.75rem", color: workbookColor(v.workbook_completion) }}>
+            {v.workbook_completion === "Upto Date" ? "✓" : v.workbook_completion === "Partial Upto Date" ? "~" : "✗"}
+          </span>
+        </>
+      ),
+      csvValue: v => `${v.workbook_percentage}% (${v.workbook_completion ?? ""})`,
+    },
+    {
+      key: "workbook_completion",
+      label: "Workbook Completion",
+      sortable: true,
+    },
+    {
+      key: "book_availability",
+      label: "Book Availability",
+      sortable: true,
+    },
+    {
+      key: "kutir_performance",
+      label: "Performance",
+      sortable: true,
+      render: v => <StarRating value={v.kutir_performance} readOnly />,
+    },
+    {
+      key: "staff_behavior",
+      label: "Staff Behavior",
+      sortable: true,
+      render: v => <StarRating value={v.staff_behavior ?? 0} readOnly />,
+    },
+    {
+      key: "cleanliness",
+      label: "Cleanliness",
+      sortable: true,
+      render: v => <StarRating value={v.cleanliness} readOnly />,
+    },
+    {
+      key: "hindi_proficiency",
+      label: "Hindi",
+      sortable: true,
+      render: v => <StarRating value={v.hindi_proficiency} readOnly />,
+    },
+    {
+      key: "english_proficiency",
+      label: "English",
+      sortable: true,
+      render: v => <StarRating value={v.english_proficiency} readOnly />,
+    },
+    {
+      key: "maths_proficiency",
+      label: "Maths",
+      sortable: true,
+      render: v => <StarRating value={v.maths_proficiency} readOnly />,
+    },
+    {
+      key: "evs_proficiency",
+      label: "EVS",
+      sortable: true,
+      render: v => <StarRating value={v.evs_proficiency} readOnly />,
+    },
+    {
+      key: "reasoning_proficiency",
+      label: "Reasoning",
+      sortable: true,
+      render: v => <StarRating value={v.reasoning_proficiency} readOnly />,
+    },
+    {
+      key: "material_management",
+      label: "Material Mgmt",
+      sortable: true,
+      render: v => <StarRating value={v.material_management} readOnly />,
+    },
+    {
+      key: "grs_prep_remarks",
+      label: "GRS Prep Remarks",
+      sortable: false,
+      render: v => <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{v.grs_prep_remarks ?? "—"}</span>,
+    },
+    {
+      key: "final_remarks",
+      label: "Final Remarks",
+      sortable: false,
+      render: v => <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{v.final_remarks ?? "—"}</span>,
+    },
+    {
+      key: "visit_photo",
+      label: "Photo",
+      csvValue: v => v.visit_photo ? `${MEDIA_BASE}/media/${v.visit_photo}` : "",
+      render: v => v.visit_photo ? (
+        <img src={`${MEDIA_BASE}/media/${v.visit_photo}`} alt="Visit photo" style={{ width: 56, height: 42, objectFit: "cover", borderRadius: 4, display: "block" }} />
+      ) : (
+        <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>—</span>
+      ),
+    },
+  ], [kutirMap]);
+
+  const { isVisible, orderedMetas } = useFieldConfig("visits", VISITS_FIELDS);
+  const columns = useMemo(() => {
+    const colByKey = new Map(allColumns.map(c => [c.key, c]));
+    return orderedMetas
+      .filter(m => isVisible(m.key))
+      .map(m => colByKey.get(m.key))
+      .filter((c): c is NonNullable<typeof c> => c != null);
+  }, [allColumns, orderedMetas, isVisible]);
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ margin: 0, color: "var(--text-primary)" }}>Kutir Visits</h2>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={exportCsv} title="Export CSV" style={grs.btnIcon}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span className="grs-lbl">Export CSV</span>
-          </button>
-          <button onClick={printTable} title="Print" style={grs.btnIcon}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            <span className="grs-lbl">Print</span>
-          </button>
-          <button onClick={() => setShowAdd(true)} style={grs.btnPrimary}>+ Log Visit</button>
-        </div>
-      </div>
+      <GrsTable<KutirVisit>
+        title="Kutir Visits"
+        subtitle="Field visit records and observations"
+        columns={columns}
+        data={data}
+        rowKey={v => v.id}
+        isLoading={isLoading}
+        emptyMessage="No visits recorded yet."
+        searchable
+        searchPlaceholder="Search by kutir name…"
+        searchFn={(v, q) => (kutirMap.get(v.kutir_id)?.name ?? "").toLowerCase().includes(q)}
+        filters={<>
+          <select value={filterKutir} onChange={e => setFilterKutir(e.target.value === "" ? "" : Number(e.target.value))} style={grs.filterSelect}>
+            <option value="">All Kutirs</option>
+            {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+          </select>
+          <select value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }} style={grs.filterSelect}>
+            <option value="">All Districts</option>
+            {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          <select value={filterCluster} onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))} disabled={filterDistrict === ""} style={grs.filterSelect}>
+            <option value="">All Clusters</option>
+            {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </>}
+        headerExtra={isAdmin ? (
+          <a href="/admin/field-config?table=visits" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8125rem", color: "var(--text-secondary)", textDecoration: "none", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span>Columns</span>
+          </a>
+        ) : undefined}
+        exportFilename="visits"
+        printTitle="Kutir Visits"
+        onAdd={() => setShowAdd(true)}
+        addLabel="+ Log Visit"
+        actions={v => ({
+          onView: () => setViewVisit(v),
+          onEdit: () => setEditVisit(v),
+          onDelete: () => {
+            if (confirm(`Delete visit for ${kutirMap.get(v.kutir_id)?.name ?? "this kutir"} on ${v.visit_date}?`))
+              deleteMut.mutate(v.id);
+          },
+        })}
+      />
 
-      <button className="grs-filter-toggle" onClick={() => setFiltersOpen(o => !o)}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-        <span>Filters {filtersOpen ? "▲" : "▼"}</span>
-      </button>
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }} className={filtersOpen ? "grs-fbar" : "grs-fbar grs-fbar--hidden"}>
-        <input style={grs.searchInput} placeholder="Search by kutir name…" value={search} onChange={e => setSearch(e.target.value)} />
-        <select value={filterKutir} onChange={e => setFilterKutir(e.target.value === "" ? "" : Number(e.target.value))} style={grs.filterSelect}>
-          <option value="">All Kutirs</option>
-          {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-        </select>
-        <select value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }} style={grs.filterSelect}>
-          <option value="">All Districts</option>
-          {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-        <select value={filterCluster} onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))} disabled={filterDistrict === ""} style={grs.filterSelect}>
-          <option value="">All Clusters</option>
-          {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
-
-      {isLoading ? (
-        <p style={grs.muted}>Loading…</p>
-      ) : (
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead>
-              <tr>
-                <th className="grs-thead-th" style={grs.th}>Date</th>
-                <th className="grs-thead-th" style={grs.th}>Kutir</th>
-                <th className="grs-thead-th" style={grs.th}>Avg Attendance</th>
-                <th className="grs-thead-th" style={grs.th}>Timeslots</th>
-                <th className="grs-thead-th" style={grs.th}>Workbook</th>
-                <th className="grs-thead-th" style={grs.th}>Performance</th>
-                <th className="grs-thead-th" style={grs.th}>Cleanliness</th>
-                <th className="grs-thead-th" style={grs.th}>Photo</th>
-                <th className="grs-thead-th" style={{ ...grs.th, width: 96, position: "sticky", right: 0, background: "var(--bg-thead)" }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((v, i) => {
-                const kutir = kutirMap.get(v.kutir_id);
-                return (
-                  <tr
-                    key={v.id}
-                    onClick={() => setViewVisit(v)}
-                    style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--bg-input)", cursor: "pointer" }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = "var(--bg-thead)")}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLTableRowElement).style.background = i % 2 === 0 ? "var(--bg-card)" : "var(--bg-input)")}
-                  >
-                    <td style={grs.td}>{new Date(v.visit_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</td>
-                    <td style={grs.td}>
-                      <span style={{ fontWeight: 600, color: "var(--badge-blue-fg)" }}>{kutir?.name ?? `#${v.kutir_id}`}</span>
-                      {kutir && <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: 6 }}>{kutir.code}</span>}
-                    </td>
-                    <td style={grs.td}>{v.avg_attendance_last_week}</td>
-                    <td style={grs.td}>
-                      <span style={{ background: v.timeslot_utilization ? "var(--status-success-bg)" : "var(--status-danger-bg)", color: v.timeslot_utilization ? "var(--status-success-fg)" : "var(--status-danger-fg)", borderRadius: 4, padding: "2px 8px", fontSize: "0.78rem" }}>
-                        {v.timeslot_utilization ? "On Track" : "Missed"}
-                      </span>
-                    </td>
-                    <td style={grs.td}>
-                      <span style={{ fontSize: "0.82rem", color: "var(--text-primary)" }}>{v.workbook_percentage}%</span>
-                      <span style={{ marginLeft: 6, fontSize: "0.75rem", color: workbookColor(v.workbook_completion) }}>
-                        {v.workbook_completion === "Upto Date" ? "✓" : v.workbook_completion === "Partial Upto Date" ? "~" : "✗"}
-                      </span>
-                    </td>
-                    <td style={grs.td}><StarRating value={v.kutir_performance} readOnly /></td>
-                    <td style={grs.td}><StarRating value={v.cleanliness} readOnly /></td>
-                    <td style={grs.td}>
-                      {v.visit_photo ? (
-                        <img src={`${MEDIA_BASE}/media/${v.visit_photo}`} alt="Visit photo" style={{ width: 56, height: 42, objectFit: "cover", borderRadius: 4, display: "block" }} />
-                      ) : (
-                        <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>—</span>
-                      )}
-                    </td>
-                    <td
-                      style={{ ...grs.td, textAlign: "right", width: 96, position: "sticky", right: 0, background: i % 2 === 0 ? "var(--bg-card)" : "var(--bg-input)", borderLeft: "1px solid var(--border)" }}
-                      onClick={e => e.stopPropagation()}
-                    >
-                      <RowActions
-                        onView={() => setViewVisit(v)}
-                        onEdit={isAdmin ? () => setEditVisit(v) : undefined}
-                        onDelete={isAdmin ? () => { if (confirm(`Delete visit for ${kutirMap.get(v.kutir_id)?.name ?? "this kutir"} on ${v.visit_date}?`)) deleteMut.mutate(v.id); } : undefined}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {sorted.length === 0 && (
-            <p style={{ ...grs.muted, textAlign: "center", padding: "32px 0" }}>No visits recorded yet.</p>
-          )}
-        </div>
+      {showAdd && (
+        <VisitModal initial={{ ...BLANK_VISIT }} kutirs={kutirs} onClose={() => setShowAdd(false)} onSaved={refresh} />
       )}
-
-      {showAdd && <VisitModal initial={{ ...BLANK_VISIT }} kutirs={kutirs} onClose={() => setShowAdd(false)} onSaved={refresh} />}
 
       {viewVisit && !editVisit && (
         <VisitDetailDrawer
@@ -863,7 +1066,7 @@ export default function VisitsPage() {
   );
 }
 
-// ── Layout constants (no hardcoded colors) ────────────────────────────────────
+// ── Layout constants (used by VisitDetailDrawer) ──────────────────────────────
 const detailGrid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "140px 1fr",

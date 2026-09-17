@@ -20,11 +20,13 @@ export interface ExamScore {
 export interface StudentExam {
   id: number;
   student_id: number;
-  school_id: number;
+  school_id: number | null;
+  school_type: string | null;
   school_start_year: number;
   eligible: boolean;
   form_received: boolean;
   applied: boolean;
+  admit_card: boolean;
   appeared: boolean;
   selected: boolean;
   admitted: boolean;
@@ -41,17 +43,20 @@ export interface StudentExam {
   evs: number | null;
   scores: ExamScore[];
   school?: SchoolMin;
+  admission_class: number | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface StudentExamCreate {
   student_id: number;
-  school_id: number;
+  school_id?: number | null;
+  school_type?: string | null;
   school_start_year: number;
   eligible?: boolean;
   form_received?: boolean;
   applied?: boolean;
+  admit_card?: boolean;
   appeared?: boolean;
   selected?: boolean;
   admitted?: boolean;
@@ -67,16 +72,20 @@ export interface StudentExamCreate {
   reasoning?: number | null;
   evs?: number | null;
   scores?: { subject_id: number; score: number | null }[];
+  admission_class?: number | null;  // 5 or 8
 }
 
 // ── StudentProgress ──────────────────────────────────────────────────────────
+export type ProgressStatus = "enrolled" | "transferred" | "dropped_out" | "graduated";
+
 export interface StudentProgress {
   id: number;
   student_id: number;
   school_id: number;
   academic_year: number;
-  grade: number;
-  is_enrolled: boolean;
+  class_in_year: number | null;
+  status: ProgressStatus;
+  transfer_school: string | null;
   exit_reason: string | null;
   previous_year_percentage: number | null;
   remarks: string | null;
@@ -89,8 +98,9 @@ export interface StudentProgressCreate {
   student_id: number;
   school_id: number;
   academic_year: number;
-  grade: number;
-  is_enrolled?: boolean;
+  class_in_year?: number | null;
+  status?: ProgressStatus;
+  transfer_school?: string | null;
   exit_reason?: string | null;
   previous_year_percentage?: number | null;
   remarks?: string | null;
@@ -128,6 +138,7 @@ export async function deleteExam(id: number): Promise<void> {
 export async function listProgress(params: {
   student_id?: number;
   school_id?: number;
+  academic_year?: number;
 } = {}): Promise<StudentProgress[]> {
   const { data } = await api.get("/student-progress", { params });
   return data;

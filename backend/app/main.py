@@ -18,6 +18,7 @@ import app.models.users     # noqa  — must come after geo/donors
 import app.models.kutirs    # noqa  — must come after clusters/donors/users
 import app.models.students  # noqa  — must come after kutirs/lookups
 import app.models.visits    # noqa
+import app.models.settings  # noqa
 
 from app.routers.auth import router as auth_router
 from app.routers.geo import router as geo_router
@@ -28,6 +29,8 @@ from app.routers.schools import router as schools_router
 from app.routers.kutirs import router as kutirs_router
 from app.routers.students import router as students_router
 from app.routers.visits import router as visits_router
+from app.routers.settings import router as settings_router
+from app.routers.import_data import router as import_router
 
 
 @asynccontextmanager
@@ -66,6 +69,8 @@ app.include_router(schools_router, prefix=PREFIX)
 app.include_router(kutirs_router, prefix=PREFIX)
 app.include_router(students_router, prefix=PREFIX)
 app.include_router(visits_router, prefix=PREFIX)
+app.include_router(settings_router, prefix=PREFIX)
+app.include_router(import_router, prefix=PREFIX)
 
 
 @app.get("/health", tags=["Health"])

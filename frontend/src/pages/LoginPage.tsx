@@ -27,7 +27,7 @@ export default function LoginPage() {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <h1 style={styles.title}>KutirGRS</h1>
+        <h1 style={styles.title}>Parivaar Kutirs</h1>
         <p style={styles.sub}>Parivaar Kutir GRS Admission Tracking</p>
         <form onSubmit={handleSubmit} style={styles.form}>
           <label style={styles.label}>Username</label>

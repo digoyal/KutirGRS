@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, require_admin, get_geo_scope, GeoScope
 from app.models.geo import Zone, District, Area, Cluster, ExamCenter
 from app.schemas.geo import (
     ZoneCreate, ZoneUpdate, ZoneOut,
@@ -20,8 +20,11 @@ router = APIRouter(prefix="/geo", tags=["Geo"])
 # ── Zones ─────────────────────────────────────────────────────────────────────
 
 @router.get("/zones", response_model=list[ZoneOut])
-async def list_zones(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
-    result = await db.execute(select(Zone).order_by(Zone.name))
+async def list_zones(db: AsyncSession = Depends(get_db), gs: GeoScope = Depends(get_geo_scope)):
+    q = select(Zone).order_by(Zone.name)
+    if gs.zone_ids is not None:
+        q = q.where(Zone.id.in_(gs.zone_ids))
+    result = await db.execute(q)
     return result.scalars().all()
 
 @router.post("/zones", response_model=ZoneOut, status_code=201)
@@ -65,9 +68,11 @@ async def delete_zone(zone_id: int, db: AsyncSession = Depends(get_db), _=Depend
 async def list_districts(
     zone_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    gs: GeoScope = Depends(get_geo_scope),
 ):
     q = select(District).order_by(District.name)
+    if gs.district_ids is not None:
+        q = q.where(District.id.in_(gs.district_ids))
     if zone_id:
         q = q.where(District.zone_id == zone_id)
     result = await db.execute(q)
@@ -114,9 +119,11 @@ async def delete_district(district_id: int, db: AsyncSession = Depends(get_db), 
 async def list_areas(
     district_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    gs: GeoScope = Depends(get_geo_scope),
 ):
     q = select(Area).order_by(Area.name)
+    if gs.area_ids is not None:
+        q = q.where(Area.id.in_(gs.area_ids))
     if district_id:
         q = q.where(Area.district_id == district_id)
     result = await db.execute(q)
@@ -163,9 +170,11 @@ async def delete_area(area_id: int, db: AsyncSession = Depends(get_db), _=Depend
 async def list_clusters(
     area_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    gs: GeoScope = Depends(get_geo_scope),
 ):
     q = select(Cluster).order_by(Cluster.name)
+    if gs.cluster_ids is not None:
+        q = q.where(Cluster.id.in_(gs.cluster_ids))
     if area_id:
         q = q.where(Cluster.area_id == area_id)
     result = await db.execute(q)
@@ -212,16 +221,18 @@ async def delete_cluster(cluster_id: int, db: AsyncSession = Depends(get_db), _=
 async def list_exam_centers(
     district_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    gs: GeoScope = Depends(get_geo_scope),
 ):
     q = select(ExamCenter).order_by(ExamCenter.name)
+    if gs.district_ids is not None:
+        q = q.where(ExamCenter.district_id.in_(gs.district_ids))
     if district_id:
         q = q.where(ExamCenter.district_id == district_id)
     result = await db.execute(q)
     return result.scalars().all()
 
 @router.post("/exam-centers", response_model=ExamCenterOut, status_code=201)
-async def create_exam_center(body: ExamCenterCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def create_exam_center(body: ExamCenterCreate, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = ExamCenter(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -236,7 +247,7 @@ async def get_exam_center(ec_id: int, db: AsyncSession = Depends(get_db), _=Depe
     return obj
 
 @router.put("/exam-centers/{ec_id}", response_model=ExamCenterOut)
-async def update_exam_center(ec_id: int, body: ExamCenterUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def update_exam_center(ec_id: int, body: ExamCenterUpdate, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = await db.get(ExamCenter, ec_id)
     if not obj:
         raise HTTPException(404, "ExamCenter not found")
@@ -247,7 +258,7 @@ async def update_exam_center(ec_id: int, body: ExamCenterUpdate, db: AsyncSessio
     return obj
 
 @router.delete("/exam-centers/{ec_id}", status_code=204)
-async def delete_exam_center(ec_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_exam_center(ec_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = await db.get(ExamCenter, ec_id)
     if not obj:
         raise HTTPException(404, "ExamCenter not found")

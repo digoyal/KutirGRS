@@ -19,12 +19,10 @@ class Zone(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
 
-    zonal_head_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     districts: Mapped[list["District"]] = relationship(
         "District", back_populates="zone", cascade="all, delete-orphan"
     )
-    zonal_head: Mapped[Optional["User"]] = relationship("User", foreign_keys=[zonal_head_id])  # type: ignore[name-defined]
 
     def __repr__(self):
         return f"<Zone {self.name}>"
@@ -37,10 +35,8 @@ class District(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     zone_id: Mapped[int] = mapped_column(ForeignKey("zones.id"), nullable=False)
 
-    district_anchor_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     zone: Mapped["Zone"] = relationship("Zone", back_populates="districts")
-    district_anchor: Mapped[Optional["User"]] = relationship("User", foreign_keys=[district_anchor_id])  # type: ignore[name-defined]
     areas: Mapped[list["Area"]] = relationship(
         "Area", back_populates="district", cascade="all, delete-orphan"
     )
@@ -59,10 +55,8 @@ class Area(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     district_id: Mapped[int] = mapped_column(ForeignKey("districts.id"), nullable=False)
 
-    education_coordinator_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     district: Mapped["District"] = relationship("District", back_populates="areas")
-    education_coordinator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[education_coordinator_id])  # type: ignore[name-defined]
     clusters: Mapped[list["Cluster"]] = relationship(
         "Cluster", back_populates="area", cascade="all, delete-orphan"
     )
@@ -78,10 +72,8 @@ class Cluster(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     area_id: Mapped[int] = mapped_column(ForeignKey("areas.id"), nullable=False)
 
-    cluster_coordinator_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     area: Mapped["Area"] = relationship("Area", back_populates="clusters")
-    cluster_coordinator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[cluster_coordinator_id])  # type: ignore[name-defined]
 
     def __repr__(self):
         return f"<Cluster {self.name}>"

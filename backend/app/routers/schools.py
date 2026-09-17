@@ -28,7 +28,7 @@ async def list_schools(
 
 
 @router.post("", response_model=SchoolOut, status_code=201)
-async def create_school(body: SchoolCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def create_school(body: SchoolCreate, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = GovtResidentialSchool(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -45,7 +45,7 @@ async def get_school(school_id: int, db: AsyncSession = Depends(get_db), _=Depen
 
 
 @router.put("/{school_id}", response_model=SchoolOut)
-async def update_school(school_id: int, body: SchoolUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def update_school(school_id: int, body: SchoolUpdate, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = await db.get(GovtResidentialSchool, school_id)
     if not obj:
         raise HTTPException(404, "School not found")
@@ -57,7 +57,7 @@ async def update_school(school_id: int, body: SchoolUpdate, db: AsyncSession = D
 
 
 @router.delete("/{school_id}", status_code=204)
-async def delete_school(school_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_school(school_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = await db.get(GovtResidentialSchool, school_id)
     if not obj:
         raise HTTPException(404, "School not found")

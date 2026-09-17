@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { listExams, createExam, updateExam, deleteExam } from "../api/admissions";
 import type { StudentExam, StudentExamCreate } from "../api/admissions";
-import { listStudents } from "../api/students";
+import { listStudents, listSchoolTypeSubjects } from "../api/students";
+import type { SchoolTypeSubjectRow } from "../api/students";
 import type { Student } from "../api/students";
 import { listSchools } from "../api/schools";
 import { useAuth } from "../context/AuthContext";
 import { listKutirs } from "../api/kutirs";
 import { grs } from "../styles/grs";
-import { RowActions } from "../components/RowActions";
+import { GrsTable } from "../components/GrsTable";
+import type { Col } from "../components/GrsTable";
+import { useFieldConfig } from "../hooks/useFieldConfig";
+import { ADMISSIONS_FIELDS } from "../constants/admissionsFields";
 import { listDistricts, listAreas, listClusters, listExamCenters, listExamCategories, listNoExamReasons, listNoAdmitReasons } from "../api/geo";
 import type { ExamCenter, ExamCategory, NoExamReason, NoAdmitReason } from "../api/geo";
 
@@ -18,14 +22,23 @@ const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
 
 // Pipeline stages in order
 const STAGES = [
-  { key: "form_received", label: "Form" },
-  { key: "applied",       label: "Applied" },
-  { key: "appeared",      label: "Appeared" },
-  { key: "selected",      label: "Selected" },
-  { key: "admitted",      label: "Admitted" },
+  { key: "eligible",       label: "Eligible" },
+  { key: "applied",        label: "Applied" },
+  { key: "admit_card",     label: "Admit Card Downloaded" },
+  { key: "appeared",       label: "Appeared" },
+  { key: "selected",       label: "Selected" },
+  { key: "admitted",       label: "Admitted" },
 ] as const;
 
 type StageKey = typeof STAGES[number]["key"];
+// Returns the subjects configured for a given school type (from Lookups)
+function subjectsForType(
+  rows: SchoolTypeSubjectRow[],
+  schoolType: string | null
+): { id: number; name: string }[] {
+  if (!schoolType) return [];
+  return rows.find(r => r.school_type === schoolType)?.subjects ?? [];
+}
 
 function pipelineStage(exam: StudentExam): number {
   // Returns index (0-based) of the highest completed stage, or -1 if none
@@ -100,176 +113,483 @@ function PipelineStepper({ exam, onChange }: {
   );
 }
 
-// ── Modal for adding a new admission ──────────────────────────────────────
-function AddModal({
-  students, schools, year, examCategories, examCenters, noExamReasons, noAdmitReasons,
-  onClose, onSave, saveError, saving
+// ── Unified AdmissionModal ────────────────────────────────────────────────────
+function AdmissionModal({
+  mode, exam, student, students, schools, districts, year = CURRENT_YEAR,
+  examCategories, examCenters, noExamReasons, noAdmitReasons,
+  allExams = [], onClose, onSave, onEdit,
+  saveError, saving,
 }: {
+  mode: "add" | "edit" | "view";
+  exam?: StudentExam;
+  student?: Student;
   students: Student[];
-  schools: { id: number; name: string; school_type: string }[];
-  year: number;
+  schools: { id: number; name: string; school_type: string; district_id: number | null }[];
+  districts: { id: number; name: string }[];
+  year?: number;
   examCategories: ExamCategory[];
   examCenters: ExamCenter[];
   noExamReasons: NoExamReason[];
   noAdmitReasons: NoAdmitReason[];
+  allExams?: StudentExam[];
   onClose: () => void;
-  onSave: (data: StudentExamCreate) => void;
+  onSave?: (data: StudentExamCreate | Partial<StudentExamCreate>) => void;
+  onEdit?: () => void;
   saveError?: string | null;
   saving?: boolean;
 }) {
-  const [studentId, setStudentId] = useState<number | "">("");
-  const [schoolId, setSchoolId] = useState<number | "">("");
-  const [sy, setSy] = useState<number>(year);
-  const [search, setSearch] = useState("");
-  const [form, setForm] = useState<Partial<StudentExamCreate>>({
-    eligible: true,
-    form_received: false,
-    applied: false,
-    appeared: false,
-    selected: false,
-    admitted: false,
+  const isAdd  = mode === "add";
+  const isEdit = mode === "edit";
+  const isView = mode === "view";
+
+  // — Student picker (add mode only) —
+  const [studentId, setStudentId] = useState<number | "">(isAdd ? "" : (exam?.student_id ?? ""));
+  const [search, setSearch]       = useState("");
+  const [kutirFilter, setKutirFilter] = useState<number | "">("");
+  const { data: kutirs = [] } = useQuery({
+    queryKey: ["kutirs"], queryFn: () => listKutirs(), staleTime: 5 * 60 * 1000,
+  });
+  const { data: schoolTypeSubjects = [] } = useQuery<SchoolTypeSubjectRow[]>({
+    queryKey: ["school-type-subjects"], queryFn: listSchoolTypeSubjects, staleTime: 5 * 60 * 1000,
   });
 
+  // — District filter for GRS School dropdown —
+  const [schoolDistrictFilter, setSchoolDistrictFilter] = useState<number | "">("");
+
+  // — School type state (editable in add/edit; read-only display in view) —
+  const [schoolType, setSchoolType] = useState<string>(isAdd ? "" : (exam?.school_type ?? ""));
+
+  // — Year (selectable in add; read-only in edit/view) —
+  const [sy, setSy] = useState<number>(isAdd ? year : (exam?.school_start_year ?? year));
+
+  // — Form/pipeline state —
+  const [form, setForm] = useState<Partial<StudentExamCreate>>(() =>
+    isAdd
+      ? { eligible: true, form_received: false, applied: false, appeared: false, selected: false, admitted: false }
+      : { ...exam }
+  );
+  const [scoreInputs, setScoreInputs] = useState<Record<number, string>>(() =>
+    isAdd ? {} : Object.fromEntries((exam?.scores ?? []).map(s => [s.subject_id, s.score != null ? String(s.score) : ""]))
+  );
+  const [admitBlockMsg, setAdmitBlockMsg] = useState<string | null>(null);
+
   function set(k: string, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
+  function setScore(subjectId: number, val: string) { setScoreInputs(prev => ({ ...prev, [subjectId]: val })); }
 
   function toggleStage(updates: Partial<Record<StageKey, boolean>>) {
+    if (updates.admitted === true && isEdit && exam) {
+      const alreadyAdmitted = allExams.find(
+        e => e.student_id === exam.student_id && e.admitted && e.id !== exam.id
+      );
+      if (alreadyAdmitted) {
+        setAdmitBlockMsg(
+          `This student is already admitted via ${alreadyAdmitted.school_type ?? "another school"}. Only one admission is allowed.`
+        );
+        return;
+      }
+    }
+    setAdmitBlockMsg(null);
     setForm(f => ({ ...f, ...updates }));
   }
 
-  const filteredStudents = students.filter(s =>
-    `${s.first_name} ${s.last_name}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const schoolTypes = Array.from(new Set(schools.map(sc => sc.school_type))).sort();
+  const subjects     = subjectsForType(schoolTypeSubjects, schoolType || null);
+  const scoreEnabled = !!form.selected;
 
-  const selStyles = { width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" as const };
-  const inputStyles = { width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" as const };
+  const filteredStudents = students.filter(s => {
+    const matchSearch = `${s.first_name} ${s.last_name}`.toLowerCase().includes(search.toLowerCase());
+    const matchKutir  = kutirFilter === "" || s.kutir_id === Number(kutirFilter);
+    return matchSearch && matchKutir;
+  });
+
+  // Derived display values (mainly used in view mode)
+  const currentStudent  = isAdd ? students.find(s => s.id === Number(studentId)) : student;
+  const viewExamCategory = examCategories.find(c => c.id === exam?.exam_category_id);
+  const viewExamCenter   = examCenters.find(c => c.id === exam?.exam_center_id);
+  const noExamReason     = noExamReasons.find(r => r.id === exam?.no_exam_reason_id);
+  const noAdmitReason    = noAdmitReasons.find(r => r.id === exam?.no_admit_reason_id);
+  const admittedSchool   = schools.find(s => s.id === exam?.admitted_school_id);
+  const schoolTypeFiltered = schoolType ? schools.filter(s => s.school_type === schoolType) : schools;
+  const filteredGrsSchools = schoolDistrictFilter === ""
+    ? schoolTypeFiltered
+    : schoolTypeFiltered.filter(s => s.district_id === schoolDistrictFilter);
+  const totalScore = (exam?.scores ?? []).reduce<number>((sum, s) => sum + (s.score != null ? Number(s.score) : 0), 0);
+  const hasScore   = (exam?.scores ?? []).length > 0 && (exam?.scores ?? []).some(s => s.score != null);
+
+  const selStyles: React.CSSProperties   = { width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" };
+  const inputStyles: React.CSSProperties = { width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" };
+  const fieldStyle: React.CSSProperties  = { display: "flex", flexDirection: "column", gap: 2 };
+  const labelStyle: React.CSSProperties  = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-secondary)" };
+  const valueStyle: React.CSSProperties  = { fontSize: 14, color: "var(--text-primary)", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", boxSizing: "border-box", display: "block", width: "100%" };
+
+  const title = isAdd ? "Add Admission" : isEdit ? "Edit Admission" : "View Admission";
+
+  function handleSave() {
+    if (!onSave) return;
+    if (isAdd && !schoolType) return;  // school type required
+    if (isAdd) {
+      onSave({
+        student_id:           Number(studentId),
+        school_id:            null,
+        school_type:          schoolType || null,
+        school_start_year:    sy,
+        eligible:             form.eligible ?? true,
+        form_received:        form.form_received,
+        applied:              form.applied,
+        appeared:             form.appeared,
+        selected:             form.selected,
+        admitted:             form.admitted,
+        exam_category_id:     form.exam_category_id ?? null,
+        exam_center_id:       form.exam_center_id ?? null,
+        application_number:   form.application_number ?? null,
+        roll_number:          form.roll_number ?? null,
+        scores: Object.entries(scoreInputs)
+          .filter(([, v]) => v !== "")
+          .map(([id, v]) => ({ subject_id: Number(id), score: parseFloat(v) })),
+        no_exam_reason_id:  form.appeared ? null : (form.no_exam_reason_id ?? null),
+        no_admit_reason_id: (form.selected && !form.admitted) ? (form.no_admit_reason_id ?? null) : null,
+        admitted_school_id: form.admitted ? (form.admitted_school_id ?? null) : null,
+        admission_class:    form.admission_class ?? null,
+      } as StudentExamCreate);
+    } else {
+      onSave({
+        eligible:           form.eligible,
+        form_received:      form.form_received,
+        applied:            form.applied,
+        appeared:           form.appeared,
+        selected:           form.selected,
+        admitted:           form.admitted,
+        application_number: form.application_number,
+        roll_number:        form.roll_number,
+        scores: Object.entries(scoreInputs)
+          .filter(([, v]) => v !== "")
+          .map(([id, v]) => ({ subject_id: Number(id), score: parseFloat(v) })),
+        exam_category_id:   form.exam_category_id,
+        exam_center_id:     form.exam_center_id,
+        no_exam_reason_id:  form.appeared ? null : form.no_exam_reason_id,
+        no_admit_reason_id: (form.selected && !form.admitted) ? form.no_admit_reason_id : null,
+        admitted_school_id: form.admitted ? form.admitted_school_id : null,
+        admission_class:    form.admission_class ?? null,
+        school_type:        schoolType || null,
+      });
+    }
+  }
 
   return (
     <div style={{
       position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16,
     }}>
       <div style={{
         background: "var(--bg-card)", borderRadius: 12, padding: 28,
         width: 560, maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
       }}>
-        <h3 style={{ margin: "0 0 20px", fontSize: 18, color: "var(--text-primary)" }}>
-          Add Admission
-        </h3>
+
+        {/* ── Title ── */}
+        {isView ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+            <h3 style={{ margin: 0, fontSize: 18, color: "var(--text-primary)" }}>{title}</h3>
+            <button onClick={onClose} style={{ ...grs.btnIcon, fontSize: 18, lineHeight: 1 }}>✕</button>
+          </div>
+        ) : (
+          <h3 style={{ margin: "0 0 20px", fontSize: 18, color: "var(--text-primary)" }}>{title}</h3>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* Student */}
-          <div>
-            <label style={grs.fieldLabel}>Student <span style={{ color: "var(--danger)" }}>*</span></label>
-            <input
-              placeholder="Search student..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ ...inputStyles, marginBottom: 6 }}
-            />
-            <select value={studentId} onChange={e => setStudentId(Number(e.target.value))} style={selStyles}>
-              <option value="">-- select student --</option>
-              {filteredStudents.map(s => (
-                <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* School + Year */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12 }}>
-            <div>
-              <label style={grs.fieldLabel}>School <span style={{ color: "var(--danger)" }}>*</span></label>
-              <select value={schoolId} onChange={e => setSchoolId(Number(e.target.value))} style={selStyles}>
-                <option value="">-- select school --</option>
-                {schools.map(sc => (
-                  <option key={sc.id} value={sc.id}>{sc.name} ({sc.school_type})</option>
-                ))}
-              </select>
+          {/* ── Stage badge (view only) ── */}
+          {isView && exam && (
+            <div style={{ background: "var(--bg-input)", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>STAGE</span>
+              <StageBadge exam={exam} />
+              {exam.eligible === false && (
+                <span style={{ fontSize: 11, color: "#e53e3e", fontWeight: 600, marginLeft: 4 }}>Not eligible</span>
+              )}
             </div>
-            <div>
-              <label style={grs.fieldLabel}>Year</label>
-              <select value={sy} onChange={e => setSy(Number(e.target.value))} style={{ ...selStyles, minWidth: 90 }}>
-                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </div>
-          </div>
+          )}
 
-          {/* Pipeline stage */}
-          <div>
-            <label style={{ ...grs.fieldLabel, fontWeight: 700, marginBottom: 8 }}>Pipeline Stage</label>
-            <PipelineStepper
-              exam={{ ...form, id: 0, student_id: 0, school_id: 0, school_start_year: sy, eligible: form.eligible ?? true, form_received: form.form_received ?? false, applied: form.applied ?? false, appeared: form.appeared ?? false, selected: form.selected ?? false, admitted: form.admitted ?? false, admitted_school_id: null, no_admit_reason_id: null, exam_category_id: null, application_number: null, exam_center_id: null, roll_number: null, no_exam_reason_id: null, math: null, english: null, reasoning: null, evs: null, scores: [], created_at: "", updated_at: "" } as StudentExam}
-              onChange={toggleStage}
-            />
-          </div>
-
-          {/* Eligible */}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--text-primary)", cursor: "pointer" }}>
-            <input type="checkbox" checked={form.eligible ?? true} onChange={e => set("eligible", e.target.checked)} style={{ accentColor: "var(--link-color)" }} />
-            Eligible for exam
-          </label>
-
-          {/* Exam Category & Center */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {/* ── Student + Class ── */}
+          {isAdd ? (
             <div>
-              <label style={grs.fieldLabel}>Exam Category</label>
-              <select value={form.exam_category_id ?? ""} onChange={e => set("exam_category_id", e.target.value === "" ? null : Number(e.target.value))} style={selStyles}>
-                <option value="">-- select --</option>
-                {examCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Exam Center</label>
-              <select value={form.exam_center_id ?? ""} onChange={e => set("exam_center_id", e.target.value === "" ? null : Number(e.target.value))} style={selStyles}>
-                <option value="">-- select --</option>
-                {examCenters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Application # & Roll # */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={grs.fieldLabel}>Application #</label>
-              <input value={form.application_number ?? ""} onChange={e => set("application_number", e.target.value || null)} style={inputStyles} />
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Roll #</label>
-              <input value={form.roll_number ?? ""} onChange={e => set("roll_number", e.target.value || null)} style={inputStyles} />
-            </div>
-          </div>
-
-          {/* Scores */}
-          <div>
-            <label style={{ ...grs.fieldLabel, fontWeight: 700, marginBottom: 8 }}>Scores</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {(["math", "english", "reasoning", "evs"] as const).map(subj => (
-                <div key={subj}>
-                  <label style={{ ...grs.fieldLabel, textTransform: "capitalize" }}>{subj}</label>
-                  <input
-                    type="number" min={0} max={100} step={0.01}
-                    value={form[subj] ?? ""}
-                    onChange={e => set(subj, e.target.value === "" ? null : parseFloat(e.target.value))}
-                    style={inputStyles} placeholder="—"
-                  />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 6 }}>
+                <input
+                  placeholder="Search student..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={inputStyles}
+                />
+                <select
+                  value={kutirFilter}
+                  onChange={e => { setKutirFilter(e.target.value === "" ? "" : Number(e.target.value)); setStudentId(""); }}
+                  style={selStyles}
+                >
+                  <option value="">-- all kutirs --</option>
+                  {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 8 }}>
+                <div>
+                  <label style={grs.fieldLabel}>Student <span style={{ color: "var(--danger)" }}>*</span></label>
+                  <select value={studentId} onChange={e => setStudentId(Number(e.target.value))} style={selStyles}>
+                    <option value="">-- select student --</option>
+                    {filteredStudents.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                  </select>
                 </div>
-              ))}
+                <div>
+                  <label style={grs.fieldLabel}>Class <span style={{ color: "var(--danger)" }}>*</span></label>
+                  <select
+                    value={form.admission_class ?? ""}
+                    onChange={e => set("admission_class", e.target.value === "" ? null : Number(e.target.value))}
+                    style={selStyles}
+                  >
+                    <option value="">-- select --</option>
+                    <option value={5}>Class 5</option>
+                    <option value={8}>Class 8</option>
+                  </select>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : isView ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Student</span>
+                <span style={valueStyle}>{currentStudent ? `${currentStudent.first_name} ${currentStudent.last_name}` : `Student #${exam?.student_id}`}</span>
+              </div>
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Class</span>
+                <span style={valueStyle}>{exam?.admission_class != null ? `Class ${exam.admission_class}` : "—"}</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 8 }}>
+              <div>
+                <label style={grs.fieldLabel}>Student</label>
+                <input
+                  readOnly
+                  value={currentStudent ? `${currentStudent.first_name} ${currentStudent.last_name}` : `Student #${exam?.student_id}`}
+                  style={{ ...inputStyles, opacity: 0.6, cursor: "not-allowed" }}
+                />
+              </div>
+              <div>
+                <label style={grs.fieldLabel}>Class</label>
+                <select
+                  value={form.admission_class ?? ""}
+                  onChange={e => set("admission_class", e.target.value === "" ? null : Number(e.target.value))}
+                  style={selStyles}
+                >
+                  <option value="">-- select --</option>
+                  <option value={5}>Class 5</option>
+                  <option value={8}>Class 8</option>
+                </select>
+              </div>
+            </div>
+          )}
 
-          {/* Reason Not Appeared — conditional */}
-          {!form.appeared && (
+          {/* ── Pipeline stepper (add/edit only) ── */}
+          {!isView && (
             <div>
-              <label style={grs.fieldLabel}>Reason Not Appeared</label>
+              <label style={{ ...grs.fieldLabel, fontWeight: 700, marginBottom: 8 }}>Pipeline Stage</label>
+              <PipelineStepper
+                exam={isAdd
+                  ? { ...form, id: 0, student_id: 0, school_id: 0, school_start_year: sy,
+                      eligible: form.eligible ?? true, form_received: form.form_received ?? false,
+                      applied: form.applied ?? false, appeared: form.appeared ?? false,
+                      selected: form.selected ?? false, admitted: form.admitted ?? false,
+                      admitted_school_id: null, no_admit_reason_id: null, exam_category_id: null,
+                      application_number: null, exam_center_id: null, roll_number: null,
+                      no_exam_reason_id: null, math: null, english: null, reasoning: null,
+                      evs: null, scores: [], created_at: "", updated_at: "",
+                      school_type: schoolType || null } as StudentExam
+                  : form as StudentExam
+                }
+                onChange={toggleStage}
+              />
+            </div>
+          )}
+
+          {/* ── Year + School Type + Exam Category ── */}
+          {isView ? (
+            <div style={{ display: "grid", gridTemplateColumns: "90px 130px 1fr", gap: 12 }}>
+              <div style={fieldStyle}><span style={labelStyle}>Year</span><span style={valueStyle}>{exam?.school_start_year}</span></div>
+              <div style={fieldStyle}><span style={labelStyle}>School Type</span><span style={valueStyle}>{exam?.school_type ?? "—"}</span></div>
+              <div style={fieldStyle}><span style={labelStyle}>Exam Category</span><span style={valueStyle}>{viewExamCategory?.name ?? "—"}</span></div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "90px 130px 1fr", gap: 12, alignItems: "end" }}>
+              <div>
+                <label style={grs.fieldLabel}>Year</label>
+                {isAdd ? (
+                  <select value={sy} onChange={e => setSy(Number(e.target.value))} style={selStyles}>
+                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                ) : (
+                  <input readOnly value={exam?.school_start_year} style={{ ...inputStyles, opacity: 0.6, cursor: "not-allowed" }} />
+                )}
+              </div>
+              <div>
+                <label style={grs.fieldLabel}>School Type <span style={{ color: "var(--danger)" }}>*</span></label>
+                <select value={schoolType} onChange={e => setSchoolType(e.target.value)} style={selStyles}>
+                  <option value="">-- select --</option>
+                  {schoolTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={grs.fieldLabel}>Exam Category</label>
+                <select value={form.exam_category_id ?? ""} onChange={e => set("exam_category_id", e.target.value === "" ? null : Number(e.target.value))} style={{ ...selStyles, opacity: form.selected ? 1 : 0.45, cursor: form.selected ? "auto" : "not-allowed" }} disabled={!form.selected}>
+                  <option value="">-- select --</option>
+                  {examCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* ── Exam Center + App# + Roll# ── */}
+          {isView ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <div style={fieldStyle}><span style={labelStyle}>Exam Center</span><span style={valueStyle}>{viewExamCenter?.name ?? "—"}</span></div>
+              <div style={fieldStyle}><span style={labelStyle}>Application #</span><span style={valueStyle}>{exam?.application_number ?? "—"}</span></div>
+              <div style={fieldStyle}><span style={labelStyle}>Roll #</span><span style={valueStyle}>{exam?.roll_number ?? "—"}</span></div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end" }}>
+              <div>
+                <label style={grs.fieldLabel}>Exam Center</label>
+                <select value={form.exam_center_id ?? ""} onChange={e => set("exam_center_id", e.target.value === "" ? null : Number(e.target.value))} style={{ ...selStyles, opacity: form.admit_card ? 1 : 0.45, cursor: form.admit_card ? "auto" : "not-allowed" }} disabled={!form.admit_card}>
+                  <option value="">-- select --</option>
+                  {examCenters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              {form.applied ? (
+              <div>
+                <label style={grs.fieldLabel}>Application #</label>
+                <input value={form.application_number ?? ""} onChange={e => set("application_number", e.target.value || null)} style={inputStyles} />
+              </div>
+              ) : <div />}
+              <div>
+                <label style={grs.fieldLabel}>Roll #</label>
+                <input value={form.roll_number ?? ""} onChange={e => set("roll_number", e.target.value || null)} style={{ ...inputStyles, opacity: form.admit_card ? 1 : 0.45, cursor: form.admit_card ? "auto" : "not-allowed" }} readOnly={!form.admit_card} />
+              </div>
+            </div>
+          )}
+
+          {/* ── Scores ── */}
+          {isView ? (
+            hasScore && (
+              <div>
+                <span style={{ ...labelStyle, display: "block", marginBottom: 8 }}>Scores</span>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
+                  {(exam?.scores ?? []).filter(s => s.score != null).map(s => (
+                    <div key={s.subject_id} style={{ background: "var(--bg-input)", borderRadius: 6, padding: "8px 10px", textAlign: "center" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-secondary)", marginBottom: 2 }}>
+                        {s.subject?.name ?? `Subject ${s.subject_id}`}
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
+                        {s.score}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 8, textAlign: "right", fontSize: 13, color: "var(--text-secondary)" }}>
+                  Total: <strong style={{ color: "var(--text-primary)", fontSize: 15 }}>{totalScore}</strong>
+                </div>
+              </div>
+            )
+          ) : subjects.length > 0 ? (
+            <div>
+              <label style={{ ...grs.fieldLabel, fontWeight: 700, marginBottom: 4 }}>Scores</label>
+              {!scoreEnabled && (
+                <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>Enable by checking Selected above</p>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {subjects.map(subj => (
+                  <div key={subj.id}>
+                    <label style={grs.fieldLabel}>{subj.name}</label>
+                    <input
+                      type="number" min={0} max={100} step={0.01}
+                      value={scoreInputs[subj.id] ?? ""}
+                      onChange={e => setScore(subj.id, e.target.value)}
+                      style={{ ...inputStyles, opacity: scoreEnabled ? 1 : 0.45, cursor: scoreEnabled ? "auto" : "not-allowed" }}
+                      placeholder="—"
+                      disabled={!scoreEnabled}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* ── Reason Not Appeared ── */}
+          {isView ? (
+            noExamReason && (
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Reason Not Appeared</span>
+                <span style={valueStyle}>{noExamReason.reason}</span>
+              </div>
+            )
+          ) : !form.appeared ? (
+            <div>
+              <label style={grs.fieldLabel}>Reason Not Appeared for Exam</label>
               <select value={form.no_exam_reason_id ?? ""} onChange={e => set("no_exam_reason_id", e.target.value === "" ? null : Number(e.target.value))} style={selStyles}>
                 <option value="">-- select --</option>
                 {noExamReasons.map(r => <option key={r.id} value={r.id}>{r.reason}</option>)}
               </select>
             </div>
-          )}
+          ) : null}
 
-          {/* Reason Not Admitted — conditional */}
-          {form.selected && !form.admitted && (
+          {/* ── GRS School ── */}
+          {isView ? (
+            exam?.selected ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8 }}>
+                <div style={fieldStyle}>
+                  <span style={labelStyle}>District</span>
+                  <span style={valueStyle}>
+                    {admittedSchool?.district_id
+                      ? (districts.find(d => d.id === admittedSchool.district_id)?.name ?? "—")
+                      : "—"}
+                  </span>
+                </div>
+                <div style={fieldStyle}>
+                  <span style={labelStyle}>GRS School</span>
+                  <span style={valueStyle}>{admittedSchool ? `${admittedSchool.name} (${admittedSchool.school_type})` : "—"}</span>
+                </div>
+              </div>
+            ) : null
+          ) : form.selected ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8, alignItems: "end" }}>
+              <div>
+                <label style={grs.fieldLabel}>District</label>
+                <select
+                  value={schoolDistrictFilter}
+                  onChange={e => {
+                    setSchoolDistrictFilter(e.target.value === "" ? "" : Number(e.target.value));
+                    set("admitted_school_id", null);
+                  }}
+                  style={selStyles}
+                >
+                  <option value="">-- all --</option>
+                  {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={grs.fieldLabel}>GRS School</label>
+                <select value={form.admitted_school_id ?? ""} onChange={e => set("admitted_school_id", e.target.value === "" ? null : Number(e.target.value))} style={selStyles}>
+                  <option value="">-- select --</option>
+                  {filteredGrsSchools.map(sc => <option key={sc.id} value={sc.id}>{sc.name} ({sc.school_type})</option>)}
+                </select>
+              </div>
+            </div>
+          ) : null}
+
+          {/* ── Reason Not Admitted ── */}
+          {isView ? (
+            (exam?.selected && !exam?.admitted) ? (
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Reason Not Admitted</span>
+                <span style={valueStyle}>{noAdmitReason ? noAdmitReason.reason : "—"}</span>
+              </div>
+            ) : null
+          ) : (form.selected && !form.admitted) ? (
             <div>
               <label style={grs.fieldLabel}>Reason Not Admitted</label>
               <select value={form.no_admit_reason_id ?? ""} onChange={e => set("no_admit_reason_id", e.target.value === "" ? null : Number(e.target.value))} style={selStyles}>
@@ -277,416 +597,67 @@ function AddModal({
                 {noAdmitReasons.map(r => <option key={r.id} value={r.id}>{r.reason}</option>)}
               </select>
             </div>
-          )}
-
-          {/* Admitted School — conditional */}
-          {form.admitted && (
-            <div>
-              <label style={grs.fieldLabel}>Admitted School</label>
-              <select value={form.admitted_school_id ?? ""} onChange={e => set("admitted_school_id", e.target.value === "" ? null : Number(e.target.value))} style={selStyles}>
-                <option value="">-- select --</option>
-                {schools.map(sc => <option key={sc.id} value={sc.id}>{sc.name} ({sc.school_type})</option>)}
-              </select>
-            </div>
-          )}
+          ) : null}
 
         </div>
 
+        {/* ── Error messages ── */}
+        {admitBlockMsg && (
+          <div style={{ marginTop: 16, padding: "8px 12px", background: "var(--warning-bg, #fffbeb)", border: "1px solid var(--warning-border, #fcd34d)", borderRadius: 6, color: "var(--warning-text, #92400e)", fontSize: 13 }}>
+            ⚠️ {admitBlockMsg}
+          </div>
+        )}
         {saveError && (
           <div style={{ marginTop: 16, padding: "8px 12px", background: "var(--danger-bg, #fef2f2)", border: "1px solid var(--danger-border, #fca5a5)", borderRadius: 6, color: "var(--danger, #dc2626)", fontSize: 13 }}>
             {saveError}
           </div>
         )}
+
+        {/* ── Action buttons ── */}
         <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={grs.btnSecondary}>Cancel</button>
-          <button
-            disabled={!studentId || !schoolId || saving}
-            onClick={() => onSave({
-              student_id: Number(studentId),
-              school_id: Number(schoolId),
-              school_start_year: sy,
-              eligible: form.eligible ?? true,
-              form_received: form.form_received,
-              applied: form.applied,
-              appeared: form.appeared,
-              selected: form.selected,
-              admitted: form.admitted,
-              exam_category_id: form.exam_category_id ?? null,
-              exam_center_id: form.exam_center_id ?? null,
-              application_number: form.application_number ?? null,
-              roll_number: form.roll_number ?? null,
-              math: form.math ?? null,
-              english: form.english ?? null,
-              reasoning: form.reasoning ?? null,
-              evs: form.evs ?? null,
-              no_exam_reason_id: form.appeared ? null : (form.no_exam_reason_id ?? null),
-              no_admit_reason_id: (form.selected && !form.admitted) ? (form.no_admit_reason_id ?? null) : null,
-              admitted_school_id: form.admitted ? (form.admitted_school_id ?? null) : null,
-            })}
-            style={{ ...grs.btnPrimary, opacity: (!studentId || !schoolId) ? 0.5 : 1 }}
-          >
-            Add
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Inline edit modal ────────────────────────────────────────────────────────
-function ViewModal({ exam, students, schools, examCategories, examCenters, noExamReasons, noAdmitReasons, onClose, onEdit }: {
-  exam: StudentExam;
-  students: Student[];
-  schools: { id: number; name: string; school_type: string }[];
-  examCategories: ExamCategory[];
-  examCenters: ExamCenter[];
-  noExamReasons: NoExamReason[];
-  noAdmitReasons: NoAdmitReason[];
-  onClose: () => void;
-  onEdit: () => void;
-}) {
-  const student = students.find(s => s.id === exam.student_id);
-  const school = schools.find(s => s.id === exam.school_id);
-  const examCategory = examCategories.find(c => c.id === exam.exam_category_id);
-  const examCenter = examCenters.find(c => c.id === exam.exam_center_id);
-  const noExamReason = noExamReasons.find(r => r.id === exam.no_exam_reason_id);
-  const noAdmitReason = noAdmitReasons.find(r => r.id === exam.no_admit_reason_id);
-  const admittedSchool = schools.find(s => s.id === exam.admitted_school_id);
-
-  const totalScore = [exam.math, exam.english, exam.reasoning, exam.evs]
-    .reduce<number>((sum, v) => sum + (v != null ? Number(v) : 0), 0);
-  const hasScore = [exam.math, exam.english, exam.reasoning, exam.evs].some(v => v != null);
-
-  const fieldStyle: React.CSSProperties = {
-    display: "flex", flexDirection: "column", gap: 2,
-  };
-  const labelStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.06em", color: "var(--text-secondary)",
-  };
-  const valueStyle: React.CSSProperties = {
-    fontSize: 14, color: "var(--text-primary)",
-  };
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
-      padding: 16
-    }}>
-      <div style={{
-        background: "var(--bg-card)", borderRadius: 12, padding: 28,
-        width: 520, maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
-      }}>
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 18, color: "var(--text-primary)" }}>
-              {student ? `${student.first_name} ${student.last_name}` : `Student #${exam.student_id}`}
-            </h3>
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
-              {school?.name ?? `School #${exam.school_id}`}
-              {school && <span style={{ marginLeft: 6, fontSize: 11, background: "var(--bg-badge)", padding: "1px 5px", borderRadius: 8 }}>{school.school_type}</span>}
-              {" · "}Year {exam.school_start_year}
-            </p>
-          </div>
-          <button onClick={onClose} style={{ ...grs.btnIcon, fontSize: 18, lineHeight: 1 }}>✕</button>
-        </div>
-
-        {/* Stage */}
-        <div style={{ background: "var(--bg-input)", borderRadius: 8, padding: "10px 14px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>STAGE</span>
-          <StageBadge exam={exam} />
-          {exam.eligible === false && (
-            <span style={{ fontSize: 11, color: "#e53e3e", fontWeight: 600, marginLeft: 4 }}>Not eligible</span>
+          {isView ? (
+            <>
+              <button onClick={onClose} style={grs.btnSecondary}>Close</button>
+              <button onClick={onEdit} style={grs.btnPrimary}>Edit</button>
+            </>
+          ) : (
+            <>
+              <button onClick={onClose} style={grs.btnSecondary}>Cancel</button>
+              <button
+                disabled={isAdd ? (!studentId || !schoolType || !!saving) : !!saving}
+                onClick={handleSave}
+                style={{ ...grs.btnPrimary, opacity: (isAdd && (!studentId || !schoolType)) ? 0.5 : 1 }}
+              >
+                {isAdd ? "Add" : "Save Changes"}
+              </button>
+            </>
           )}
         </div>
 
-        {/* Fields grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-          <div style={fieldStyle}>
-            <span style={labelStyle}>Application #</span>
-            <span style={valueStyle}>{exam.application_number ?? "—"}</span>
-          </div>
-          <div style={fieldStyle}>
-            <span style={labelStyle}>Roll #</span>
-            <span style={valueStyle}>{exam.roll_number ?? "—"}</span>
-          </div>
-          <div style={fieldStyle}>
-            <span style={labelStyle}>Exam Category</span>
-            <span style={valueStyle}>{examCategory?.name ?? "—"}</span>
-          </div>
-          <div style={fieldStyle}>
-            <span style={labelStyle}>Exam Center</span>
-            <span style={valueStyle}>{examCenter?.name ?? "—"}</span>
-          </div>
-        </div>
-
-        {/* Scores */}
-        {hasScore && (
-          <div style={{ marginBottom: 20 }}>
-            <span style={{ ...labelStyle, display: "block", marginBottom: 8 }}>Scores</span>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-              {(["math", "english", "reasoning", "evs"] as const).map(subj => (
-                <div key={subj} style={{ background: "var(--bg-input)", borderRadius: 6, padding: "8px 10px", textAlign: "center" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-secondary)", marginBottom: 2 }}>
-                    {subj === "evs" ? "EVS" : subj.charAt(0).toUpperCase() + subj.slice(1)}
-                  </div>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
-                    {exam[subj] ?? "—"}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 8, textAlign: "right", fontSize: 13, color: "var(--text-secondary)" }}>
-              Total: <strong style={{ color: "var(--text-primary)", fontSize: 15 }}>{totalScore}</strong>
-            </div>
-          </div>
-        )}
-
-        {/* Conditional fields */}
-        {noExamReason && (
-          <div style={{ ...fieldStyle, marginBottom: 12 }}>
-            <span style={labelStyle}>Reason Not Appeared</span>
-            <span style={valueStyle}>{noExamReason.reason}</span>
-          </div>
-        )}
-        {noAdmitReason && (
-          <div style={{ ...fieldStyle, marginBottom: 12 }}>
-            <span style={labelStyle}>Reason Not Admitted</span>
-            <span style={valueStyle}>{noAdmitReason.reason}</span>
-          </div>
-        )}
-        {admittedSchool && (
-          <div style={{ ...fieldStyle, marginBottom: 12 }}>
-            <span style={labelStyle}>Admitted School</span>
-            <span style={valueStyle}>{admittedSchool.name} ({admittedSchool.school_type})</span>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={grs.btnSecondary}>Close</button>
-          <button onClick={onEdit} style={grs.btnPrimary}>Edit</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EditModal({ exam, onClose, onSave, examCategories, examCenters, noExamReasons, noAdmitReasons, schools }: {
-  exam: StudentExam;
-  onClose: () => void;
-  onSave: (updates: Partial<StudentExamCreate>) => void;
-  examCategories: ExamCategory[];
-  examCenters: ExamCenter[];
-  noExamReasons: NoExamReason[];
-  noAdmitReasons: NoAdmitReason[];
-  schools: { id: number; name: string; school_type: string }[];
-}) {
-  const [form, setForm] = useState({ ...exam });
-
-  function toggleStage(updates: Partial<Record<StageKey, boolean>>) {
-    setForm(f => ({ ...f, ...updates }));
-  }
-
-  function set(k: string, v: unknown) {
-    setForm(f => ({ ...f, [k]: v }));
-  }
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
-      padding: 16
-    }}>
-      <div style={{
-        background: "var(--bg-card)", borderRadius: 12, padding: 28,
-        width: 560, maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
-      }}>
-        <h3 style={{ margin: "0 0 6px", fontSize: 18, color: "var(--text-primary)" }}>
-          Edit Application
-        </h3>
-        <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--text-secondary)" }}>
-          School start year: <strong>{exam.school_start_year}</strong>
-        </p>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {/* Pipeline stepper */}
-          <div>
-            <label style={{ ...grs.fieldLabel, fontWeight: 700, marginBottom: 8 }}>
-              Pipeline Stage
-            </label>
-            <PipelineStepper exam={form as StudentExam} onChange={toggleStage} />
-          </div>
-
-          {/* Application info */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={grs.fieldLabel}>Application #</label>
-              <input
-                value={form.application_number || ""}
-                onChange={e => set("application_number", e.target.value || null)}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" }}
-              />
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Roll #</label>
-              <input
-                value={form.roll_number || ""}
-                onChange={e => set("roll_number", e.target.value || null)}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" }}
-              />
-            </div>
-          </div>
-
-          {/* Scores */}
-          <div>
-            <label style={{ ...grs.fieldLabel, fontWeight: 700, marginBottom: 8 }}>
-              Scores
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {(["math", "english", "reasoning", "evs"] as const).map(subj => (
-                <div key={subj}>
-                  <label style={{ ...grs.fieldLabel, textTransform: "capitalize" }}>{subj}</label>
-                  <input
-                    type="number"
-                    min={0} max={100} step={0.01}
-                    value={form[subj] ?? ""}
-                    onChange={e => set(subj, e.target.value === "" ? null : parseFloat(e.target.value))}
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" }}
-                    placeholder="—"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Eligible checkbox */}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--text-primary)", cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={form.eligible}
-              onChange={e => set("eligible", e.target.checked)}
-              style={{ accentColor: "var(--link-color)" }}
-            />
-            Eligible for exam
-          </label>
-
-          {/* Exam Category & Center */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={grs.fieldLabel}>Exam Category</label>
-              <select
-                value={form.exam_category_id ?? ""}
-                onChange={e => set("exam_category_id", e.target.value === "" ? null : Number(e.target.value))}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" }}
-              >
-                <option value="">-- select --</option>
-                {examCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Exam Center</label>
-              <select
-                value={form.exam_center_id ?? ""}
-                onChange={e => set("exam_center_id", e.target.value === "" ? null : Number(e.target.value))}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" }}
-              >
-                <option value="">-- select --</option>
-                {examCenters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* No Exam Reason — shown when not appeared */}
-          {!form.appeared && (
-            <div>
-              <label style={grs.fieldLabel}>Reason Not Appeared</label>
-              <select
-                value={form.no_exam_reason_id ?? ""}
-                onChange={e => set("no_exam_reason_id", e.target.value === "" ? null : Number(e.target.value))}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" }}
-              >
-                <option value="">-- select --</option>
-                {noExamReasons.map(r => <option key={r.id} value={r.id}>{r.reason}</option>)}
-              </select>
-            </div>
-          )}
-
-          {/* No Admit Reason — shown when selected but not admitted */}
-          {form.selected && !form.admitted && (
-            <div>
-              <label style={grs.fieldLabel}>Reason Not Admitted</label>
-              <select
-                value={form.no_admit_reason_id ?? ""}
-                onChange={e => set("no_admit_reason_id", e.target.value === "" ? null : Number(e.target.value))}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" }}
-              >
-                <option value="">-- select --</option>
-                {noAdmitReasons.map(r => <option key={r.id} value={r.id}>{r.reason}</option>)}
-              </select>
-            </div>
-          )}
-
-          {/* Admitted School — shown when admitted */}
-          {form.admitted && (
-            <div>
-              <label style={grs.fieldLabel}>Admitted School</label>
-              <select
-                value={form.admitted_school_id ?? ""}
-                onChange={e => set("admitted_school_id", e.target.value === "" ? null : Number(e.target.value))}
-                style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", boxSizing: "border-box" }}
-              >
-                <option value="">-- select --</option>
-                {schools.map(sc => <option key={sc.id} value={sc.id}>{sc.name} ({sc.school_type})</option>)}
-              </select>
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={grs.btnSecondary}>Cancel</button>
-          <button
-            onClick={() => onSave({
-              eligible: form.eligible,
-              form_received: form.form_received,
-              applied: form.applied,
-              appeared: form.appeared,
-              selected: form.selected,
-              admitted: form.admitted,
-              application_number: form.application_number,
-              roll_number: form.roll_number,
-              math: form.math,
-              english: form.english,
-              reasoning: form.reasoning,
-              evs: form.evs,
-              exam_category_id: form.exam_category_id,
-              exam_center_id: form.exam_center_id,
-              no_exam_reason_id: form.appeared ? null : form.no_exam_reason_id,
-              no_admit_reason_id: (form.selected && !form.admitted) ? form.no_admit_reason_id : null,
-              admitted_school_id: form.admitted ? form.admitted_school_id : null,
-            })}
-            style={grs.btnPrimary}
-          >
-            Save
-          </button>
-        </div>
       </div>
     </div>
   );
 }
 
 // ── Main AdmissionsPage ───────────────────────────────────────────────────────
+// ── Main AdmissionsPage ───────────────────────────────────────────────────────
 export default function AdmissionsPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.title === "Admin";
 
+  useEffect(() => {
+    if (window.location.search.includes("_=")) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) window.location.reload();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   const [year, setYear] = useState(CURRENT_YEAR);
-  const [search, setSearch] = useState("");
   const [filterDistrict, setFilterDistrict] = useState<number | "">("");
   const [filterCluster, setFilterCluster] = useState<number | "">("");
   const [showAdd, setShowAdd] = useState(false);
@@ -744,10 +715,6 @@ export default function AdmissionsPage() {
   const filterClusters = allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict);
   const filtered = exams.filter(e => {
     const s = studentMap[e.student_id];
-    if (search && s) {
-      const name = `${s.first_name} ${s.last_name}`.toLowerCase();
-      if (!name.includes(search.toLowerCase())) return false;
-    }
     if (filterCluster !== "" || filterDistrict !== "") {
       const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
       if (filterCluster !== "") {
@@ -764,232 +731,254 @@ export default function AdmissionsPage() {
   });
 
 
-  function exportCsv() {
-    const headers = ["Student", "School", "Stage", "Math", "English", "Reasoning", "EVS", "Total"];
-    const rows = filtered.map(e => {
-      const s = studentMap[e.student_id];
-      const name = s ? `${s.first_name} ${s.last_name}` : e.student_id;
-      const total = [e.math, e.english, e.reasoning, e.evs].filter(v => v != null).reduce((a,b) => (a as number)+(b as number), 0);
-      const status = e.admitted ? "Admitted" : e.selected ? "Selected" : e.appeared ? "Appeared" : e.applied ? "Applied" : e.form_received ? "Form Received" : "Eligible";
-      return [name, e.school ?? "", status, e.math ?? "", e.english ?? "", e.reasoning ?? "", e.evs ?? "", total];
-    });
-    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
-    const a = Object.assign(document.createElement("a"), { href: "data:text/csv," + encodeURIComponent(csv), download: "admissions.csv" });
-    a.click();
-  }
+  const allColumns = useMemo((): Col<StudentExam>[] => [
+    {
+      key: "district", label: "District", sortable: true,
+      sortValue: (exam) => {
+        const s = studentMap[exam.student_id];
+        const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
+        const cluster = kutir ? clusterMap.get(kutir.cluster_id) : null;
+        const area = cluster ? areaMap.get(cluster.area_id) : null;
+        return area ? (districtMap.get(area.district_id) ?? "") : "";
+      },
+      render: (exam) => {
+        const s = studentMap[exam.student_id];
+        const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
+        const cluster = kutir ? clusterMap.get(kutir.cluster_id) : null;
+        const area = cluster ? areaMap.get(cluster.area_id) : null;
+        return area ? (districtMap.get(area.district_id) ?? "—") : "—";
+      },
+      csvValue: (exam) => {
+        const s = studentMap[exam.student_id];
+        const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
+        const cluster = kutir ? clusterMap.get(kutir.cluster_id) : null;
+        const area = cluster ? areaMap.get(cluster.area_id) : null;
+        return area ? (districtMap.get(area.district_id) ?? "") : "";
+      },
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    },
+    {
+      key: "kutir", label: "Kutir", sortable: true,
+      sortValue: (exam) => {
+        const s = studentMap[exam.student_id];
+        return s?.kutir_id != null ? (kutirMap2.get(s.kutir_id)?.name ?? "") : "";
+      },
+      render: (exam) => {
+        const s = studentMap[exam.student_id];
+        return s?.kutir_id != null ? (kutirMap2.get(s.kutir_id)?.name ?? "—") : "—";
+      },
+      csvValue: (exam) => {
+        const s = studentMap[exam.student_id];
+        return s?.kutir_id != null ? (kutirMap2.get(s.kutir_id)?.name ?? "") : "";
+      },
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    },
+    {
+      key: "student", label: "Student", sortable: true,
+      sortValue: (exam) => {
+        const s = studentMap[exam.student_id];
+        return s ? `${s.first_name} ${s.last_name}`.toLowerCase() : "";
+      },
+      render: (exam) => {
+        const s = studentMap[exam.student_id];
+        return s ? (
+          <Link to={`/students/${s.id}`} style={{ color: "var(--text-primary)", textDecoration: "none", fontWeight: 500, fontSize: 13 }}>
+            {s.first_name} {s.last_name}
+          </Link>
+        ) : `#${exam.student_id}`;
+      },
+      csvValue: (exam) => {
+        const s = studentMap[exam.student_id];
+        return s ? `${s.first_name} ${s.last_name}` : String(exam.student_id);
+      },
+      tdStyle: { whiteSpace: "nowrap" },
+    },
+    {
+      key: "gender", label: "Gender", sortable: true,
+      sortValue: (exam) => studentMap[exam.student_id]?.gender ?? "",
+      render: (exam) => studentMap[exam.student_id]?.gender ?? "—",
+      csvValue: (exam) => studentMap[exam.student_id]?.gender ?? "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)" },
+    },
+    {
+      key: "school", label: "School", sortable: true,
+      sortValue: (exam) => {
+        const sc = exam.school_id != null ? schoolMap[exam.school_id] : null;
+        return sc?.name ?? exam.school_type ?? "";
+      },
+      render: (exam) => {
+        const sc = exam.school_id != null ? schoolMap[exam.school_id] : null;
+        if (sc) return (
+          <span>
+            {sc.name}
+            <span style={{ marginLeft: 5, fontSize: 10, background: "var(--bg-badge)", padding: "1px 5px", borderRadius: 8, color: "var(--text-secondary)" }}>{sc.school_type}</span>
+          </span>
+        );
+        return exam.school_type ?? "—";
+      },
+      csvValue: (exam) => {
+        const sc = exam.school_id != null ? schoolMap[exam.school_id] : null;
+        return sc?.name ?? exam.school_type ?? "";
+      },
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    },
+    {
+      key: "stage", label: "Stage", sortable: true,
+      sortValue: (exam) => pipelineStage(exam),
+      render: (exam) => <StageBadge exam={exam} />,
+      csvValue: (exam) => {
+        const idx = pipelineStage(exam);
+        return idx >= 0 ? STAGES[idx].label : "Registered";
+      },
+    },
+    {
+      key: "exam_category_id", label: "Exam Cat.", sortable: true,
+      sortValue: (exam) => exam.exam_category_id ? (examCategoryMap.get(exam.exam_category_id) ?? "") : "",
+      render: (exam) => exam.exam_category_id ? (examCategoryMap.get(exam.exam_category_id) ?? "—") : "—",
+      csvValue: (exam) => exam.exam_category_id ? (examCategoryMap.get(exam.exam_category_id) ?? "") : "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    },
+    {
+      key: "exam_center_id", label: "Center", sortable: true,
+      sortValue: (exam) => exam.exam_center_id ? (examCenterMap.get(exam.exam_center_id) ?? "") : "",
+      render: (exam) => exam.exam_center_id ? (examCenterMap.get(exam.exam_center_id) ?? "—") : "—",
+      csvValue: (exam) => exam.exam_center_id ? (examCenterMap.get(exam.exam_center_id) ?? "") : "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    },
+    {
+      key: "application_number", label: "App #", sortable: true,
+      render: (exam) => exam.application_number ?? "—",
+      csvValue: (exam) => exam.application_number ?? "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" },
+    },
+    {
+      key: "roll_number", label: "Roll #", sortable: true,
+      render: (exam) => exam.roll_number ?? "—",
+      csvValue: (exam) => exam.roll_number ?? "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" },
+    },
+    {
+      key: "scores", label: "Scores", sortable: true,
+      sortValue: (exam) => exam.scores.reduce<number>((sum, s) => sum + (s.score != null ? Number(s.score) : 0), 0),
+      render: (exam) => {
+        const total = exam.scores.reduce<number>((sum, s) => sum + (s.score != null ? Number(s.score) : 0), 0);
+        const hasScore = exam.scores.length > 0 && exam.scores.some(s => s.score != null);
+        return hasScore ? (
+          <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+            {exam.scores.filter(s => s.score != null).map(s => `${s.subject?.name ?? "S" + s.subject_id}:${s.score}`).join(" ")}
+            {" "}<strong style={{ color: "var(--text-primary)" }}>={total}</strong>
+          </span>
+        ) : "—";
+      },
+      csvValue: (exam) => {
+        const total = exam.scores.reduce<number>((sum, s) => sum + (s.score != null ? Number(s.score) : 0), 0);
+        return exam.scores.some(s => s.score != null) ? String(total) : "";
+      },
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)" },
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [studentMap, schoolMap, kutirMap2, clusterMap, areaMap, districtMap, examCategoryMap, examCenterMap]);
 
-  function printTable() {
-    const w = window.open("", "_blank")!;
-    const rows = filtered.map(e => {
-      const s = studentMap[e.student_id];
-      const name = s ? `${s.first_name} ${s.last_name}` : String(e.student_id);
-      const total = [e.math, e.english, e.reasoning, e.evs].filter(v => v != null).reduce((a,b) => (a as number)+(b as number), 0);
-      const status = e.admitted ? "Admitted" : e.selected ? "Selected" : e.appeared ? "Appeared" : e.applied ? "Applied" : e.form_received ? "Form Received" : "Eligible";
-      return `<tr><td>${name}</td><td>${e.school ?? ""}</td><td>${status}</td><td>${e.math ?? ""}</td><td>${e.english ?? ""}</td><td>${e.reasoning ?? ""}</td><td>${e.evs ?? ""}</td><td>${total}</td></tr>`;
-    }).join("");
-    w.document.write(`<html><head><title>Admissions</title><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:13px}th{background:#f0f4ff}</style></head><body><h2>Admissions</h2><table><thead><tr><th>Student</th><th>School</th><th>Stage</th><th>Math</th><th>English</th><th>Reasoning</th><th>EVS</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
-    w.document.close(); w.focus(); w.print();
-  }
+  const { isVisible, orderedMetas } = useFieldConfig("admissions", ADMISSIONS_FIELDS);
+  const columns = useMemo(() => {
+    const colByKey = new Map(allColumns.map(c => [c.key, c]));
+    return orderedMetas
+      .filter(m => isVisible(m.key))
+      .map(m => colByKey.get(m.key))
+      .filter((c): c is NonNullable<typeof c> => c != null);
+  }, [allColumns, orderedMetas, isVisible]);
+
+  const filterSelectStyle: React.CSSProperties = {
+    padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)",
+    background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 14, flexShrink: 0,
+  };
 
   return (
-    <div className="grs-page" style={{ padding: "24px 28px", maxWidth: 1100 }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "var(--text-primary)" }}>Admissions</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>
-            School entrance exam pipeline tracking
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={exportCsv} title="Export CSV" style={grs.btnIcon}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span className="grs-lbl">Export CSV</span>
-          </button>
-          <button onClick={printTable} title="Print" style={grs.btnIcon}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            <span className="grs-lbl">Print</span>
-          </button>
-          <button onClick={() => setShowAdd(true)} style={{ ...grs.btnPrimary, fontSize: 14 }}>
-            + Add Admission
-          </button>
-        </div>
-      </div>
-
-      {/* Filters — single row */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
-        <input
-          placeholder="Search student..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 14, flex: 1, minWidth: 0 }}
-        />
-        <select
-          value={year}
-          onChange={e => setYear(Number(e.target.value))}
-          style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 14, width: 90, flexShrink: 0 }}
-        >
-          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <select
-          value={filterDistrict}
-          onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }}
-          style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 14, width: 140, flexShrink: 0 }}
-        >
-          <option value="">All Districts</option>
-          {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-        <select
-          value={filterCluster}
-          onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))}
-          disabled={filterDistrict === ""}
-          style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 14, width: 140, flexShrink: 0 }}
-        >
-          <option value="">All Clusters</option>
-          {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
-        {isLoading ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)" }}>Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)" }}>
-            No admissions for {year}.
-          </div>
-        ) : (
-          <>
-
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "var(--bg-thead)" }}>
-                  {["District", "Kutir", "Student", "Gender", "School", "Stage", "Exam Cat.", "Center", "App #", "Roll #", "Scores"].map(h => (
-                    <th key={h} style={{
-                      padding: "10px 14px", textAlign: "left", fontSize: 12,
-                      fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase",
-                      letterSpacing: "0.05em", borderBottom: "1px solid var(--border)"
-                    }}>{h}</th>
-                  ))}
-                  <th style={{
-                    padding: "10px 12px", fontSize: 12, fontWeight: 700,
-                    color: "var(--text-secondary)", textTransform: "uppercase",
-                    letterSpacing: "0.05em", borderBottom: "1px solid var(--border)",
-                    position: "sticky", right: 0, background: "var(--bg-thead)", zIndex: 1,
-                    textAlign: "right", width: 96
-                  }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((exam, idx) => {
-                  const s = studentMap[exam.student_id];
-                  const sc = schoolMap[exam.school_id] || exam.school;
-                  const totalScore = [exam.math, exam.english, exam.reasoning, exam.evs]
-                    .reduce<number>((sum, v) => sum + (v != null ? Number(v) : 0), 0);
-                  const hasScore = [exam.math, exam.english, exam.reasoning, exam.evs].some(v => v !== null && v !== undefined);
-                  return (
-                    <tr key={exam.id} style={{
-                      borderBottom: idx < filtered.length - 1 ? "1px solid var(--border)" : undefined,
-                      background: "transparent"
-                    }}>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                        {(() => {
-                          const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
-                          const cluster = kutir ? clusterMap.get(kutir.cluster_id) : null;
-                          const area = cluster ? areaMap.get(cluster.area_id) : null;
-                          return area ? (districtMap.get(area.district_id) ?? "—") : "—";
-                        })()}
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                        {s?.kutir_id != null ? (kutirMap2.get(s.kutir_id)?.name ?? "—") : "—"}
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 13, whiteSpace: "nowrap" }}>
-                        {s ? (
-                          <Link to={`/students/${s.id}`} style={{ color: "var(--text-primary)", textDecoration: "none", fontWeight: 500, fontSize: 13 }}>
-                            {s.first_name} {s.last_name}
-                          </Link>
-                        ) : `#${exam.student_id}`}
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-secondary)" }}>
-                        {s?.gender ?? "—"}
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                        {sc ? sc.name : `#${exam.school_id}`}
-                        {sc && <span style={{ marginLeft: 5, fontSize: 10, background: "var(--bg-badge)", padding: "1px 5px", borderRadius: 8, color: "var(--text-secondary)" }}>{sc.school_type}</span>}
-                      </td>
-                      <td style={{ padding: "10px 12px" }}>
-                        <StageBadge exam={exam} />
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                        {exam.exam_category_id ? (examCategoryMap.get(exam.exam_category_id) ?? "—") : "—"}
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                        {exam.exam_center_id ? (examCenterMap.get(exam.exam_center_id) ?? "—") : "—"}
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                        {exam.application_number ?? "—"}
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                        {exam.roll_number ?? "—"}
-                      </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                        {hasScore ? (
-                          <span>
-                            {[exam.math, exam.english, exam.reasoning, exam.evs]
-                              .map((v, i) => v !== null && v !== undefined ? (["M","E","R","EVS"][i] + ":" + v) : null)
-                              .filter(Boolean).join(" ")}
-                            {" "}
-                            <strong style={{ color: "var(--text-primary)" }}>={totalScore}</strong>
-                          </span>
-                        ) : "—"}
-                      </td>
-                      <td style={{
-                        padding: "8px 12px", textAlign: "right",
-                        position: "sticky", right: 0,
-                        background: idx % 2 === 0 ? "var(--bg-card)" : "var(--bg-row-alt, var(--bg-card))",
-                        borderLeft: "1px solid var(--border)"
-                      }}>
-                        <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                          <RowActions
-                            onView={() => setViewExam(exam)}
-                            onEdit={() => setEditExam(exam)}
-                            onDelete={isAdmin ? () => { if (confirm("Delete this admission?")) deleteMut.mutate(exam.id); } : undefined}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          </>
-        )}
-      </div>
+    <div className="grs-page" style={{ padding: "24px 28px", maxWidth: 1200 }}>
+      <GrsTable<StudentExam>
+        title="Admissions"
+        subtitle="School entrance exam pipeline tracking"
+        columns={columns}
+        data={filtered}
+        rowKey={exam => exam.id}
+        isLoading={isLoading}
+        emptyMessage={`No admissions for ${year}.`}
+        searchable
+        searchPlaceholder="Search student..."
+        searchFn={(exam, q) => {
+          const s = studentMap[exam.student_id];
+          return s ? `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) : false;
+        }}
+        filters={<>
+          <select
+            value={year}
+            onChange={e => setYear(Number(e.target.value))}
+            style={{ ...filterSelectStyle, width: 90 }}
+          >
+            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <select
+            value={filterDistrict}
+            onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }}
+            style={{ ...filterSelectStyle, width: 140 }}
+          >
+            <option value="">All Districts</option>
+            {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          <select
+            value={filterCluster}
+            onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))}
+            disabled={filterDistrict === ""}
+            style={{ ...filterSelectStyle, width: 140 }}
+          >
+            <option value="">All Clusters</option>
+            {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </>}
+        headerExtra={isAdmin ? (
+          <a href="/admin/field-config?table=admissions" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8125rem", color: "var(--text-secondary)", textDecoration: "none", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span>Columns</span>
+          </a>
+        ) : undefined}
+        exportFilename="admissions"
+        printTitle="Admissions"
+        onAdd={() => setShowAdd(true)}
+        addLabel="+ Add Admission"
+        actions={(exam) => ({
+          onView: () => setViewExam(exam),
+          onEdit: () => setEditExam(exam),
+          onDelete: () => { if (confirm("Delete this admission?")) deleteMut.mutate(exam.id); },
+        })}
+      />
 
       {/* Modals */}
       {showAdd && (
-        <AddModal
+        <AdmissionModal
+          mode="add"
           students={students}
           schools={schools}
+          districts={allDistricts}
           year={year}
           examCategories={examCategories}
           examCenters={examCenters}
           noExamReasons={noExamReasons}
           noAdmitReasons={noAdmitReasons}
           onClose={() => setShowAdd(false)}
-          onSave={data => addMut.mutate(data)}
+          onSave={data => addMut.mutate(data as StudentExamCreate)}
           saveError={addMut.error ? ((addMut.error as any)?.response?.data?.detail ?? "Save failed.") : null}
           saving={addMut.isPending}
         />
       )}
 
       {viewExam && (
-        <ViewModal
+        <AdmissionModal
+          mode="view"
           exam={viewExam}
+          student={studentMap[viewExam.student_id]}
           students={students}
           schools={schools}
+          districts={allDistricts}
           examCategories={examCategories}
           examCenters={examCenters}
           noExamReasons={noExamReasons}
@@ -1000,15 +989,21 @@ export default function AdmissionsPage() {
       )}
 
       {editExam && (
-        <EditModal
+        <AdmissionModal
+          mode="edit"
           exam={editExam}
-          onClose={() => setEditExam(null)}
-          onSave={data => updateMut.mutate({ id: editExam.id, data })}
+          student={studentMap[editExam.student_id]}
+          students={students}
+          schools={schools}
+          districts={allDistricts}
           examCategories={examCategories}
           examCenters={examCenters}
           noExamReasons={noExamReasons}
           noAdmitReasons={noAdmitReasons}
-          schools={schools}
+          allExams={exams}
+          onClose={() => setEditExam(null)}
+          onSave={data => updateMut.mutate({ id: editExam.id, data: data as Partial<StudentExamCreate> })}
+          saveError={updateMut.error ? ((updateMut.error as any)?.response?.data?.detail ?? "Save failed.") : null}
         />
       )}
     </div>

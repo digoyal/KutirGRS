@@ -4,11 +4,12 @@ Students, StudentExams, StudentExamScores, StudentProgress, SchoolTypeSubjects
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import select, delete
+from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, require_admin, get_scope
 from app.models.students import (
     Student, StudentExam, StudentExamScore, StudentProgress, SchoolTypeSubject,
     school_type_subject_subjects,
@@ -45,9 +46,11 @@ async def list_students(
     search: Optional[str] = Query(None),
     limit: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
     q = select(Student)
+    if scope is not None:
+        q = q.where(Student.kutir_id.in_(scope))
     if kutir_id:
         q = q.where(Student.kutir_id == kutir_id)
     if gender:
@@ -81,9 +84,15 @@ async def create_student(
 
 
 @router.get("/students/{id}", response_model=StudentOut, tags=["Students"])
-async def get_student(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def get_student(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
     obj = await db.get(Student, id)
     if not obj:
+        raise HTTPException(404, "Student not found")
+    if scope is not None and obj.kutir_id not in scope:
         raise HTTPException(404, "Student not found")
     return obj
 
@@ -105,7 +114,7 @@ async def update_student(
 
 
 @router.delete("/students/{id}", status_code=204, tags=["Students"])
-async def delete_student(id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_student(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = await db.get(Student, id)
     if not obj:
         raise HTTPException(404, "Student not found")
@@ -144,9 +153,14 @@ async def list_exams(
     school_id: Optional[int] = Query(None),
     school_start_year: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
-    q = select(StudentExam)
+    q = (
+        select(StudentExam)
+        .options(selectinload(StudentExam.scores))
+    )
+    if scope is not None:
+        q = q.join(Student, StudentExam.student_id == Student.id).where(Student.kutir_id.in_(scope))
     if student_id:
         q = q.where(StudentExam.student_id == student_id)
     if school_id:
@@ -165,13 +179,24 @@ async def create_exam(
 ):
     scores = data.scores
     exam_data = data.model_dump(exclude={"scores"})
+    # Prevent double-admission: student can only be admitted to one school
+    if exam_data.get("admitted"):
+        existing_admitted = await db.execute(
+            select(StudentExam).where(
+                StudentExam.student_id == exam_data["student_id"],
+                StudentExam.admitted == True,
+            )
+        )
+        if existing_admitted.scalars().first():
+            raise HTTPException(409, "This student is already admitted to another school.")
+
     exam = StudentExam(**exam_data)
     db.add(exam)
     try:
         await db.flush()  # get exam.id
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(409, "An admission record for this student, school, and year already exists.")
+        raise HTTPException(409, "An admission record for this student, school type, and year already exists.")
 
     for s in scores:
         db.add(StudentExamScore(exam_id=exam.id, subject_id=s.subject_id, score=s.score))
@@ -180,16 +205,24 @@ async def create_exam(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(409, "An admission record for this student, school, and year already exists.")
+        raise HTTPException(409, "An admission record for this student, school type, and year already exists.")
     await db.refresh(exam)
     return exam
 
 
 @router.get("/student-exams/{id}", response_model=StudentExamOut, tags=["Student Exams"])
-async def get_exam(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def get_exam(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
     obj = await db.get(StudentExam, id)
     if not obj:
         raise HTTPException(404, "StudentExam not found")
+    if scope is not None:
+        student = await db.get(Student, obj.student_id)
+        if not student or student.kutir_id not in scope:
+            raise HTTPException(404, "StudentExam not found")
     return obj
 
 
@@ -204,6 +237,19 @@ async def update_exam(
         raise HTTPException(404, "StudentExam not found")
     update = data.model_dump(exclude_unset=True)
     scores = update.pop("scores", None)
+
+    # Prevent double-admission: if setting admitted=True, ensure no other record is admitted
+    if update.get("admitted") is True:
+        existing_admitted = await db.execute(
+            select(StudentExam).where(
+                StudentExam.student_id == obj.student_id,
+                StudentExam.admitted == True,
+                StudentExam.id != id,
+            )
+        )
+        if existing_admitted.scalars().first():
+            raise HTTPException(409, "This student is already admitted to another school. A student can only be admitted to one school.")
+
     for k, v in update.items():
         setattr(obj, k, v)
     if scores is not None:
@@ -219,7 +265,7 @@ async def update_exam(
 
 
 @router.delete("/student-exams/{id}", status_code=204, tags=["Student Exams"])
-async def delete_exam(id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_exam(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = await db.get(StudentExam, id)
     if not obj:
         raise HTTPException(404, "StudentExam not found")
@@ -236,9 +282,11 @@ async def list_progress(
     student_id: Optional[int] = Query(None),
     school_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
     q = select(StudentProgress)
+    if scope is not None:
+        q = q.join(Student, StudentProgress.student_id == Student.id).where(Student.kutir_id.in_(scope))
     if student_id:
         q = q.where(StudentProgress.student_id == student_id)
     if school_id:
@@ -261,10 +309,18 @@ async def create_progress(
 
 
 @router.get("/student-progress/{id}", response_model=StudentProgressOut, tags=["Student Progress"])
-async def get_progress(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def get_progress(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
     obj = await db.get(StudentProgress, id)
     if not obj:
         raise HTTPException(404, "StudentProgress not found")
+    if scope is not None:
+        student = await db.get(Student, obj.student_id)
+        if not student or student.kutir_id not in scope:
+            raise HTTPException(404, "StudentProgress not found")
     return obj
 
 
@@ -285,7 +341,7 @@ async def update_progress(
 
 
 @router.delete("/student-progress/{id}", status_code=204, tags=["Student Progress"])
-async def delete_progress(id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_progress(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = await db.get(StudentProgress, id)
     if not obj:
         raise HTTPException(404, "StudentProgress not found")

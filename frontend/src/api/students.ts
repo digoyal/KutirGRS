@@ -80,3 +80,11 @@ export async function updateStudent(id: number, payload: Partial<StudentCreate>)
 export async function deleteStudent(id: number): Promise<void> {
   await api.delete(`/students/${id}`);
 }
+
+export interface SubjectRef { id: number; name: string; code?: string | null; }
+export interface SchoolTypeSubjectRow { id: number; school_type: string; subjects: SubjectRef[]; }
+
+export async function listSchoolTypeSubjects(): Promise<SchoolTypeSubjectRow[]> {
+  const { data } = await api.get("/school-type-subjects");
+  return data;
+}

@@ -18,6 +18,7 @@ class SchoolTypeSubjectUpdate(BaseModel):
 class SubjectRef(BaseModel):
     id: int
     name: str
+    code: Optional[str] = None
     model_config = {"from_attributes": True}
 
 class SchoolTypeSubjectOut(BaseModel):
@@ -102,11 +103,13 @@ class ExamScoreOut(BaseModel):
 # ── StudentExam ──────────────────────────────────────────────────────────────
 class StudentExamBase(BaseModel):
     student_id: int
-    school_id: int
+    school_id: Optional[int] = None
+    school_type: Optional[str] = None
     school_start_year: int
     eligible: bool = True
     form_received: bool = False
     applied: bool = False
+    admit_card: bool = False
     appeared: bool = False
     selected: bool = False
     admitted: bool = False
@@ -121,6 +124,7 @@ class StudentExamBase(BaseModel):
     english: Optional[float] = None
     reasoning: Optional[float] = None
     evs: Optional[float] = None
+    admission_class: Optional[int] = None  # 5 or 8
 
 class StudentExamCreate(StudentExamBase):
     scores: list[ExamScoreCreate] = []
@@ -129,6 +133,7 @@ class StudentExamUpdate(BaseModel):
     eligible: Optional[bool] = None
     form_received: Optional[bool] = None
     applied: Optional[bool] = None
+    admit_card: Optional[bool] = None
     appeared: Optional[bool] = None
     selected: Optional[bool] = None
     admitted: Optional[bool] = None
@@ -143,10 +148,13 @@ class StudentExamUpdate(BaseModel):
     english: Optional[float] = None
     reasoning: Optional[float] = None
     evs: Optional[float] = None
+    admission_class: Optional[int] = None
     scores: Optional[list[ExamScoreCreate]] = None
 
 class StudentExamOut(StudentExamBase):
     id: int
+    school_id: Optional[int] = None
+    school_type: Optional[str] = None
     scores: list[ExamScoreOut] = []
     created_at: datetime
     updated_at: datetime
@@ -158,8 +166,9 @@ class StudentProgressBase(BaseModel):
     student_id: int
     school_id: int
     academic_year: int
-    grade: int = Field(..., ge=6, le=12)
-    is_enrolled: bool = True
+    class_in_year: Optional[int] = None
+    status: str = "enrolled"  # enrolled | transferred | dropped_out | graduated
+    transfer_school: Optional[str] = None
     exit_reason: Optional[str] = None
     previous_year_percentage: Optional[Decimal] = None
     remarks: Optional[str] = None
@@ -169,8 +178,9 @@ class StudentProgressCreate(StudentProgressBase):
 
 class StudentProgressUpdate(BaseModel):
     academic_year: Optional[int] = None
-    grade: Optional[int] = Field(None, ge=6, le=12)
-    is_enrolled: Optional[bool] = None
+    class_in_year: Optional[int] = None
+    status: Optional[str] = None
+    transfer_school: Optional[str] = None
     exit_reason: Optional[str] = None
     previous_year_percentage: Optional[Decimal] = None
     remarks: Optional[str] = None

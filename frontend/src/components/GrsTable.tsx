@@ -12,6 +12,8 @@ export interface Col<T> {
   render?: (row: T, index: number) => React.ReactNode;
   /** Value used for CSV export. Defaults to String(row[key as keyof T] ?? ""). */
   csvValue?: (row: T) => string;
+  /** Sort value for computed columns (e.g. labels looked up from a map). Falls back to row[key]. */
+  sortValue?: (row: T) => string | number;
   /** Extra td style overrides. */
   tdStyle?: React.CSSProperties;
 }
@@ -33,6 +35,8 @@ interface GrsTableProps<T> {
   exportFilename?: string;
   /** Title shown in the print window. Omit to hide print button. */
   printTitle?: string;
+  /** Extra controls rendered in the header after print, before the add button. */
+  headerExtra?: React.ReactNode;
   onAdd?: () => void;
   addLabel?: string;
   /** Row-level view/edit/delete callbacks. When provided, a sticky actions column is added. */
@@ -75,7 +79,7 @@ export function GrsTable<T extends object>({
   isLoading, emptyMessage = "No records found.",
   searchable, searchPlaceholder = "Search…", searchFn,
   filters, exportFilename, printTitle,
-  onAdd, addLabel = "+ Add",
+  onAdd, addLabel = "+ Add", headerExtra,
   actions,
 }: GrsTableProps<T>) {
 
@@ -99,15 +103,16 @@ export function GrsTable<T extends object>({
   // ── Sort
   const sorted = useMemo(() => {
     if (!sortKey) return filtered;
+    const col = columns.find(c => c.key === sortKey);
     return [...filtered].sort((a, b) => {
-      const av = (a as Record<string, unknown>)[sortKey];
-      const bv = (b as Record<string, unknown>)[sortKey];
+      const av = col?.sortValue ? col.sortValue(a) : (a as Record<string, unknown>)[sortKey];
+      const bv = col?.sortValue ? col.sortValue(b) : (b as Record<string, unknown>)[sortKey];
       const cmp = typeof av === "number" && typeof bv === "number"
         ? av - bv
         : String(av ?? "").localeCompare(String(bv ?? ""));
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [filtered, sortKey, sortDir]);
+  }, [filtered, sortKey, sortDir, columns]);
 
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -180,6 +185,7 @@ export function GrsTable<T extends object>({
               <span>Print</span>
             </button>
           )}
+          {headerExtra}
           {onAdd && (
             <button onClick={onAdd} style={grs.btnPrimary}>{addLabel}</button>
           )}

@@ -1,13 +1,13 @@
 """
 User model with role-based access and geo assignments.
 
-Title (role) maps 1-to-1 with which geo M2M table is used:
+Title (role) maps to geo assignment via M2M tables:
   Admin                 → no geo restriction
-  Zonal Head            → user_zones
-  District Anchor       → user_districts
-  Education Coordinator → user_areas
-  Cluster Coordinator   → user_clusters
-  Teacher               → user_kutirs
+  Regional Head         → user_zones M2M
+  District Anchor       → user_districts M2M
+  Education Coordinator → user_areas M2M
+  Cluster Coordinator   → user_clusters M2M
+  Teacher               → user_kutirs M2M (single kutir)
 """
 from typing import Optional
 from sqlalchemy import String, Boolean, Integer, Table, Column, ForeignKey
@@ -17,6 +17,13 @@ from app.database import Base
 from app.models.base import TimestampMixin
 
 # ── Association tables (M2M) ──────────────────────────────────────────────────
+
+user_kutirs = Table(
+    "user_kutirs",
+    Base.metadata,
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("kutir_id", Integer, ForeignKey("kutirs.id", ondelete="CASCADE"), primary_key=True),
+)
 
 user_zones = Table(
     "user_zones",
@@ -46,13 +53,6 @@ user_clusters = Table(
     Column("cluster_id", Integer, ForeignKey("clusters.id", ondelete="CASCADE"), primary_key=True),
 )
 
-user_kutirs = Table(
-    "user_kutirs",
-    Base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
-    Column("kutir_id", Integer, ForeignKey("kutirs.id", ondelete="CASCADE"), primary_key=True),
-)
-
 
 # ── User model ────────────────────────────────────────────────────────────────
 
@@ -61,7 +61,7 @@ TITLE_CHOICES = [
     "Cluster Coordinator",
     "Education Coordinator",
     "District Anchor",
-    "Zonal Head",
+    "Regional Head",
     "Admin",
 ]
 
@@ -75,12 +75,12 @@ class User(Base, TimestampMixin):
     first_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    title: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # role
+    title: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     password: Mapped[str] = mapped_column(String(128), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    # Geo assignments
+    # M2M geo assignments (role-specific)
     assigned_zones: Mapped[list] = relationship(
         "Zone", secondary=user_zones, lazy="selectin"
     )

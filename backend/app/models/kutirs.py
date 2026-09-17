@@ -28,7 +28,6 @@ class Kutir(Base, TimestampMixin):
     pincode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
 
     # Associations
-    teacher_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     donor_id: Mapped[Optional[int]] = mapped_column(ForeignKey("donors.id"), nullable=True)
 
     # Stats
@@ -38,7 +37,6 @@ class Kutir(Base, TimestampMixin):
     # Relationships
     cluster: Mapped["Cluster"] = relationship("Cluster", foreign_keys=[cluster_id])  # type: ignore[name-defined]
     district: Mapped[Optional["District"]] = relationship("District", foreign_keys=[district_id])  # type: ignore[name-defined]
-    teacher: Mapped[Optional["User"]] = relationship("User", foreign_keys=[teacher_id])  # type: ignore[name-defined]
     donor: Mapped[Optional["Donor"]] = relationship("Donor", foreign_keys=[donor_id])  # type: ignore[name-defined]
 
     def __repr__(self):

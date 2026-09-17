@@ -6,6 +6,7 @@ import HomePage from "./HomePage";
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
+  const isAdmin = user?.title === "Admin";
   const location = useLocation();
   const isHome = location.pathname === "/";
   const [navOpen, setNavOpen] = useState(false);
@@ -25,9 +26,9 @@ export default function DashboardPage() {
       {navOpen && <div className="grs-nav-overlay" onClick={closeNav} />}
 
       <aside style={styles.sidebar} className={`grs-sidebar${navOpen ? " grs-sidebar--open" : ""}`}>
-        <div style={grs.navLogo}>KutirGRS</div>
+        <div style={grs.navLogo}>Parivaar Kutirs</div>
         <nav style={styles.nav}>
-          {navItems.map(({ to, label, divider, sub }) => (
+          {navItems.filter(item => !item.adminOnly || isAdmin).map(({ to, label, divider, sub }) => (
             divider
               ? <div key={label} style={grs.navSectionLabel}>{label}</div>
               : (
@@ -62,26 +63,32 @@ export default function DashboardPage() {
   );
 }
 
-const navItems: { to?: string; label: string; divider?: boolean; sub?: boolean }[] = [
+const navItems: { to?: string; label: string; divider?: boolean; sub?: boolean; adminOnly?: boolean }[] = [
+  { divider: true, label: "GRS TRACKING" },
   { to: "/", label: "Dashboard" },
-  { to: "/kutirs", label: "Kutirs" },
   { to: "/students", label: "Students" },
+  { to: "/kutirs", label: "Kutirs" },
   { to: "/admissions", label: "Admissions" },
   { to: "/progress", label: "Progress" },
-  { to: "/visits", label: "Kutir Visits" },
-  { divider: true, label: "REPORTS" },
+  { to: "/reports", label: "Reports" },
   { to: "/reports/detailed", label: "Detailed", sub: true },
   { to: "/reports/summary", label: "Summary", sub: true },
+  { divider: true, label: "KUTIR VISITS" },
+  { to: "/visits", label: "Dashboard" },
+  { to: "/visits/detail", label: "Visit Details" },
+  { to: "/reports/summary", label: "Reports" },
   { divider: true, label: "ADMIN" },
   { to: "/schools", label: "Govt. Res. Schools" },
   { to: "/exam-centers", label: "Exam Centers" },
   { to: "/geo", label: "Geography" },
-  { to: "/lookups", label: "Lookups" },
+  { to: "/lookups", label: "Lookups", adminOnly: true },
   { to: "/users", label: "Users" },
+  { to: "/admin/field-config", label: "Column Settings", adminOnly: true },
+  { to: "/import", label: "Import Data", adminOnly: true },
 ];
 
 const styles: Record<string, React.CSSProperties> = {
-  layout: { display: "flex", minHeight: "100vh", fontFamily: "sans-serif" },
+  layout: { display: "flex", height: "100vh", overflow: "hidden", fontFamily: "sans-serif" },
   sidebar: {
     width: 220,
     background: "var(--nav-bg)",
@@ -91,6 +98,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "1.5rem 1rem",
     gap: 8,
     flexShrink: 0,
+    overflowY: "auto",
   },
   nav: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
   userInfo: { marginTop: "auto", padding: "8px 0", borderTop: "1px solid #2d4a7a", textAlign: "left" as const },

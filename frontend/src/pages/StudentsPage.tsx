@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listStudents, createStudent, deleteStudent, type Student, type StudentCreate } from "../api/students";
 import { listKutirs } from "../api/kutirs";
@@ -7,6 +7,8 @@ import { listDistricts, listAreas, listClusters, listCategories, listSubCategori
 import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 import { GrsTable, type Col } from "../components/GrsTable";
+import { useFieldConfig } from "../hooks/useFieldConfig";
+import { STUDENTS_FIELDS } from "../constants/studentsFields";
 
 const EMPTY_FORM: StudentCreate = {
   first_name: "", last_name: "", gender: "Boy",
@@ -28,6 +30,17 @@ export default function StudentsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const isAdmin = user?.title === "Admin";
+
+  useEffect(() => {
+    if (window.location.search.includes("_=")) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) window.location.reload();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   const [filterDistrict, setFilterDistrict] = useState<number | "">("");
   const [filterCluster, setFilterCluster] = useState<number | "">("");
@@ -100,7 +113,7 @@ export default function StudentsPage() {
     createMut.mutate(form);
   }
 
-  const columns: Col<EnrichedStudent>[] = [
+  const allColumns: Col<EnrichedStudent>[] = [
     {
       key: "name",
       label: "Name",
@@ -155,8 +168,52 @@ export default function StudentsPage() {
       sortable: true,
       csvValue: (s) => s.addedDate,
     },
-
+    {
+      key: "kutir_id",
+      label: "Kutir",
+      sortable: true,
+      sortValue: (s) => s.kutir_id != null ? (kutirMap.get(s.kutir_id)?.name ?? "") : "",
+      render: (s) => s.kutir_id != null ? <span style={{ fontSize: "0.82rem" }}>{kutirMap.get(s.kutir_id)?.name ?? "—"}</span> : <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.kutir_id != null ? (kutirMap.get(s.kutir_id)?.name ?? "") : "",
+    },
+    {
+      key: "dob",
+      label: "Date of Birth",
+      sortable: true,
+      render: (s) => s.dob ? new Date(s.dob).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.dob ?? "",
+    },
+    {
+      key: "email",
+      label: "Email",
+      sortable: true,
+      render: (s) => s.email ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.email ?? "",
+    },
+    {
+      key: "alt_contact_name",
+      label: "Alt Contact",
+      sortable: true,
+      render: (s) => s.alt_contact_name ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.alt_contact_name ?? "",
+    },
+    {
+      key: "alt_contact_phone",
+      label: "Alt Phone",
+      sortable: true,
+      render: (s) => s.alt_contact_phone ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.alt_contact_phone ?? "",
+    },
   ];
+
+  const { isVisible, orderedMetas } = useFieldConfig("students", STUDENTS_FIELDS);
+  const columns = useMemo(() => {
+    const colByKey = new Map(allColumns.map(c => [c.key, c]));
+    return orderedMetas
+      .filter(m => isVisible(m.key))
+      .map(m => colByKey.get(m.key))
+      .filter((c): c is NonNullable<typeof c> => c != null);
+  }, [allColumns, orderedMetas, isVisible]);
 
   const geoFilters = (
     <>
@@ -189,7 +246,7 @@ export default function StudentsPage() {
         rowKey={s => s.id}
         isLoading={isLoading}
         emptyMessage="No students found."
-        actions={s => ({ onView: () => window.location.href = `/students/${s.id}`, onDelete: isAdmin ? () => { if (confirm(`Delete ${s.first_name} ${s.last_name}?`)) deleteMut.mutate(s.id); } : undefined })}
+        actions={s => ({ onView: () => window.location.href = `/students/${s.id}`, onEdit: () => window.location.href = `/students/${s.id}`, onDelete: () => { if (confirm(`Delete ${s.first_name} ${s.last_name}?`)) deleteMut.mutate(s.id); } })}
         searchable
         searchPlaceholder="Search by name, phone…"
         searchFn={(s: EnrichedStudent, q: string) => {
@@ -202,6 +259,12 @@ export default function StudentsPage() {
           );
         }}
         filters={geoFilters}
+        headerExtra={isAdmin ? (
+          <a href="/admin/field-config?table=students" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8125rem", color: "var(--text-secondary)", textDecoration: "none", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span>Columns</span>
+          </a>
+        ) : undefined}
         exportFilename="students"
         printTitle="Students"
         onAdd={() => { setShowForm(true); setFormError(""); }}

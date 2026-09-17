@@ -14,9 +14,12 @@ import UsersPage from "./pages/UsersPage";
 import GeoPage from "./pages/GeoPage";
 import AdmissionsPage from "./pages/AdmissionsPage";
 import StudentProgressPage from "./pages/StudentProgressPage";
+import NewYearSetupPage from "./pages/NewYearSetupPage";
+import ImportDataPage from "./pages/ImportDataPage";
 import ReportsPage from "./pages/ReportsPage";
 import LookupsPage from "./pages/LookupsPage";
 import ExamCentersPage from "./pages/ExamCentersPage";
+import FieldConfigPage from "./pages/FieldConfigPage";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +53,9 @@ function AppRoutes() {
         <Route path="lookups" element={<LookupsPage />} />
         <Route path="exam-centers" element={<ExamCentersPage />} />
         <Route path="progress" element={<StudentProgressPage />} />
+        <Route path="new-year-setup" element={<NewYearSetupPage />} />
+        <Route path="import" element={<ImportDataPage />} />
+        <Route path="admin/field-config" element={<FieldConfigPage />} />
         <Route path="reports">
           <Route path="detailed" element={<ReportsPage />} />
           <Route path="summary" element={<ReportsPage />} />

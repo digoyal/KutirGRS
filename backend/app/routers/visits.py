@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import os, uuid, shutil
 
 from app.database import get_db
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, require_admin, get_scope
 from app.models.visits import KutirVisit
 from app.schemas.visits import KutirVisitCreate, KutirVisitUpdate, KutirVisitOut
 from app.config import settings
@@ -25,9 +25,11 @@ async def list_visits(
     kutir_id: Optional[int] = Query(None),
     visited_by_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
     q = select(KutirVisit)
+    if scope is not None:
+        q = q.where(KutirVisit.kutir_id.in_(scope))
     if kutir_id:
         q = q.where(KutirVisit.kutir_id == kutir_id)
     if visited_by_id:
@@ -52,9 +54,15 @@ async def create_visit(
 
 # ── Get one ──────────────────────────────────────────────────────────────────
 @router.get("/kutir-visits/{id}", response_model=KutirVisitOut, tags=["Kutir Visits"])
-async def get_visit(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def get_visit(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
     obj = await db.get(KutirVisit, id)
     if not obj:
+        raise HTTPException(404, "KutirVisit not found")
+    if scope is not None and obj.kutir_id not in scope:
         raise HTTPException(404, "KutirVisit not found")
     return obj
 
@@ -78,7 +86,7 @@ async def update_visit(
 
 # ── Delete ───────────────────────────────────────────────────────────────────
 @router.delete("/kutir-visits/{id}", status_code=204, tags=["Kutir Visits"])
-async def delete_visit(id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_visit(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     obj = await db.get(KutirVisit, id)
     if not obj:
         raise HTTPException(404, "KutirVisit not found")

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listExamCenters, listDistricts } from "../api/geo";
 import type { ExamCenter } from "../api/geo";
@@ -7,6 +7,8 @@ import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
+import { useFieldConfig } from "../hooks/useFieldConfig";
+import { EXAM_CENTERS_FIELDS } from "../constants/examCentersFields";
 
 interface ExamCenterPayload {
   name: string; district_id: number;
@@ -26,23 +28,25 @@ async function deleteExamCenter(id: number): Promise<void> {
 type FormState = { name: string; district_id: number | ""; street: string; city: string; state: string; pincode: string; };
 
 // Hoisted outside Modal to prevent remount-on-keystroke focus loss
-function FieldInput({ label, k, placeholder, form, set }: {
+function FieldInput({ label, k, placeholder, form, set, readOnly }: {
   label: string; k: keyof FormState; placeholder?: string;
   form: FormState; set: (k: keyof FormState, v: string | number) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div>
       <label style={grs.fieldLabel}>{label}</label>
-      <input value={form[k] as string} onChange={e => set(k, e.target.value)}
-        placeholder={placeholder} style={grs.input} />
+      <input value={form[k] as string} onChange={readOnly ? undefined : e => set(k, e.target.value)}
+        placeholder={placeholder} style={grs.input} disabled={readOnly} />
     </div>
   );
 }
 
-function Modal({ title, initial, districts, onClose, onSave }: {
+function Modal({ title, initial, districts, onClose, onSave, readOnly }: {
   title: string; initial: FormState;
   districts: { id: number; name: string }[];
   onClose: () => void; onSave: (data: ExamCenterPayload) => void;
+  readOnly?: boolean;
 }) {
   const [form, setForm] = useState<FormState>(initial);
   const set = (k: keyof FormState, v: string | number) => setForm(f => ({ ...f, [k]: v }));
@@ -53,34 +57,34 @@ function Modal({ title, initial, districts, onClose, onSave }: {
       <div style={grs.modal}>
         <h3 style={grs.modalTitle}>{title}</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <FieldInput label="Name *" k="name" form={form} set={set} />
-          <FieldInput label="Street" k="street" form={form} set={set} />
+          <FieldInput label="Name *" k="name" form={form} set={set} readOnly={readOnly} />
+          <FieldInput label="Street" k="street" form={form} set={set} readOnly={readOnly} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <FieldInput label="City" k="city" form={form} set={set} />
+            <FieldInput label="City" k="city" form={form} set={set} readOnly={readOnly} />
             <div>
               <label style={grs.fieldLabel}>District *</label>
               <select value={form.district_id}
-                onChange={e => set("district_id", Number(e.target.value))}
-                style={grs.select}>
+                onChange={readOnly ? undefined : e => set("district_id", Number(e.target.value))}
+                style={grs.select} disabled={readOnly}>
                 <option value="">-- select --</option>
                 {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <FieldInput label="State" k="state" form={form} set={set} />
-            <FieldInput label="Pincode" k="pincode" placeholder="e.g. 473001" form={form} set={set} />
+            <FieldInput label="State" k="state" form={form} set={set} readOnly={readOnly} />
+            <FieldInput label="Pincode" k="pincode" placeholder="e.g. 473001" form={form} set={set} readOnly={readOnly} />
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={grs.btnSecondary}>Cancel</button>
-          <button disabled={!valid}
+          <button onClick={onClose} style={grs.btnSecondary}>{readOnly ? "Close" : "Cancel"}</button>
+          {!readOnly && <button disabled={!valid}
             onClick={() => onSave({
               name: form.name.trim(), district_id: Number(form.district_id),
               street: form.street || undefined, city: form.city || undefined,
               state: form.state || undefined, pincode: form.pincode || undefined,
             })}
-            style={{ ...grs.btnPrimary, opacity: valid ? 1 : 0.5 }}>Save</button>
+            style={{ ...grs.btnPrimary, opacity: valid ? 1 : 0.5 }}>Save</button>}
         </div>
       </div>
     </div>
@@ -94,9 +98,21 @@ export default function ExamCentersPage() {
   const { user } = useAuth();
   const isAdmin = user?.title === "Admin";
 
+  useEffect(() => {
+    if (window.location.search.includes("_=")) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) window.location.reload();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   const [filterDistrict, setFilterDistrict] = useState<number | "">("");
   const [showAdd, setShowAdd] = useState(false);
   const [editItem, setEditItem] = useState<ExamCenter | null>(null);
+  const [viewItem, setViewItem] = useState<ExamCenter | null>(null);
 
   const { data: centers = [], isLoading } = useQuery({ queryKey: ["exam-centers"], queryFn: () => listExamCenters() });
   const { data: districts = [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
@@ -127,7 +143,7 @@ export default function ExamCentersPage() {
       state: c.state ?? "Madhya Pradesh", pincode: c.pincode ?? "" };
   }
 
-  const columns: Col<typeof enriched[0]>[] = [
+  const allColumns: Col<typeof enriched[0]>[] = [
     { key: "name",         label: "Name",     sortable: true },
     { key: "street",       label: "Street",   sortable: true, render: r => r.street || "—" },
     { key: "city",         label: "City",     sortable: true, render: r => r.city || "—" },
@@ -139,6 +155,15 @@ export default function ExamCentersPage() {
 
   ];
 
+  const { isVisible, orderedMetas } = useFieldConfig("examcenters", EXAM_CENTERS_FIELDS);
+  const columns = useMemo(() => {
+    const colByKey = new Map(allColumns.map(c => [c.key, c]));
+    return orderedMetas
+      .filter(m => isVisible(m.key))
+      .map(m => colByKey.get(m.key))
+      .filter((c): c is NonNullable<typeof c> => c != null);
+  }, [allColumns, orderedMetas, isVisible]);
+
   return (
     <div style={{ padding: "24px 28px", maxWidth: 1100 }}>
       <GrsTable
@@ -149,7 +174,7 @@ export default function ExamCentersPage() {
         rowKey={r => r.id}
         isLoading={isLoading}
         emptyMessage="No exam centers found."
-        actions={isAdmin ? r => ({ onEdit: () => setEditItem(r), onDelete: () => { if (confirm("Delete this exam center?")) deleteMut.mutate(r.id); } }) : undefined}
+        actions={r => ({ onView: () => setViewItem(r), onEdit: () => setEditItem(r), onDelete: () => { if (confirm("Delete this exam center?")) deleteMut.mutate(r.id); } })}
         searchable
         searchPlaceholder="Search centers…"
         filters={
@@ -160,9 +185,15 @@ export default function ExamCentersPage() {
             {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         }
+        headerExtra={isAdmin ? (
+          <a href="/admin/field-config?table=examcenters" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8125rem", color: "var(--text-secondary)", textDecoration: "none", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span>Columns</span>
+          </a>
+        ) : undefined}
         exportFilename="exam-centers"
         printTitle="Exam Centers"
-        onAdd={isAdmin ? () => setShowAdd(true) : undefined}
+        onAdd={() => setShowAdd(true)}
         addLabel="+ Add Center"
       />
 
@@ -174,6 +205,10 @@ export default function ExamCentersPage() {
         <Modal title="Edit Exam Center" initial={toForm(editItem)} districts={districts}
           onClose={() => setEditItem(null)}
           onSave={data => updateMut.mutate({ id: editItem.id, data })} />
+      )}
+      {viewItem && (
+        <Modal title="View Exam Center" initial={toForm(viewItem)} districts={districts}
+          onClose={() => setViewItem(null)} onSave={() => {}} readOnly />
       )}
     </div>
   );

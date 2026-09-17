@@ -9,9 +9,15 @@ class KutirVisitBase(BaseModel):
     visit_date: date
 
     # Attendance & implementation
-    avg_attendance_last_week: int = Field(..., ge=0)
+    avg_attendance_last_week: Optional[int] = Field(None, ge=0)
+    avg_attendance_morning: Optional[int] = Field(None, ge=0)
+    avg_attendance_evening: Optional[int] = Field(None, ge=0)
     follow_timetable: bool = False
     follow_monthly_plan: bool = False
+    kutir_closed: bool = False
+    plan_hindi: bool = False
+    plan_math: bool = False
+    plan_english: bool = False
     timetable_plan_reason: Optional[str] = None
 
     # Topics
@@ -42,6 +48,7 @@ class KutirVisitBase(BaseModel):
     reasoning_proficiency: int = Field(..., ge=1, le=5)
     material_management: int = Field(..., ge=1, le=5)
     kutir_performance: int = Field(..., ge=1, le=5)
+    staff_behavior: Optional[int] = Field(None, ge=1, le=5)
 
     # Document registers
     reg_admission_forms: bool = False
@@ -54,6 +61,8 @@ class KutirVisitBase(BaseModel):
 
     # Regular students
     regular_students: Optional[int] = None
+    regular_students_morning: Optional[int] = None
+    regular_students_evening: Optional[int] = None
 
     # Time slot activities
     timeslot_bal_sabha: bool = False
@@ -73,8 +82,14 @@ class KutirVisitUpdate(BaseModel):
     visited_by_id: Optional[int] = None
     visit_date: Optional[date] = None
     avg_attendance_last_week: Optional[int] = Field(None, ge=0)
+    avg_attendance_morning: Optional[int] = Field(None, ge=0)
+    avg_attendance_evening: Optional[int] = Field(None, ge=0)
     follow_timetable: Optional[bool] = None
     follow_monthly_plan: Optional[bool] = None
+    kutir_closed: Optional[bool] = None
+    plan_hindi: Optional[bool] = None
+    plan_math: Optional[bool] = None
+    plan_english: Optional[bool] = None
     timetable_plan_reason: Optional[str] = None
     math_topics_pre: Optional[str] = None
     math_topics_upper: Optional[str] = None
@@ -95,6 +110,7 @@ class KutirVisitUpdate(BaseModel):
     reasoning_proficiency: Optional[int] = Field(None, ge=1, le=5)
     material_management: Optional[int] = Field(None, ge=1, le=5)
     kutir_performance: Optional[int] = Field(None, ge=1, le=5)
+    staff_behavior: Optional[int] = Field(None, ge=1, le=5)
     reg_admission_forms: Optional[bool] = None
     reg_attendance_students: Optional[bool] = None
     reg_daily_activity: Optional[bool] = None
@@ -103,6 +119,8 @@ class KutirVisitUpdate(BaseModel):
     reg_attendance_teachers: Optional[bool] = None
     reg_students_documents: Optional[bool] = None
     regular_students: Optional[int] = None
+    regular_students_morning: Optional[int] = None
+    regular_students_evening: Optional[int] = None
     timeslot_bal_sabha: Optional[bool] = None
     timeslot_sports: Optional[bool] = None
     timeslot_yoga: Optional[bool] = None
