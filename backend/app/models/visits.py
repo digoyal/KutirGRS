@@ -27,9 +27,15 @@ class KutirVisit(Base, TimestampMixin):
     visit_date: Mapped[date_type] = mapped_column(Date, nullable=False)
 
     # ── Attendance & implementation ──────────────────────────────────────────
-    avg_attendance_last_week: Mapped[int] = mapped_column(Integer, nullable=False)
+    avg_attendance_last_week: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    avg_attendance_morning: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    avg_attendance_evening: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     follow_timetable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     follow_monthly_plan: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    kutir_closed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    plan_hindi:   Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    plan_math:    Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    plan_english: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     timetable_plan_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # ── Topics being taught ──────────────────────────────────────────────────
@@ -63,6 +69,7 @@ class KutirVisit(Base, TimestampMixin):
     reasoning_proficiency: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     material_management: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     kutir_performance: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    staff_behavior: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
 
     # ── Registers & Documents Available ─────────────────────────────────────
     reg_admission_forms: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -75,6 +82,8 @@ class KutirVisit(Base, TimestampMixin):
 
     # ── Regular students ─────────────────────────────────────────────────────
     regular_students: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    regular_students_morning: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    regular_students_evening: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # ── Time slot activities ─────────────────────────────────────────────────
     timeslot_bal_sabha: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

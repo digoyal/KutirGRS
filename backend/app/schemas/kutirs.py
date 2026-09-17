@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 KUTIR_TYPES = ["Seva Kutir", "Shiksha Kutir", "Non-Kutir"]
@@ -13,7 +13,6 @@ class KutirBase(BaseModel):
     street: Optional[str] = None
     state: str = "Madhya Pradesh"
     pincode: Optional[str] = None
-    teacher_id: Optional[int] = None
     donor_id: Optional[int] = None
     enrollment_5th: Optional[int] = None
     enrollment_8th: Optional[int] = None
@@ -30,7 +29,6 @@ class KutirUpdate(BaseModel):
     street: Optional[str] = None
     state: Optional[str] = None
     pincode: Optional[str] = None
-    teacher_id: Optional[int] = None
     donor_id: Optional[int] = None
     enrollment_5th: Optional[int] = None
     enrollment_8th: Optional[int] = None
@@ -68,5 +66,5 @@ class TeacherMin(BaseModel):
 
 class KutirDetail(KutirOut):
     cluster: Optional[ClusterMin] = None
-    teacher: Optional[TeacherMin] = None
+    teachers: List[TeacherMin] = []
     model_config = {"from_attributes": True}

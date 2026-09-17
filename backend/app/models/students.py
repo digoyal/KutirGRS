@@ -88,23 +88,25 @@ class Student(Base, TimestampMixin):
 class StudentExam(Base, TimestampMixin):
     __tablename__ = "student_exams"
     __table_args__ = (
-        UniqueConstraint("student_id", "school_id", "school_start_year",
-                         name="uq_student_school_year"),
+        UniqueConstraint("student_id", "school_type", "school_start_year",
+                         name="uq_student_school_type_year"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     student_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False
     )
-    school_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False
+    school_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True
     )
+    school_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
     school_start_year: Mapped[int] = mapped_column(SmallInteger, nullable=False)
 
     # Admission pipeline flags
     eligible: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     form_received: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     applied: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    admit_card: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     appeared: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     selected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     admitted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -126,6 +128,8 @@ class StudentExam(Base, TimestampMixin):
     no_exam_reason_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("no_exam_reasons.id", ondelete="SET NULL"), nullable=True
     )
+
+    admission_class: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)  # 5 or 8
 
     # Legacy per-subject score columns (kept for data compatibility)
     math: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
@@ -183,9 +187,10 @@ class StudentProgress(Base, TimestampMixin):
         Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False
     )
     academic_year: Mapped[int] = mapped_column(Integer, nullable=False)
-    grade: Mapped[int] = mapped_column(Integer, nullable=False)   # 6–12
-    is_enrolled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    exit_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    class_in_year: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)  # class 1-12
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="enrolled")  # enrolled|transferred|dropped_out|graduated
+    transfer_school: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    exit_reason: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)  # dropout reason
     previous_year_percentage: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

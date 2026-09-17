@@ -1,28 +1,24 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listZones, listDistricts, listAreas, listClusters, createZone, createDistrict, createArea, createCluster } from "../api/geo";
-import { listUsers } from "../api/users";
+import { listZones, listDistricts, listAreas, listClusters, createZone, createDistrict, createArea, createCluster, updateZone, updateDistrict, updateArea, updateCluster, deleteZone, deleteDistrict, deleteArea, deleteCluster } from "../api/geo";
 import { grs } from "../styles/grs";
+import { GrsTable } from "../components/GrsTable";
+import type { Col } from "../components/GrsTable";
 
 type Tab = "zones" | "districts" | "areas" | "clusters";
 
-const PERSON_FIELD: Record<Tab, string> = {
-  zones:     "zonal_head_id",
-  districts: "district_anchor_id",
-  areas:     "education_coordinator_id",
-  clusters:  "cluster_coordinator_id",
-};
-const PERSON_LABEL: Record<Tab, string> = {
-  zones:     "Regional Head",
-  districts: "District Anchor",
-  areas:     "Education Coordinator",
-  clusters:  "Cluster Coordinator",
+type GeoRow = { id: number; name: string; parent?: string };
+
+const PARENT_LABEL: Partial<Record<Tab, string>> = {
+  districts: "Zone",
+  areas:     "District",
+  clusters:  "Area",
 };
 
 export default function GeoPage() {
   const [tab, setTab] = useState<Tab>("zones");
-  const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editRow, setEditRow] = useState<{ id: number } | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
   const [formError, setFormError] = useState("");
   const qc = useQueryClient();
@@ -31,113 +27,87 @@ export default function GeoPage() {
   const { data: districts = [] } = useQuery({ queryKey: ["districts", null], queryFn: () => listDistricts() });
   const { data: areas = [] }     = useQuery({ queryKey: ["areas", null],     queryFn: () => listAreas() });
   const { data: clusters = [] }  = useQuery({ queryKey: ["clusters", null],  queryFn: () => listClusters() });
-  const { data: users = [] }     = useQuery({ queryKey: ["users"],           queryFn: listUsers });
 
   const zoneMap     = Object.fromEntries(zones.map(z => [z.id, z.name]));
   const districtMap = Object.fromEntries(districts.map(d => [d.id, d.name]));
   const areaMap     = Object.fromEntries(areas.map(a => [a.id, a.name]));
-  const userMap     = Object.fromEntries(users.map(u => [u.id, [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username]));
 
   const mutFns: Record<Tab, (data: any) => Promise<any>> = {
     zones: createZone, districts: createDistrict, areas: createArea, clusters: createCluster,
   };
+  const updateFns: Record<Tab, (id: number, data: any) => Promise<any>> = {
+    zones: updateZone, districts: updateDistrict, areas: updateArea, clusters: updateCluster,
+  };
+  const deleteFns: Record<Tab, (id: number) => Promise<void>> = {
+    zones: deleteZone, districts: deleteDistrict, areas: deleteArea, clusters: deleteCluster,
+  };
 
-  const mut = useMutation({
+  const qKey = (t: Tab) => t === "zones" ? ["zones"] : t === "districts" ? ["districts", null] : t === "areas" ? ["areas", null] : ["clusters", null];
+
+  const createMut = useMutation({
     mutationFn: (data: any) => mutFns[tab](data),
     onSuccess: (newItem) => {
-      const key = tab === "zones" ? "zones" : tab === "districts" ? ["districts", null] : tab === "areas" ? ["areas", null] : ["clusters", null];
-      qc.setQueryData(Array.isArray(key) ? key : [key], (old: any[] = []) => [...old, newItem]);
+      qc.setQueryData(qKey(tab), (old: any[] = []) => [...old, newItem]);
       setShowForm(false); setForm({}); setFormError("");
     },
     onError: (e: any) => setFormError(e?.response?.data?.detail ?? "Failed to save"),
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => updateFns[tab](id, data),
+    onSuccess: (updated) => {
+      qc.setQueryData(qKey(tab), (old: any[] = []) => old.map((r: any) => r.id === updated.id ? updated : r));
+      setShowForm(false); setEditRow(null); setForm({}); setFormError("");
+    },
+    onError: (e: any) => setFormError(e?.response?.data?.detail ?? "Failed to save"),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => deleteFns[tab](id),
+    onSuccess: (_v, id) => {
+      qc.setQueryData(qKey(tab), (old: any[] = []) => old.filter((r: any) => r.id !== id));
+    },
   });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name?.trim()) { setFormError("Name is required"); return; }
-    const payload = { ...form };
-    const pf = PERSON_FIELD[tab];
-    if (payload[pf] === "" || payload[pf] === undefined) delete payload[pf];
-    else payload[pf] = Number(payload[pf]);
-    mut.mutate(payload);
+    if (editRow) {
+      updateMut.mutate({ id: editRow.id, data: form });
+    } else {
+      createMut.mutate(form);
+    }
   }
+
+  const rows = useMemo<GeoRow[]>(() => {
+    if (tab === "zones")     return zones.map(z => ({ id: z.id, name: z.name }));
+    if (tab === "districts") return districts.map(d => ({ id: d.id, name: d.name, parent: zoneMap[d.zone_id] ?? String(d.zone_id) }));
+    if (tab === "areas")     return areas.map(a => ({ id: a.id, name: a.name, parent: districtMap[a.district_id] ?? String(a.district_id) }));
+    return clusters.map(c => ({ id: c.id, name: c.name, parent: areaMap[c.area_id] ?? String(c.area_id) }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, zones, districts, areas, clusters]);
+
+  const columns = useMemo<Col<GeoRow>[]>(() => {
+    const cols: Col<GeoRow>[] = [
+      { key: "id",   label: "ID",   sortable: true, tdStyle: { width: 60 } },
+      { key: "name", label: "Name", sortable: true, render: r => <strong>{r.name}</strong> },
+    ];
+    if (tab !== "zones") {
+      cols.push({ key: "parent", label: PARENT_LABEL[tab]!, sortable: true });
+    }
+    return cols;
+  }, [tab]);
 
   const tabs: Tab[] = ["zones", "districts", "areas", "clusters"];
-  const personField = PERSON_FIELD[tab];
-
-  function getCurrentRows() {
-    if (tab === "zones")     return zones.map(z => ({ id: z.id, name: z.name, person: z.zonal_head_id ? userMap[z.zonal_head_id] : null }));
-    if (tab === "districts") return districts.map(d => ({ id: d.id, name: d.name, parent: zoneMap[d.zone_id] ?? String(d.zone_id), person: d.district_anchor_id ? userMap[d.district_anchor_id] : null }));
-    if (tab === "areas")     return areas.map(a => ({ id: a.id, name: a.name, parent: districtMap[a.district_id] ?? String(a.district_id), person: a.education_coordinator_id ? userMap[a.education_coordinator_id] : null }));
-    return clusters.map(c => ({ id: c.id, name: c.name, parent: areaMap[c.area_id] ?? String(c.area_id), person: c.cluster_coordinator_id ? userMap[c.cluster_coordinator_id] : null }));
-  }
-
-  function exportCsv() {
-    const rows = getCurrentRows();
-    if (!rows.length) return;
-    const hasParent = tab !== "zones";
-    const headers = hasParent ? ["ID", "Name", { districts: "Zone", areas: "District", clusters: "Area" }[tab] ?? "Parent", PERSON_LABEL[tab]] : ["ID", "Name", PERSON_LABEL[tab]];
-    const lines = rows.map(r => hasParent
-      ? [r.id, r.name, (r as any).parent ?? "—", r.person ?? "Unassigned"]
-      : [r.id, r.name, r.person ?? "Unassigned"]
-    );
-    const csv = [headers, ...lines].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
-    const a = Object.assign(document.createElement("a"), { href: "data:text/csv," + encodeURIComponent(csv), download: `${tab}.csv` });
-    a.click();
-  }
-
-  function printTable() {
-    const rows = getCurrentRows();
-    const hasParent = tab !== "zones";
-    const parentLabel = ({ districts: "Zone", areas: "District", clusters: "Area" } as Record<string, string>)[tab] ?? "Parent";
-    const ths = hasParent
-      ? `<th>ID</th><th>Name</th><th>${parentLabel}</th><th>${PERSON_LABEL[tab]}</th>`
-      : `<th>ID</th><th>Name</th><th>${PERSON_LABEL[tab]}</th>`;
-    const trs = rows.map(r => hasParent
-      ? `<tr><td>${r.id}</td><td>${r.name}</td><td>${(r as any).parent ?? "—"}</td><td>${r.person ?? "Unassigned"}</td></tr>`
-      : `<tr><td>${r.id}</td><td>${r.name}</td><td>${r.person ?? "Unassigned"}</td></tr>`
-    ).join("");
-    const title = tab.charAt(0).toUpperCase() + tab.slice(1);
-    const w = window.open("", "_blank")!;
-    w.document.write(`<html><head><title>${title}</title><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:13px}th{background:#f0f4ff}</style></head><body><h2>${title}</h2><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></body></html>`);
-    w.document.close(); w.focus(); w.print();
-  }
-
-  const q = search.toLowerCase();
-  const rows = getCurrentRows().filter(r =>
-    !q || r.name.toLowerCase().includes(q) || (r.person ?? "").toLowerCase().includes(q) || ((r as any).parent ?? "").toLowerCase().includes(q)
-  );
-
   const tabCount: Record<Tab, number> = { zones: zones.length, districts: districts.length, areas: areas.length, clusters: clusters.length };
-
   const addLabel = tab.slice(0, 1).toUpperCase() + tab.slice(1, -1);
 
   return (
     <div style={{ padding: "24px 28px" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2 style={{ margin: 0, color: "var(--text-primary)" }}>Geography</h2>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={exportCsv} title="Export CSV" style={grs.btnIcon}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export CSV
-          </button>
-          <button onClick={printTable} title="Print" style={grs.btnIcon}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            Print
-          </button>
-          <button style={grs.btnPrimary} onClick={() => { setShowForm(true); setForm({}); setFormError(""); }}>
-            + Add {addLabel}
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 0, borderBottom: "2px solid var(--border)", paddingBottom: 0 }}>
+      {/* Tab strip */}
+      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid var(--border)", marginBottom: 0 }}>
         {tabs.map(t => (
           <button
             key={t}
-            onClick={() => { setTab(t); setSearch(""); }}
+            onClick={() => setTab(t)}
             style={{
               padding: "8px 16px", border: "none", background: "none", cursor: "pointer",
               fontSize: "0.875rem", display: "flex", gap: 6, alignItems: "center",
@@ -155,64 +125,40 @@ export default function GeoPage() {
         ))}
       </div>
 
-      {/* Search bar */}
-      <div style={{ padding: "12px 0", display: "flex", alignItems: "center", gap: 8 }}>
-        <input
-          placeholder={`Search ${tab}…`}
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ ...grs.searchInput, minWidth: 200, maxWidth: 320 }}
-        />
-        <span style={grs.muted}>{rows.length} {tab}</span>
-      </div>
+      <GrsTable<GeoRow>
+        key={tab}
+        title={tab.charAt(0).toUpperCase() + tab.slice(1)}
+        columns={columns}
+        data={rows}
+        rowKey={r => r.id}
+        searchable
+        searchPlaceholder={`Search ${tab}…`}
+        exportFilename={tab}
+        printTitle={tab.charAt(0).toUpperCase() + tab.slice(1)}
+        onAdd={() => { setShowForm(true); setEditRow(null); setForm({}); setFormError(""); }}
+        addLabel={`+ Add ${addLabel}`}
+        actions={r => ({
+          onEdit: () => {
+            const raw =
+              tab === "zones"     ? zones.find(z => z.id === r.id) :
+              tab === "districts" ? districts.find(d => d.id === r.id) :
+              tab === "areas"     ? areas.find(a => a.id === r.id) :
+                                    clusters.find(c => c.id === r.id);
+            setEditRow({ id: r.id });
+            setForm({ ...raw });
+            setFormError("");
+            setShowForm(true);
+          },
+          onDelete: () => {
+            if (confirm(`Delete "${r.name}"?`)) deleteMut.mutate(r.id);
+          },
+        })}
+      />
 
-      {/* Table */}
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead>
-              <tr>
-                <th className="grs-thead-th" style={grs.th}>ID</th>
-                <th className="grs-thead-th" style={grs.th}>Name</th>
-                {tab !== "zones" && (
-                  <th className="grs-thead-th" style={grs.th}>
-                    {{ districts: "Zone", areas: "District", clusters: "Area" }[tab]}
-                  </th>
-                )}
-                <th className="grs-thead-th" style={grs.th}>{PERSON_LABEL[tab]}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={r.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--bg-input)" }}>
-                  <td style={{ ...grs.td, width: 50 }}>{r.id}</td>
-                  <td style={grs.td}><strong>{r.name}</strong></td>
-                  {tab !== "zones" && <td style={grs.td}>{(r as any).parent ?? "—"}</td>}
-                  <td style={grs.td}>
-                    {r.person
-                      ? r.person
-                      : <span style={{ color: "var(--text-secondary)", fontStyle: "italic", fontSize: "0.8rem" }}>Unassigned</span>
-                    }
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={tab !== "zones" ? 4 : 3} style={{ ...grs.td, textAlign: "center", color: "var(--text-secondary)" }}>
-                    No {tab} found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Add form modal */}
       {showForm && (
         <div style={grs.overlay}>
           <div style={grs.modal}>
-            <h3 style={grs.modalTitle}>Add {addLabel}</h3>
+            <h3 style={grs.modalTitle}>{editRow ? `Edit ${addLabel}` : `Add ${addLabel}`}</h3>
             {formError && <div style={grs.errorBox}>{formError}</div>}
             <form onSubmit={handleSubmit}>
               <div style={{ marginBottom: 10 }}>
@@ -246,20 +192,9 @@ export default function GeoPage() {
                   </select>
                 </div>
               )}
-              <div style={{ marginBottom: 10 }}>
-                <label style={grs.fieldLabel}>{PERSON_LABEL[tab]}</label>
-                <select style={grs.select} value={form[personField] ?? ""} onChange={e => setForm(f => ({ ...f, [personField]: e.target.value }))}>
-                  <option value="">— unassigned —</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>
-                      {[u.first_name, u.last_name].filter(Boolean).join(" ") || u.username}
-                    </option>
-                  ))}
-                </select>
-              </div>
               <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                <button type="submit" style={grs.btnPrimary} disabled={mut.isPending}>{mut.isPending ? "Saving…" : "Save"}</button>
-                <button type="button" style={grs.btnSecondary} onClick={() => { setShowForm(false); setForm({}); }}>Cancel</button>
+                <button type="submit" style={grs.btnPrimary} disabled={createMut.isPending || updateMut.isPending}>{(createMut.isPending || updateMut.isPending) ? "Saving…" : "Save"}</button>
+                <button type="button" style={grs.btnSecondary} onClick={() => { setShowForm(false); setEditRow(null); setForm({}); }}>Cancel</button>
               </div>
             </form>
           </div>

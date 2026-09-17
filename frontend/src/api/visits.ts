@@ -5,9 +5,15 @@ export interface KutirVisit {
   kutir_id: number;
   visited_by_id: number | null;
   visit_date: string;
-  avg_attendance_last_week: number;
+  avg_attendance_last_week: number | null;
+  avg_attendance_morning: number | null;
+  avg_attendance_evening: number | null;
   follow_timetable: boolean;
   follow_monthly_plan: boolean;
+  kutir_closed: boolean;
+  plan_hindi: boolean;
+  plan_math: boolean;
+  plan_english: boolean;
   timetable_plan_reason: string | null;
   math_topics_pre: string | null;
   math_topics_upper: string | null;
@@ -28,6 +34,7 @@ export interface KutirVisit {
   reasoning_proficiency: number;
   material_management: number;
   kutir_performance: number;
+  staff_behavior: number | null;
   reg_admission_forms: boolean;
   reg_attendance_students: boolean;
   reg_daily_activity: boolean;
@@ -36,6 +43,8 @@ export interface KutirVisit {
   reg_attendance_teachers: boolean;
   reg_students_documents: boolean;
   regular_students: number | null;
+  regular_students_morning: number | null;
+  regular_students_evening: number | null;
   timeslot_bal_sabha: boolean;
   timeslot_sports: boolean;
   timeslot_yoga: boolean;
@@ -52,9 +61,15 @@ export type KutirVisitCreate = Omit<KutirVisit, "id" | "visited_by_id" | "visit_
 export const BLANK_VISIT: KutirVisitCreate = {
   kutir_id: 0,
   visit_date: new Date().toISOString().slice(0, 10),
-  avg_attendance_last_week: 0,
+  avg_attendance_last_week: null,
+  avg_attendance_morning: null,
+  avg_attendance_evening: null,
   follow_timetable: false,
   follow_monthly_plan: false,
+  kutir_closed: false,
+  plan_hindi: false,
+  plan_math: false,
+  plan_english: false,
   timetable_plan_reason: null,
   math_topics_pre: null,
   math_topics_upper: null,
@@ -75,6 +90,7 @@ export const BLANK_VISIT: KutirVisitCreate = {
   reasoning_proficiency: 3,
   material_management: 3,
   kutir_performance: 3,
+  staff_behavior: null,
   reg_admission_forms: false,
   reg_attendance_students: false,
   reg_daily_activity: false,
@@ -83,6 +99,8 @@ export const BLANK_VISIT: KutirVisitCreate = {
   reg_attendance_teachers: false,
   reg_students_documents: false,
   regular_students: null,
+  regular_students_morning: null,
+  regular_students_evening: null,
   timeslot_bal_sabha: false,
   timeslot_sports: false,
   timeslot_yoga: false,

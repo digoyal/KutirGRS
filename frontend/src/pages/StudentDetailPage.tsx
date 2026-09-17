@@ -1,21 +1,27 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStudent, updateStudent, type Student } from "../api/students";
+import { listKutirs } from "../api/kutirs";
+import type { Kutir } from "../api/kutirs";
+import { listDistricts, listClusters, listCategories, listSubCategories } from "../api/geo";
+import type { District, Cluster, Category, SubCategory } from "../api/geo";
+import { grs } from "../styles/grs";
 
 const DOCS: { key: keyof Student; label: string }[] = [
-  { key: "aadhaar", label: "Aadhaar Card" },
-  { key: "category_cert", label: "Category Certificate" },
-  { key: "birth_cert", label: "Birth Certificate" },
-  { key: "residence_proof", label: "Residence Proof" },
-  { key: "medical", label: "Medical Certificate" },
+  { key: "aadhaar",        label: "Aadhaar Card" },
+  { key: "category_cert",  label: "Category Certificate" },
+  { key: "birth_cert",     label: "Birth Certificate" },
+  { key: "residence_proof",label: "Residence Proof" },
+  { key: "medical",        label: "Medical Certificate" },
 ];
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(() => searchParams.get("edit") === "1");
   const [form, setForm] = useState<Partial<Student>>({});
   const [saveError, setSaveError] = useState("");
 
@@ -24,6 +30,17 @@ export default function StudentDetailPage() {
     queryFn: () => getStudent(Number(id)),
     onSuccess: (s: Student) => setForm(s),
   } as any);
+
+  const { data: kutirs = [] }    = useQuery<Kutir[]>({ queryKey: ["all-kutirs"],    queryFn: () => listKutirs() });
+  const { data: districts = [] } = useQuery<District[]>({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
+  const { data: clusters = [] }  = useQuery<Cluster[]>({ queryKey: ["all-clusters"],  queryFn: () => listClusters() });
+  const { data: categories = [] }= useQuery<Category[]>({ queryKey: ["categories"],    queryFn: () => listCategories() });
+  const formCategoryId = (form.category_id as number | null) ?? null;
+  const { data: subCategories = [] } = useQuery({
+    queryKey: ["sub-categories", formCategoryId],
+    queryFn: () => listSubCategories(formCategoryId ?? undefined) as Promise<SubCategory[]>,
+    enabled: formCategoryId != null,
+  });
 
   const updateMut = useMutation({
     mutationFn: (data: Partial<Student>) => updateStudent(Number(id), data),
@@ -36,139 +53,223 @@ export default function StudentDetailPage() {
     onError: (e: any) => setSaveError(e?.response?.data?.detail ?? "Save failed"),
   });
 
-  if (isLoading) return <p style={{ color: "var(--text-secondary)" }}>Loading…</p>;
-  if (!student) return <p style={{ color: "var(--status-danger-fg)" }}>Student not found.</p>;
+  if (isLoading) return <p style={{ color: "var(--text-secondary)", padding: 24 }}>Loading…</p>;
+  if (!student)  return <p style={{ color: "var(--danger)", padding: 24 }}>Student not found.</p>;
 
   const s = student as Student;
 
-  function field(label: string, key: keyof Student, type = "text") {
-    const val = editing ? (form[key] as string | null) ?? "" : (s[key] as string | null) ?? "—";
+  // Derived display values for view mode
+  const kutir    = kutirs.find(k => k.id === s.kutir_id);
+  const cluster  = clusters.find(c => c.id === (kutir as any)?.cluster_id);
+  const district = districts.find(d => { const area_id = (cluster as any)?.area_id; return !!area_id && (d as any).id === area_id; });
+  const category    = categories.find(c => c.id === s.category_id);
+
+  function inp(label: string, key: keyof Student, type = "text") {
     return (
-      <div style={styles.field}>
-        <label style={styles.fieldLabel}>{label}</label>
-        {editing ? (
-          <input
-            style={styles.input}
-            type={type}
-            value={val as string}
-            onChange={e => setForm(f => ({ ...f, [key]: e.target.value || null }))}
-          />
-        ) : (
-          <span style={styles.fieldVal}>{val as string}</span>
-        )}
+      <div>
+        <label style={grs.fieldLabel}>{label}</label>
+        {editing
+          ? <input style={grs.input} type={type}
+              value={(form[key] as string | null) ?? ""}
+              onChange={e => setForm(f => ({ ...f, [key]: e.target.value || null }))} />
+          : <div style={viewVal}>{(s[key] as string | null) ?? "—"}</div>}
       </div>
     );
   }
 
-  function selectField(label: string, key: keyof Student, options: string[]) {
-    return (
-      <div style={styles.field}>
-        <label style={styles.fieldLabel}>{label}</label>
-        {editing ? (
-          <select style={styles.input} value={(form[key] as string) ?? ""} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}>
-            {options.map(o => <option key={o}>{o}</option>)}
-          </select>
-        ) : (
-          <span style={styles.fieldVal}>{(s[key] as string) ?? "—"}</span>
-        )}
-      </div>
-    );
-  }
+  const viewVal: React.CSSProperties = {
+    fontSize: 14, color: "var(--text-primary)",
+    padding: "7px 0", borderBottom: "1px solid transparent",
+  };
 
   return (
-    <div style={{ maxWidth: 680, padding: "24px 28px" }}>
-      <div style={styles.topbar}>
-        <button style={styles.backBtn} onClick={() => navigate("/students")}>← Back</button>
-        <h2 style={{ margin: 0 }}>{s.first_name} {s.last_name}</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          {editing ? (
-            <>
-              <button style={styles.primaryBtn} disabled={updateMut.isPending} onClick={() => updateMut.mutate(form)}>
-                {updateMut.isPending ? "Saving…" : "Save"}
-              </button>
-              <button style={styles.secondaryBtn} onClick={() => { setEditing(false); setForm(s); setSaveError(""); }}>Cancel</button>
-            </>
-          ) : (
-            <button style={styles.primaryBtn} onClick={() => { setEditing(true); setForm(s); }}>Edit</button>
-          )}
-        </div>
+    <div style={{ maxWidth: 600, padding: "16px 20px" }}>
+
+      {/* Top bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <button style={{ background: "none", border: "none", color: "var(--link-color)", cursor: "pointer", fontSize: 14, padding: 0 }}
+          onClick={() => navigate("/students")}>← Back</button>
+        <h2 style={{ margin: 0, fontSize: 20 }}>{s.first_name} {s.last_name}</h2>
+        {!editing && (
+          <button style={{ ...grs.btnPrimary, marginLeft: "auto" }} onClick={() => { setEditing(true); setForm(s); }}>Edit</button>
+        )}
       </div>
 
-      {saveError && <p style={styles.error}>{saveError}</p>}
+      {saveError && (
+        <div style={{ color: "var(--danger)", background: "var(--danger-bg,#fef2f2)", border: "1px solid var(--danger-border,#fca5a5)", borderRadius: 6, padding: "8px 12px", marginBottom: 16, fontSize: 13 }}>
+          {saveError}
+        </div>
+      )}
 
-      <section style={styles.section}>
-        <h3 style={styles.sectionTitle}>Personal Info</h3>
-        <div style={styles.grid2}>
-          {field("First Name", "first_name")}
-          {field("Last Name", "last_name")}
-          {selectField("Gender", "gender", ["Boy", "Girl"])}
-          {field("Date of Birth", "dob", "date")}
-          {field("Phone", "phone")}
-          {field("Email", "email", "email")}
+      {/* ── Location ── */}
+      <section style={sec}>
+        <div style={secTitle}>Location</div>
+        {editing ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <div>
+              <label style={grs.fieldLabel}>District</label>
+              <select style={grs.select} value={(form as any).district_filter ?? district?.id ?? ""}
+                onChange={() => setForm(f => ({ ...f, kutir_id: null }))}>
+                <option value="">— any —</option>
+                {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={grs.fieldLabel}>Cluster</label>
+              <select style={grs.select} value={cluster?.id ?? ""}
+                onChange={() => setForm(f => ({ ...f, kutir_id: null }))}>
+                <option value="">— any —</option>
+                {clusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={grs.fieldLabel}>Kutir</label>
+              <select style={grs.select} value={form.kutir_id ?? ""}
+                onChange={e => setForm(f => ({ ...f, kutir_id: Number(e.target.value) || null }))}>
+                <option value="">— select —</option>
+                {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+              </select>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <div><label style={grs.fieldLabel}>District</label><div style={viewVal}>{district?.name ?? "—"}</div></div>
+            <div><label style={grs.fieldLabel}>Cluster</label><div style={viewVal}>{cluster?.name ?? "—"}</div></div>
+            <div><label style={grs.fieldLabel}>Kutir</label><div style={viewVal}>{kutir?.name ?? "—"}</div></div>
+          </div>
+        )}
+      </section>
+
+      {/* ── Personal Info ── */}
+      <section style={sec}>
+        <div style={secTitle}>Personal Info</div>
+
+        {/* First + Last Name */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          {inp("First Name", "first_name")}
+          {inp("Last Name", "last_name")}
+        </div>
+
+        {/* Gender + DOB + Class */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 110px", gap: 8, marginBottom: 8 }}>
+          <div>
+            <label style={grs.fieldLabel}>Gender</label>
+            {editing
+              ? <select style={grs.select} value={(form.gender as string) ?? "Boy"}
+                  onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}>
+                  <option>Boy</option><option>Girl</option>
+                </select>
+              : <div style={viewVal}>{s.gender}</div>}
+          </div>
+          {inp("Date of Birth", "dob", "date")}
+        </div>
+
+        {/* Category + Sub-category */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div>
+            <label style={grs.fieldLabel}>Category</label>
+            {editing
+              ? <select style={grs.select} value={form.category_id ?? ""}
+                  onChange={e => {
+                    const id = Number(e.target.value) || null;
+                    setForm(f => ({ ...f, category_id: id, sub_category_id: null }));
+                  }}>
+                  <option value="">— none —</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              : <div style={viewVal}>{category?.name ?? "—"}</div>}
+          </div>
+          <div>
+            <label style={grs.fieldLabel}>Sub-Category</label>
+            {editing
+              ? <select style={grs.select} value={form.sub_category_id ?? ""}
+                  disabled={!formCategoryId}
+                  onChange={e => setForm(f => ({ ...f, sub_category_id: Number(e.target.value) || null }))}>
+                  <option value="">— none —</option>
+                  {subCategories.map((sc: any) => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
+                </select>
+              : <div style={viewVal}>{subCategories.find((sc: any) => sc.id === s.sub_category_id)?.name ?? "—"}</div>}
+          </div>
+        </div>
+
+        {/* Phone + Email */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {inp("Phone", "phone")}
+          {inp("Email", "email", "email")}
         </div>
       </section>
 
-      <section style={styles.section}>
-        <h3 style={styles.sectionTitle}>Family</h3>
-        <div style={styles.grid2}>
-          {field("Father's Name", "father_name")}
-          {field("Mother's Name", "mother_name")}
-          {field("Alt Contact", "alt_contact_name")}
-          {field("Alt Phone", "alt_contact_phone")}
+      {/* ── Family ── */}
+      <section style={sec}>
+        <div style={secTitle}>Family</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          {inp("Father's Name", "father_name")}
+          {inp("Mother's Name", "mother_name")}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {inp("Alt Contact Name", "alt_contact_name")}
+          {inp("Alt Contact Phone", "alt_contact_phone")}
         </div>
       </section>
 
-      <section style={styles.section}>
-        <h3 style={styles.sectionTitle}>Address</h3>
-        <div style={styles.grid2}>
-          {field("Street", "street")}
-          {field("Pincode", "pincode")}
+      {/* ── Address ── */}
+      <section style={sec}>
+        <div style={secTitle}>Address</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {inp("Street", "street")}
+          {inp("Pincode", "pincode")}
         </div>
       </section>
 
-      <section style={styles.section}>
-        <h3 style={styles.sectionTitle}>Documents</h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {DOCS.map(({ key, label }) => (
-            <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, cursor: editing ? "pointer" : "default" }}>
-              <input
-                type="checkbox"
-                disabled={!editing}
-                checked={editing ? !!(form[key]) : !!(s[key])}
-                onChange={e => editing && setForm(f => ({ ...f, [key]: e.target.checked }))}
-                style={{ width: 16, height: 16 }}
-              />
-              <span style={{ fontSize: "0.9rem", color: (editing ? form[key] : s[key]) ? "var(--status-success-fg)" : "var(--text-secondary)" }}>{label}</span>
-              {(editing ? form[key] : s[key])
-                ? <span style={{ fontSize: "0.75rem", background: "var(--status-success-bg)", color: "var(--status-success-fg)", padding: "1px 6px", borderRadius: 10 }}>✓</span>
-                : <span style={{ fontSize: "0.75rem", background: "var(--status-danger-bg)", color: "var(--status-danger-fg)", padding: "1px 6px", borderRadius: 10 }}>Missing</span>}
-            </label>
-          ))}
+      {/* ── Documents ── */}
+      <section style={sec}>
+        <div style={secTitle}>Documents Collected</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px" }}>
+          {DOCS.map(({ key, label }) => {
+            const checked = editing ? !!(form[key]) : !!(s[key]);
+            return (
+              <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, cursor: editing ? "pointer" : "default", fontSize: 14 }}>
+                <input type="checkbox" disabled={!editing} checked={checked}
+                  onChange={e => editing && setForm(f => ({ ...f, [key]: e.target.checked }))}
+                  style={{ width: 15, height: 15 }} />
+                <span style={{ color: checked ? "var(--status-success-fg, #16a34a)" : "var(--text-secondary)" }}>{label}</span>
+                {checked
+                  ? <span style={tag("#dcfce7","#16a34a")}>✓</span>
+                  : <span style={tag("#fef2f2","#dc2626")}>Missing</span>}
+              </label>
+            );
+          })}
         </div>
       </section>
 
-      <section style={styles.section}>
-        <h3 style={styles.sectionTitle}>Record</h3>
-        <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-          Added: {new Date(s.created_at).toLocaleString("en-IN")} &nbsp;·&nbsp;
-          Updated: {new Date(s.updated_at).toLocaleString("en-IN")}
-        </p>
-      </section>
+      {/* ── Save / Cancel (edit mode) ── */}
+      {editing && (
+        <div style={{ display: "flex", gap: 10, marginTop: 12, justifyContent: "flex-end" }}>
+          <button style={grs.btnSecondary}
+            onClick={() => { setEditing(false); setForm(s); setSaveError(""); }}>Cancel</button>
+          <button style={grs.btnPrimary} disabled={updateMut.isPending}
+            onClick={() => updateMut.mutate(form, { onSuccess: () => navigate("/students") })}>
+            {updateMut.isPending ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Record timestamps ── */}
+      <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 8 }}>
+        Added: {new Date(s.created_at).toLocaleString("en-IN")} &nbsp;·&nbsp;
+        Updated: {new Date(s.updated_at).toLocaleString("en-IN")}
+      </p>
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  topbar: { display: "flex", alignItems: "center", gap: 16, marginBottom: 24 },
-  backBtn: { background: "none", border: "none", color: "var(--link-color)", cursor: "pointer", fontSize: "0.9rem", padding: 0 },
-  primaryBtn: { background: "var(--link-color)", color: "white", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
-  secondaryBtn: { background: "var(--border)", color: "var(--text-primary)", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: "0.875rem" },
-  section: { background: "var(--bg-card)", borderRadius: 8, padding: "1rem 1.25rem", marginBottom: 16 },
-  sectionTitle: { margin: "0 0 12px", fontSize: "0.85rem", fontWeight: 700, color: "var(--badge-blue-fg)", textTransform: "uppercase", letterSpacing: "0.05em" },
-  grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 20px" },
-  field: { display: "flex", flexDirection: "column", gap: 3 },
-  fieldLabel: { fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", textAlign: "left" as const },
-  fieldVal: { fontSize: "0.9rem", color: "var(--text-primary)" },
-  input: { padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 4, fontSize: "0.875rem" },
-  error: { color: "var(--status-danger-fg)", background: "var(--status-danger-bg)", border: "1px solid var(--badge-red-fg)", borderRadius: 5, padding: "8px 12px", marginBottom: 12, fontSize: "0.85rem" },
+const sec: React.CSSProperties = {
+  background: "var(--bg-card)", borderRadius: 8, padding: "10px 14px", marginBottom: 8,
 };
+const secTitle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em",
+  color: "var(--badge-blue-fg, #2563eb)", marginBottom: 8,
+};
+function tag(bg: string, color: string): React.CSSProperties {
+  return { fontSize: 11, background: bg, color, padding: "1px 6px", borderRadius: 10, fontWeight: 600 };
+}

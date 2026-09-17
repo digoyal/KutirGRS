@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { listSchools, createSchool, updateSchool, deleteSchool, type School, type SchoolCreate } from "../api/schools";
 import { listDistricts } from "../api/geo";
 import { GrsTable, type Col } from "../components/GrsTable";
+import { useFieldConfig } from "../hooks/useFieldConfig";
+import { SCHOOLS_FIELDS } from "../constants/schoolsFields";
 import { grs } from "../styles/grs";
 
 const SCHOOL_TYPES = ["EMRS", "JNV", "KSP", "MRS", "GNV", "KGBV", "SportsBoys", "SportsGirls", "Other"];
@@ -35,11 +37,12 @@ function typeBadge(type: string) {
 }
 
 function SchoolModal({
-  initial, onClose, onSaved,
+  initial, onClose, onSaved, readOnly,
 }: {
   initial: (SchoolCreate & { id?: number }) | null;
   onClose: () => void;
   onSaved: () => void;
+  readOnly?: boolean;
 }) {
   const isEdit = !!initial?.id;
   const [form, setForm] = useState<SchoolCreate>(initial ?? BLANK);
@@ -70,38 +73,38 @@ function SchoolModal({
   return (
     <div style={grs.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={grs.modal}>
-        <h3 style={grs.modalTitle}>{isEdit ? "Edit School" : "Add School"}</h3>
+        <h3 style={grs.modalTitle}>{readOnly ? "View School" : isEdit ? "Edit School" : "Add School"}</h3>
         {error && <div style={grs.errorBox}>{error}</div>}
 
         {/* Row 1: Type + Name */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10, marginBottom: 10 }}>
           <div>
             <label style={grs.fieldLabel}>School Type</label>
-            <select style={grs.select} value={form.school_type} onChange={e => set("school_type", e.target.value)}>
+            <select style={grs.select} value={form.school_type} onChange={readOnly ? undefined : e => set("school_type", e.target.value)} disabled={readOnly}>
               {SCHOOL_TYPES.map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
           <div>
             <label style={grs.fieldLabel}>Name *</label>
-            <input style={grs.input} value={form.name} onChange={e => set("name", e.target.value)} />
+            <input style={grs.input} value={form.name} onChange={readOnly ? undefined : e => set("name", e.target.value)} disabled={readOnly} />
           </div>
         </div>
 
         {/* Row 2: Street / Address */}
         <div style={{ marginBottom: 10 }}>
           <label style={grs.fieldLabel}>Street / Address</label>
-          <input style={grs.input} value={form.street ?? ""} onChange={e => set("street", e.target.value || null)} />
+          <input style={grs.input} value={form.street ?? ""} onChange={readOnly ? undefined : e => set("street", e.target.value || null)} disabled={readOnly} />
         </div>
 
         {/* Row 3: City + District */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div>
             <label style={grs.fieldLabel}>City / Block</label>
-            <input style={grs.input} value={form.city ?? ""} onChange={e => set("city", e.target.value || null)} />
+            <input style={grs.input} value={form.city ?? ""} onChange={readOnly ? undefined : e => set("city", e.target.value || null)} disabled={readOnly} />
           </div>
           <div>
             <label style={grs.fieldLabel}>District</label>
-            <select style={grs.select} value={form.district_id ?? ""} onChange={e => set("district_id", Number(e.target.value) || null)}>
+            <select style={grs.select} value={form.district_id ?? ""} onChange={readOnly ? undefined : e => set("district_id", Number(e.target.value) || null)} disabled={readOnly}>
               <option value="">— none —</option>
               {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
@@ -112,21 +115,21 @@ function SchoolModal({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div>
             <label style={grs.fieldLabel}>State</label>
-            <select style={grs.select} value={form.state ?? "Madhya Pradesh"} onChange={e => set("state", e.target.value)}>
+            <select style={grs.select} value={form.state ?? "Madhya Pradesh"} onChange={readOnly ? undefined : e => set("state", e.target.value)} disabled={readOnly}>
               {STATES.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div>
             <label style={grs.fieldLabel}>Pincode</label>
-            <input style={grs.input} value={form.pincode ?? ""} onChange={e => set("pincode", e.target.value || null)} maxLength={10} />
+            <input style={grs.input} value={form.pincode ?? ""} onChange={readOnly ? undefined : e => set("pincode", e.target.value || null)} disabled={readOnly} maxLength={10} />
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginTop: 20, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={grs.btnSecondary} disabled={saving}>Cancel</button>
-          <button onClick={handleSave} style={grs.btnPrimary} disabled={saving}>
+          <button onClick={onClose} style={grs.btnSecondary} disabled={saving}>{readOnly ? "Close" : "Cancel"}</button>
+          {!readOnly && <button onClick={handleSave} style={grs.btnPrimary} disabled={saving}>
             {saving ? "Saving…" : isEdit ? "Save Changes" : "Add School"}
-          </button>
+          </button>}
         </div>
       </div>
     </div>
@@ -138,6 +141,7 @@ export default function SchoolsPage() {
   const [filterType, setFilterType] = useState("");
   const [modal, setModal] = useState<(SchoolCreate & { id?: number }) | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [viewSchool, setViewSchool] = useState<SchoolWithDistrict | null>(null);
 
   const { data: schools = [], isLoading } = useQuery<SchoolWithDistrict[]>({
     queryKey: ["schools"],
@@ -146,6 +150,17 @@ export default function SchoolsPage() {
 
   const { user } = useAuth();
   const isAdmin = user?.title === "Admin";
+
+  useEffect(() => {
+    if (window.location.search.includes("_=")) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) window.location.reload();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   function refresh() { qc.invalidateQueries({ queryKey: ["schools"] }); }
 
@@ -168,7 +183,7 @@ export default function SchoolsPage() {
   // Pre-filter by type; GrsTable handles search
   const displayed = filterType ? schools.filter(s => s.school_type === filterType) : schools;
 
-  const columns: Col<SchoolWithDistrict>[] = [
+  const allColumns: Col<SchoolWithDistrict>[] = [
     {
       key: "name", label: "Name", sortable: true,
       render: s => <strong style={{ color: "var(--text-primary)" }}>{s.name}</strong>,
@@ -188,8 +203,18 @@ export default function SchoolsPage() {
       render: s => s.district ? s.district.name : s.district_id ? `#${s.district_id}` : "—",
     },
     { key: "state", label: "State", sortable: true, render: s => s.state },
-
+    { key: "street", label: "Street", sortable: false, render: s => s.street ?? "—", csvValue: s => s.street ?? "" },
+    { key: "pincode", label: "Pincode", sortable: true, render: s => s.pincode ?? "—", csvValue: s => s.pincode ?? "" },
   ];
+
+  const { isVisible, orderedMetas } = useFieldConfig("schools", SCHOOLS_FIELDS);
+  const columns = useMemo(() => {
+    const colByKey = new Map(allColumns.map(c => [c.key, c]));
+    return orderedMetas
+      .filter(m => isVisible(m.key))
+      .map(m => colByKey.get(m.key))
+      .filter((c): c is NonNullable<typeof c> => c != null);
+  }, [allColumns, orderedMetas, isVisible]);
 
   return (
     <div style={{ padding: "24px 28px" }}>
@@ -200,7 +225,7 @@ export default function SchoolsPage() {
         rowKey={s => s.id}
         isLoading={isLoading}
         emptyMessage="No schools found."
-        actions={s => ({ onView: () => window.open(`/schools/${s.id}`, '_self'), onEdit: () => openEdit(s), onDelete: isAdmin ? () => { if (confirm(`Delete "${s.name}"?`)) deleteMut.mutate(s.id); } : undefined })}
+        actions={s => ({ onView: () => setViewSchool(s), onEdit: () => openEdit(s), onDelete: () => { if (confirm(`Delete "${s.name}"?`)) deleteMut.mutate(s.id); } })}
         searchable
         filters={
           <select value={filterType} onChange={e => setFilterType(e.target.value)} style={grs.filterSelect}>
@@ -216,6 +241,12 @@ export default function SchoolsPage() {
             || (s.city ?? "").toLowerCase().includes(lower)
             || (s.district?.name ?? "").toLowerCase().includes(lower);
         }}
+        headerExtra={isAdmin ? (
+          <a href="/admin/field-config?table=schools" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8125rem", color: "var(--text-secondary)", textDecoration: "none", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span>Columns</span>
+          </a>
+        ) : undefined}
         exportFilename="schools"
         printTitle="Schools"
         onAdd={openAdd}
@@ -224,6 +255,11 @@ export default function SchoolsPage() {
 
       {showModal && modal && (
         <SchoolModal initial={modal} onClose={() => setShowModal(false)} onSaved={refresh} />
+      )}
+      {viewSchool && (
+        <SchoolModal
+          initial={{ id: viewSchool.id, name: viewSchool.name, school_type: viewSchool.school_type, state: viewSchool.state, city: viewSchool.city ?? null, street: viewSchool.street ?? null, district_id: viewSchool.district_id ?? null, pincode: viewSchool.pincode ?? null }}
+          onClose={() => setViewSchool(null)} onSaved={refresh} readOnly />
       )}
     </div>
   );

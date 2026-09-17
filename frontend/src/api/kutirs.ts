@@ -1,16 +1,27 @@
 import api from "./client";
 
+export interface TeacherMin {
+  id: number;
+  username: string;
+  title: string | null;
+  first_name: string | null;
+  last_name: string | null;
+}
+
 export interface Kutir {
   id: number; name: string; kutir_type: string; cluster_id: number;
   district_id: number | null; village: string | null; street: string | null;
-  state: string; pincode: string | null; teacher_id: number | null;
+  state: string; pincode: string | null;
   donor_id: number | null; enrollment_5th: number | null; enrollment_8th: number | null;
+  teachers?: TeacherMin[];
 }
+
 export interface KutirCreate {
   name: string; kutir_type: string; cluster_id: number; district_id?: number | null;
   village?: string | null; street?: string | null; state?: string; pincode?: string | null;
   enrollment_5th?: number | null; enrollment_8th?: number | null;
 }
+
 export const listKutirs = async (params?: { cluster_id?: number; district_id?: number }): Promise<Kutir[]> =>
   (await api.get("/kutirs", { params })).data;
 export const createKutir = async (data: KutirCreate): Promise<Kutir> => (await api.post("/kutirs", data)).data;
