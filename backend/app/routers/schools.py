@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -18,7 +19,7 @@ async def list_schools(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    q = select(GovtResidentialSchool).order_by(GovtResidentialSchool.name)
+    q = select(GovtResidentialSchool).options(selectinload(GovtResidentialSchool.district)).order_by(GovtResidentialSchool.name)
     if district_id:
         q = q.where(GovtResidentialSchool.district_id == district_id)
     if school_type:
@@ -38,7 +39,7 @@ async def create_school(body: SchoolCreate, db: AsyncSession = Depends(get_db), 
 
 @router.get("/{school_id}", response_model=SchoolOut)
 async def get_school(school_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
-    obj = await db.get(GovtResidentialSchool, school_id)
+    obj = await db.get(GovtResidentialSchool, school_id, options=[selectinload(GovtResidentialSchool.district)])
     if not obj:
         raise HTTPException(404, "School not found")
     return obj

@@ -25,6 +25,12 @@ class SchoolUpdate(BaseModel):
     state: Optional[str] = None
     pincode: Optional[str] = None
 
+class DistrictMin(BaseModel):
+    id: int
+    name: str
+    model_config = {"from_attributes": True}
+
 class SchoolOut(SchoolBase):
     id: int
+    district: Optional[DistrictMin] = None
     model_config = {"from_attributes": True}
