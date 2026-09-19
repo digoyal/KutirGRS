@@ -7,7 +7,6 @@ interface Kutir {
   name: string;
   kutir_type: string;
   state: string;
-  village?: string | null;
   street?: string | null;
   pincode?: string | null;
   enrollment_5th?: number | null;
@@ -79,7 +78,6 @@ export default function KutirDetailPage() {
         <InfoRow label="Cluster"    value={cluster  ?? "—"} />
         <InfoRow label="Name"       value={kutir.name} />
         <InfoRow label="Type"       value={kutir.kutir_type ?? "—"} />
-        <InfoRow label="Village"    value={kutir.village ?? "—"} />
         <InfoRow label="State"      value={kutir.state ?? "—"} />
         {kutir.street  && <InfoRow label="Street"   value={kutir.street} />}
         {kutir.pincode && <InfoRow label="Pincode"  value={kutir.pincode} />}

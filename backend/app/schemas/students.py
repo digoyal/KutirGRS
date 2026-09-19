@@ -2,30 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
-
-
-# ── SchoolTypeSubject ────────────────────────────────────────────────────────
-class SchoolTypeSubjectBase(BaseModel):
-    school_type: str
-    subject_ids: list[int] = []
-
-class SchoolTypeSubjectCreate(SchoolTypeSubjectBase):
-    pass
-
-class SchoolTypeSubjectUpdate(BaseModel):
-    subject_ids: Optional[list[int]] = None
-
-class SubjectRef(BaseModel):
-    id: int
-    name: str
-    code: Optional[str] = None
-    model_config = {"from_attributes": True}
-
-class SchoolTypeSubjectOut(BaseModel):
-    id: int
-    school_type: str
-    subjects: list[SubjectRef] = []
-    model_config = {"from_attributes": True}
+from app.schemas.lookups import SubjectRef  # noqa: F401  (re-exported for ExamScoreOut)
 
 
 # ── Student ──────────────────────────────────────────────────────────────────
@@ -105,6 +82,7 @@ class StudentExamBase(BaseModel):
     student_id: int
     school_id: Optional[int] = None
     school_type: Optional[str] = None
+    exam_type_id: Optional[int] = None
     school_start_year: int
     eligible: bool = True
     form_received: bool = False
@@ -115,15 +93,12 @@ class StudentExamBase(BaseModel):
     admitted: bool = False
     admitted_school_id: Optional[int] = None
     no_admit_reason_id: Optional[int] = None
+    exam_type_id: Optional[int] = None
     exam_category_id: Optional[int] = None
     application_number: Optional[str] = None
     exam_center_id: Optional[int] = None
     roll_number: Optional[str] = None
     no_exam_reason_id: Optional[int] = None
-    math: Optional[float] = None
-    english: Optional[float] = None
-    reasoning: Optional[float] = None
-    evs: Optional[float] = None
     admission_class: Optional[int] = None  # 5 or 8
 
 class StudentExamCreate(StudentExamBase):
@@ -139,15 +114,12 @@ class StudentExamUpdate(BaseModel):
     admitted: Optional[bool] = None
     admitted_school_id: Optional[int] = None
     no_admit_reason_id: Optional[int] = None
+    exam_type_id: Optional[int] = None
     exam_category_id: Optional[int] = None
     application_number: Optional[str] = None
     exam_center_id: Optional[int] = None
     roll_number: Optional[str] = None
     no_exam_reason_id: Optional[int] = None
-    math: Optional[float] = None
-    english: Optional[float] = None
-    reasoning: Optional[float] = None
-    evs: Optional[float] = None
     admission_class: Optional[int] = None
     scores: Optional[list[ExamScoreCreate]] = None
 

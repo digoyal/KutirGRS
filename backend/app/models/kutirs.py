@@ -22,7 +22,6 @@ class Kutir(Base, TimestampMixin):
     district_id: Mapped[Optional[int]] = mapped_column(ForeignKey("districts.id"), nullable=True)
 
     # Address
-    village: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     street: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     state: Mapped[str] = mapped_column(String(50), nullable=False, default="Madhya Pradesh")
     pincode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)

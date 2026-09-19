@@ -9,7 +9,6 @@ class KutirBase(BaseModel):
     kutir_type: str = "Seva Kutir"
     cluster_id: int
     district_id: Optional[int] = None
-    village: Optional[str] = None
     street: Optional[str] = None
     state: str = "Madhya Pradesh"
     pincode: Optional[str] = None
@@ -25,7 +24,6 @@ class KutirUpdate(BaseModel):
     kutir_type: Optional[str] = None
     cluster_id: Optional[int] = None
     district_id: Optional[int] = None
-    village: Optional[str] = None
     street: Optional[str] = None
     state: Optional[str] = None
     pincode: Optional[str] = None

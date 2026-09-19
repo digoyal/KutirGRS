@@ -4,34 +4,12 @@ from typing import Optional
 
 from sqlalchemy import (
     Boolean, Column, Date, ForeignKey, Integer, Numeric,
-    SmallInteger, String, Table, Text, UniqueConstraint,
+    SmallInteger, String, Text, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
-
-# ── M2M: SchoolTypeSubject ↔ Subject ────────────────────────────────────────
-school_type_subject_subjects = Table(
-    "school_type_subject_subjects", Base.metadata,
-    Column("school_type_subject_id", Integer,
-           ForeignKey("school_type_subjects.id", ondelete="CASCADE"), primary_key=True),
-    Column("subject_id", Integer,
-           ForeignKey("subjects.id", ondelete="CASCADE"), primary_key=True),
-)
-
-
-class SchoolTypeSubject(Base):
-    """Maps a school type to the subjects used in its entrance exam."""
-    __tablename__ = "school_type_subjects"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    school_type: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
-
-    subjects: Mapped[list["Subject"]] = relationship(
-        "Subject", secondary=school_type_subject_subjects, lazy="selectin"
-    )
-
 
 # ── Student ──────────────────────────────────────────────────────────────────
 class Student(Base, TimestampMixin):
@@ -117,6 +95,9 @@ class StudentExam(Base, TimestampMixin):
     no_admit_reason_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("no_admit_reasons.id", ondelete="SET NULL"), nullable=True
     )
+    exam_type_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("exam_types.id", ondelete="SET NULL"), nullable=True
+    )
     exam_category_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("exam_categories.id", ondelete="SET NULL"), nullable=True
     )
@@ -131,11 +112,6 @@ class StudentExam(Base, TimestampMixin):
 
     admission_class: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)  # 5 or 8
 
-    # Legacy per-subject score columns (kept for data compatibility)
-    math: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
-    english: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
-    reasoning: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
-    evs: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
 
     # Relationships
     student: Mapped[object] = relationship("Student", back_populates="exams")

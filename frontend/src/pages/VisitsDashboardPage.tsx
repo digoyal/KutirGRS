@@ -220,7 +220,9 @@ export default function VisitsDashboardPage() {
     });
 
     const timetableYes = visits.filter((v) => v.follow_timetable).length;
-    const planYes = visits.filter((v) => v.follow_monthly_plan).length;
+    const planHindi   = visits.filter((v) => v.plan_hindi).length;
+    const planMath    = visits.filter((v) => v.plan_math).length;
+    const planEnglish = visits.filter((v) => v.plan_english).length;
 
     const wbSlices = [
       { label: "Upto Date",         count: visits.filter((v) => v.workbook_completion === "Upto Date").length,         color: "var(--status-success-fg)" },
@@ -250,7 +252,7 @@ export default function VisitsDashboardPage() {
       .sort((a, b) => b.avg - a.avg)
       .slice(0, 5);
 
-    return { total, yearVisits, monthVisits, uniqueKutirs, ratings, timetableYes, planYes, wbSlices, physSlices, bookSlices, topKutirs };
+    return { total, yearVisits, monthVisits, uniqueKutirs, ratings, timetableYes, planHindi, planMath, planEnglish, wbSlices, physSlices, bookSlices, topKutirs };
   }, [visits, thisYear, thisMonth]);
 
   const card: React.CSSProperties = {
@@ -335,8 +337,8 @@ export default function VisitsDashboardPage() {
           <RatingBar label="Material Management" value={stats.ratings["material_management"]} />
           <RatingBar label="Hindi Proficiency"   value={stats.ratings["hindi_proficiency"]} />
           <RatingBar label="English Proficiency" value={stats.ratings["english_proficiency"]} />
-          <RatingBar label="Maths Proficiency"   value={stats.ratings["maths_proficiency"]} />
-          <RatingBar label="EVS Proficiency"     value={stats.ratings["evs_proficiency"]} />
+          <RatingBar label="Math Proficiency"   value={stats.ratings["maths_proficiency"]} />
+          <RatingBar label="EVS Proficiency (class 5 only)"     value={stats.ratings["evs_proficiency"]} />
           <RatingBar label="Reasoning"           value={stats.ratings["reasoning_proficiency"]} />
         </div>
 
@@ -356,21 +358,47 @@ export default function VisitsDashboardPage() {
               {stats.timetableYes} of {stats.total} visits
             </div>
           </div>
-          {/* monthly plan */}
-          <div style={{ marginBottom: 24 }}>
+          {/* monthly plan - Hindi */}
+          <div style={{ marginBottom: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Following Monthly Plan</span>
-              <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{pct(stats.planYes, stats.total)}%</span>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Monthly Plan — Hindi</span>
+              <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{pct(stats.planHindi, stats.total)}%</span>
             </div>
             <div style={{ height: 10, background: "var(--bg-input)", borderRadius: 5, overflow: "hidden" }}>
-              <div style={{ width: `${pct(stats.planYes, stats.total)}%`, height: "100%", background: "var(--link-color)", borderRadius: 5 }} />
+              <div style={{ width: `${pct(stats.planHindi, stats.total)}%`, height: "100%", background: "var(--link-color)", borderRadius: 5 }} />
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
-              {stats.planYes} of {stats.total} visits
+              {stats.planHindi} of {stats.total} visits
+            </div>
+          </div>
+          {/* monthly plan - Math */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Monthly Plan — Math</span>
+              <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{pct(stats.planMath, stats.total)}%</span>
+            </div>
+            <div style={{ height: 10, background: "var(--bg-input)", borderRadius: 5, overflow: "hidden" }}>
+              <div style={{ width: `${pct(stats.planMath, stats.total)}%`, height: "100%", background: "#f59e0b", borderRadius: 5 }} />
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
+              {stats.planMath} of {stats.total} visits
+            </div>
+          </div>
+          {/* monthly plan - English */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Monthly Plan — English</span>
+              <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{pct(stats.planEnglish, stats.total)}%</span>
+            </div>
+            <div style={{ height: 10, background: "var(--bg-input)", borderRadius: 5, overflow: "hidden" }}>
+              <div style={{ width: `${pct(stats.planEnglish, stats.total)}%`, height: "100%", background: "var(--status-success-fg)", borderRadius: 5 }} />
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
+              {stats.planEnglish} of {stats.total} visits
             </div>
           </div>
 
-          <div style={section}>Physical vs Registered</div>
+          <div style={section}>App vs. Registered Students</div>
           <DonutSlice slices={stats.physSlices} />
         </div>
 

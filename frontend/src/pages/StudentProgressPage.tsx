@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../api/client";
 import {
-  listProgress,
+  listProgressPaged,
   createProgress,
   updateProgress,
   deleteProgress,
@@ -46,6 +46,7 @@ interface StudentMin {
   first_name: string;
   last_name: string;
   kutir_id: number | null;
+  father_name?: string | null;
 }
 
 function ProgressModal({
@@ -94,7 +95,7 @@ function ProgressModal({
   const { data: rawStudents = [] } = useQuery<StudentMin[]>({
     queryKey: ["students-search", search],
     queryFn: async () =>
-      (await api.get("/students", { params: { search, limit: 100 } })).data,
+      (await api.get("/students", { params: { search, name_only: true, limit: 100 } })).data,
     enabled: !isEdit && search.length >= 2,
   });
   const students = useMemo(() => {
@@ -366,39 +367,73 @@ export default function StudentProgressPage() {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
-  const [filterDistrict, setFilterDistrict] = useState<number | "">("");
-  const [filterCluster, setFilterCluster] = useState<number | "">("");
+  const defaultDistrict: number | "" = (() => {
+    if (!user) return "";
+    if (user.title === "District Anchor" && user.district_ids.length > 0) return user.district_ids[0];
+    return "";
+  })();
+  const defaultCluster: number | "" = (() => {
+    if (!user) return "";
+    if (user.title === "Cluster Coordinator" && user.cluster_ids.length > 0) return user.cluster_ids[0];
+    return "";
+  })();
+  const defaultKutir: number | "" = (() => {
+    if (!user) return "";
+    if (user.title === "Teacher" && user.kutir_ids.length > 0) return user.kutir_ids[0];
+    return "";
+  })();
+
+  const [filterDistrict, setFilterDistrict] = useState<number | "">(defaultDistrict);
+  const [filterCluster, setFilterCluster] = useState<number | "">(defaultCluster);
+  const [filterKutir, setFilterKutir] = useState<number | "">(defaultKutir);
   const [filterYear, setFilterYear] = useState(CURRENT_YEAR);
   const [modal, setModal] = useState<(StudentProgressCreate & { id?: number }) | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [viewModal, setViewModal] = useState<(StudentProgressCreate & { id?: number }) | null>(null);
 
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
+  const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "";
+
   const { isVisible, orderedMetas } = useFieldConfig("progress", PROGRESS_FIELDS);
 
-  const { data: progressList = [], isLoading } = useQuery<StudentProgress[]>({
-    queryKey: ["progress", filterYear],
-    queryFn: () => listProgress(),
+  const { data: progressPage = { items: [], total: 0 }, isLoading } = useQuery({
+    queryKey: ["progress", filterYear, filterDistrict, filterCluster, filterKutir, page],
+    queryFn: () => listProgressPaged({
+      academic_year: filterYear,
+      district_id: filterDistrict !== "" ? filterDistrict : undefined,
+      cluster_id: filterCluster !== "" ? filterCluster : undefined,
+      kutir_id: filterKutir !== "" ? filterKutir : undefined,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+    enabled: hasFilter,
   });
+  const progressList = progressPage.items;
+  const progressTotal = progressPage.total;
+
   const { data: schools = [] } = useQuery<School[]>({
     queryKey: ["schools"],
     queryFn: () => listSchools(),
   });
-  const { data: allStudents = [] } = useQuery({ queryKey: ["all-students"], queryFn: () => listStudents({ limit: 5000 }) });
+  const { data: allStudents = [] } = useQuery({ queryKey: ["students-names"], queryFn: () => listStudents({ name_only: true }) });
   const { data: allKutirs = [] }   = useQuery({ queryKey: ["all-kutirs"],   queryFn: () => listKutirs() });
   const { data: allDistricts = [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
   const { data: allAreas = [] }    = useQuery({ queryKey: ["all-areas"],    queryFn: () => listAreas() });
   const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
-  const { data: allExams = [] } = useQuery<StudentExam[]>({ queryKey: ["all-exams"], queryFn: () => listExams() });
+  const { data: allExams = [] } = useQuery<StudentExam[]>({ queryKey: ["all-exams-admitted"], queryFn: () => listExams({ admitted: true }) });
 
   // Stable map references so columns useMemo deps stay clean
   const studentMap2  = useMemo(() => new Map(allStudents.map(s => [s.id, s])),  [allStudents]);
-  const kutirMap     = useMemo(() => new Map(allKutirs.map(k => [k.id, k])),    [allKutirs]);
   const areaMap      = useMemo(() => new Map(allAreas.map(a => [a.id, a])),     [allAreas]);
-  const clusterMap   = useMemo(() => new Map(allClusters.map(c => [c.id, c])), [allClusters]);
   const schoolMap    = useMemo(() => new Map(schools.map(s => [s.id, s])),      [schools]);
   const filterClusters = useMemo(
     () => allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict),
     [allClusters, filterDistrict, areaMap],
+  );
+  const filterKutirs = useMemo(
+    () => allKutirs.filter(k => filterCluster !== "" ? k.cluster_id === filterCluster : filterKutir !== "" ? k.id === filterKutir : false),
+    [allKutirs, filterCluster, filterKutir],
   );
 
   // Build latestSchoolMap: for each student, the school from their most recent record
@@ -422,11 +457,6 @@ export default function StudentProgressPage() {
     return m;
   }, [allExams]);
 
-  // Set of student IDs who have at least one admitted exam record
-  const admittedStudentIds = useMemo<Set<number>>(
-    () => new Set(allExams.filter(e => e.admitted).map(e => e.student_id)),
-    [allExams],
-  );
 
   const deleteMut = useMutation({
     mutationFn: deleteProgress,
@@ -434,25 +464,7 @@ export default function StudentProgressPage() {
   });
   function refresh() { qc.invalidateQueries({ queryKey: ["progress"] }); }
 
-  // Geo + year filter (search is handled by GrsTable internally)
-  const filtered = useMemo(() => progressList.filter((p) => {
-    if (p.academic_year !== filterYear) return false;
-    if (!admittedStudentIds.has(p.student_id)) return false;
-    if (filterCluster !== "" || filterDistrict !== "") {
-      const s = studentMap2.get(p.student_id);
-      const kutir = s?.kutir_id != null ? kutirMap.get(s.kutir_id) : null;
-      if (filterCluster !== "") {
-        if (!kutir || kutir.cluster_id !== filterCluster) return false;
-      } else if (filterDistrict !== "") {
-        if (!kutir) return false;
-        const cl = clusterMap.get(kutir.cluster_id);
-        if (!cl) return false;
-        const ar = areaMap.get(cl.area_id);
-        if (!ar || ar.district_id !== filterDistrict) return false;
-      }
-    }
-    return true;
-  }), [progressList, filterYear, filterCluster, filterDistrict, studentMap2, kutirMap, clusterMap, areaMap, admittedStudentIds]);
+  // Progress is now filtered server-side; progressList = current page items
 
   // Columns: built from useFieldConfig order/visibility, with sort + csv + render per key
   const columns = useMemo<Col<StudentProgress>[]>(() =>
@@ -585,10 +597,10 @@ export default function StudentProgressPage() {
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
       {/* Status summary tiles — counts based on geo/year filter, before search */}
-      {filtered.length > 0 && (
+      {progressList.length > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
           {(["enrolled", "transferred", "dropped_out", "graduated"] as ProgressStatus[]).map((st) => {
-            const count = filtered.filter(p => p.status === st).length;
+            const count = progressList.filter(p => p.status === st).length;
             if (count === 0) return null;
             const pal = statusPalette[st];
             return (
@@ -604,30 +616,38 @@ export default function StudentProgressPage() {
       <GrsTable<StudentProgress>
         title="Student Progress"
         columns={columns}
-        data={filtered}
+        data={progressList}
         rowKey={(p) => p.id}
         isLoading={isLoading}
+        pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: progressTotal, onPageChange: setPage } : undefined}
         searchable
         searchPlaceholder="Search by student name…"
         searchFn={(p, q) => {
           const s = studentMap2.get(p.student_id);
           return !!s && `${s.first_name} ${s.last_name}`.toLowerCase().includes(q);
         }}
+        emptyMessage={hasFilter ? `No progress records for ${filterYear}-${String(filterYear + 1).slice(2)}.` : "Select a district, cluster, or kutir to view progress."}
         filters={
           <>
-            <select style={grs.filterSelect} value={filterYear} onChange={e => setFilterYear(Number(e.target.value))}>
+            <select style={grs.filterSelect} value={filterYear} onChange={e => { setFilterYear(Number(e.target.value)); setPage(1); }}>
               {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map(y => (
                 <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
               ))}
             </select>
-            <select style={grs.filterSelect} value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }}>
+            <select style={grs.filterSelect} value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); setFilterKutir(""); setPage(1); }}>
               <option value="">All Districts</option>
               {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
-            <select style={grs.filterSelect} value={filterCluster} onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))} disabled={filterDistrict === ""}>
+            <select style={grs.filterSelect} value={filterCluster} onChange={e => { setFilterCluster(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); setPage(1); }} disabled={filterDistrict === "" && filterKutir === ""}>
               <option value="">All Clusters</option>
               {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            {filterCluster !== "" && (
+              <select style={grs.filterSelect} value={filterKutir} onChange={e => { setFilterKutir(e.target.value === "" ? "" : Number(e.target.value)); setPage(1); }}>
+                <option value="">All Kutirs</option>
+                {filterKutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+              </select>
+            )}
           </>
         }
         exportFilename="progress"
@@ -646,7 +666,7 @@ export default function StudentProgressPage() {
         ) : undefined}
         onAdd={openAdd}
         addLabel="+ Add Record"
-        emptyMessage={`No progress records for ${filterYear}-${String(filterYear + 1).slice(2)}.`}
+
         actions={(p) => ({
           onView:   () => openView(p),
           onEdit:   () => openEdit(p),

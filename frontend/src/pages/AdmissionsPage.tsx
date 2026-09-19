@@ -1,10 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { listExams, createExam, updateExam, deleteExam } from "../api/admissions";
-import type { StudentExam, StudentExamCreate } from "../api/admissions";
-import { listStudents, listSchoolTypeSubjects } from "../api/students";
-import type { SchoolTypeSubjectRow } from "../api/students";
+import { listExamsPaged, createExam, updateExam, deleteExam, listExamTypes, listExamTypeSubjects } from "../api/admissions";
+import type { StudentExam, StudentExamCreate, ExamTypeMin, ExamTypeSubjectRow, SubjectRef } from "../api/admissions";
+import { listStudents } from "../api/students";
 import type { Student } from "../api/students";
 import { listSchools } from "../api/schools";
 import { useAuth } from "../context/AuthContext";
@@ -31,13 +30,10 @@ const STAGES = [
 ] as const;
 
 type StageKey = typeof STAGES[number]["key"];
-// Returns the subjects configured for a given school type (from Lookups)
-function subjectsForType(
-  rows: SchoolTypeSubjectRow[],
-  schoolType: string | null
-): { id: number; name: string }[] {
-  if (!schoolType) return [];
-  return rows.find(r => r.school_type === schoolType)?.subjects ?? [];
+// Returns subjects configured for a given exam type
+function subjectsForExamType(rows: ExamTypeSubjectRow[], examTypeId: number | null | undefined): SubjectRef[] {
+  if (!examTypeId) return [];
+  return rows.find(r => r.id === examTypeId)?.subjects ?? [];
 }
 
 function pipelineStage(exam: StudentExam): number {
@@ -149,12 +145,16 @@ function AdmissionModal({
   const { data: kutirs = [] } = useQuery({
     queryKey: ["kutirs"], queryFn: () => listKutirs(), staleTime: 5 * 60 * 1000,
   });
-  const { data: schoolTypeSubjects = [] } = useQuery<SchoolTypeSubjectRow[]>({
-    queryKey: ["school-type-subjects"], queryFn: listSchoolTypeSubjects, staleTime: 5 * 60 * 1000,
+  const { data: examTypes = [] } = useQuery<ExamTypeMin[]>({
+    queryKey: ["exam-types"], queryFn: listExamTypes, staleTime: 5 * 60 * 1000,
+  });
+  const { data: examTypeSubjects = [] } = useQuery<ExamTypeSubjectRow[]>({
+    queryKey: ["exam-type-subjects"], queryFn: listExamTypeSubjects, staleTime: 5 * 60 * 1000,
   });
 
   // — District filter for GRS School dropdown —
   const [schoolDistrictFilter, setSchoolDistrictFilter] = useState<number | "">("");
+  const [examDistrictFilter, setExamDistrictFilter]     = useState<number | "">("");
 
   // — School type state (editable in add/edit; read-only display in view) —
   const [schoolType, setSchoolType] = useState<string>(isAdd ? "" : (exam?.school_type ?? ""));
@@ -175,7 +175,6 @@ function AdmissionModal({
 
   function set(k: string, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
   function setScore(subjectId: number, val: string) { setScoreInputs(prev => ({ ...prev, [subjectId]: val })); }
-
   function toggleStage(updates: Partial<Record<StageKey, boolean>>) {
     if (updates.admitted === true && isEdit && exam) {
       const alreadyAdmitted = allExams.find(
@@ -192,15 +191,22 @@ function AdmissionModal({
     setForm(f => ({ ...f, ...updates }));
   }
 
-  const schoolTypes = Array.from(new Set(schools.map(sc => sc.school_type))).sort();
-  const subjects     = subjectsForType(schoolTypeSubjects, schoolType || null);
-  const scoreEnabled = !!form.selected;
+  const schoolTypes = (Array.from(new Set(schools.map(sc => sc.school_type).filter(Boolean))) as string[]).sort();
+  const subjects     = subjectsForExamType(examTypeSubjects, form.exam_type_id);
 
   const filteredStudents = students.filter(s => {
-    const matchSearch = `${s.first_name} ${s.last_name}`.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = (`${s.first_name} ${s.last_name}`.toLowerCase().includes(search.toLowerCase()))
+                     || (s.father_name != null && s.father_name.toLowerCase().includes(search.toLowerCase()));
     const matchKutir  = kutirFilter === "" || s.kutir_id === Number(kutirFilter);
     return matchSearch && matchKutir;
   });
+
+  // Auto-select when search narrows to exactly one student
+  useEffect(() => {
+    if (isAdd && filteredStudents.length === 1) {
+      setStudentId(filteredStudents[0].id);
+    }
+  }, [filteredStudents, isAdd]);
 
   // Derived display values (mainly used in view mode)
   const currentStudent  = isAdd ? students.find(s => s.id === Number(studentId)) : student;
@@ -210,6 +216,10 @@ function AdmissionModal({
   const noAdmitReason    = noAdmitReasons.find(r => r.id === exam?.no_admit_reason_id);
   const admittedSchool   = schools.find(s => s.id === exam?.admitted_school_id);
   const schoolTypeFiltered = schoolType ? schools.filter(s => s.school_type === schoolType) : schools;
+  const filteredExamCenters = examDistrictFilter === ""
+    ? examCenters
+    : examCenters.filter(c => c.district_id === examDistrictFilter);
+
   const filteredGrsSchools = schoolDistrictFilter === ""
     ? schoolTypeFiltered
     : schoolTypeFiltered.filter(s => s.district_id === schoolDistrictFilter);
@@ -226,12 +236,12 @@ function AdmissionModal({
 
   function handleSave() {
     if (!onSave) return;
-    if (isAdd && !schoolType) return;  // school type required
     if (isAdd) {
       onSave({
         student_id:           Number(studentId),
         school_id:            null,
         school_type:          schoolType || null,
+        exam_type_id:         form.exam_type_id ?? null,
         school_start_year:    sy,
         eligible:             form.eligible ?? true,
         form_received:        form.form_received,
@@ -264,6 +274,7 @@ function AdmissionModal({
         scores: Object.entries(scoreInputs)
           .filter(([, v]) => v !== "")
           .map(([id, v]) => ({ subject_id: Number(id), score: parseFloat(v) })),
+        exam_type_id:       form.exam_type_id ?? null,
         exam_category_id:   form.exam_category_id,
         exam_center_id:     form.exam_center_id,
         no_exam_reason_id:  form.appeared ? null : form.no_exam_reason_id,
@@ -312,29 +323,41 @@ function AdmissionModal({
           {/* ── Student + Class ── */}
           {isAdd ? (
             <div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 6 }}>
-                <input
-                  placeholder="Search student..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  style={inputStyles}
-                />
-                <select
-                  value={kutirFilter}
-                  onChange={e => { setKutirFilter(e.target.value === "" ? "" : Number(e.target.value)); setStudentId(""); }}
-                  style={selStyles}
-                >
-                  <option value="">-- all kutirs --</option>
-                  {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-                </select>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 120px", gap: 8 }}>
                 <div>
-                  <label style={grs.fieldLabel}>Student <span style={{ color: "var(--danger)" }}>*</span></label>
-                  <select value={studentId} onChange={e => setStudentId(Number(e.target.value))} style={selStyles}>
-                    <option value="">-- select student --</option>
-                    {filteredStudents.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                  <label style={grs.fieldLabel}>Kutir</label>
+                  <select
+                    value={kutirFilter}
+                    onChange={e => { setKutirFilter(e.target.value === "" ? "" : Number(e.target.value)); setStudentId(""); setSearch(""); }}
+                    style={selStyles}
+                  >
+                    <option value="">-- all kutirs --</option>
+                    {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
                   </select>
+                </div>
+                <div style={{ position: "relative" }}>
+                  <label style={grs.fieldLabel}>Student <span style={{ color: "var(--danger)" }}>*</span></label>
+                  <input
+                    placeholder="Type name to search…"
+                    value={search}
+                    onChange={e => { setSearch(e.target.value); setStudentId(""); }}
+                    style={{ ...inputStyles, borderRadius: filteredStudents.length > 0 && search && !studentId ? "6px 6px 0 0" : undefined }}
+                  />
+                  {filteredStudents.length > 0 && search && !studentId && (
+                    <div style={{ position: "absolute", left: 0, right: 0, zIndex: 20, border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 6px 6px", maxHeight: 160, overflowY: "auto", background: "var(--bg-card)" }}>
+                      {filteredStudents.map(s => (
+                        <div
+                          key={s.id}
+                          onClick={() => { setStudentId(s.id); setSearch(`${s.first_name} ${s.last_name}`); }}
+                          style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
+                          onMouseEnter={e => (e.currentTarget.style.background = "var(--badge-blue-bg)")}
+                          onMouseLeave={e => (e.currentTarget.style.background = "")}
+                        >
+                          {s.first_name} {s.last_name}{s.father_name ? <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem", marginLeft: 6 }}>s/o {s.father_name}</span> : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={grs.fieldLabel}>Class <span style={{ color: "var(--danger)" }}>*</span></label>
@@ -398,8 +421,8 @@ function AdmissionModal({
                       selected: form.selected ?? false, admitted: form.admitted ?? false,
                       admitted_school_id: null, no_admit_reason_id: null, exam_category_id: null,
                       application_number: null, exam_center_id: null, roll_number: null,
-                      no_exam_reason_id: null, math: null, english: null, reasoning: null,
-                      evs: null, scores: [], created_at: "", updated_at: "",
+                      no_exam_reason_id: null,
+                     scores: [], created_at: "", updated_at: "",
                       school_type: schoolType || null } as StudentExam
                   : form as StudentExam
                 }
@@ -412,7 +435,7 @@ function AdmissionModal({
           {isView ? (
             <div style={{ display: "grid", gridTemplateColumns: "90px 130px 1fr", gap: 12 }}>
               <div style={fieldStyle}><span style={labelStyle}>Year</span><span style={valueStyle}>{exam?.school_start_year}</span></div>
-              <div style={fieldStyle}><span style={labelStyle}>School Type</span><span style={valueStyle}>{exam?.school_type ?? "—"}</span></div>
+              <div style={fieldStyle}><span style={labelStyle}>Exam Type</span><span style={valueStyle}>{examTypes.find(e => e.id === exam?.exam_type_id)?.name ?? "—"}</span></div>
               <div style={fieldStyle}><span style={labelStyle}>Exam Category</span><span style={valueStyle}>{viewExamCategory?.name ?? "—"}</span></div>
             </div>
           ) : (
@@ -428,10 +451,10 @@ function AdmissionModal({
                 )}
               </div>
               <div>
-                <label style={grs.fieldLabel}>School Type <span style={{ color: "var(--danger)" }}>*</span></label>
-                <select value={schoolType} onChange={e => setSchoolType(e.target.value)} style={selStyles}>
+                <label style={grs.fieldLabel}>Exam Type</label>
+                <select value={form.exam_type_id ?? ""} onChange={e => set("exam_type_id", e.target.value === "" ? null : Number(e.target.value))} style={selStyles}>
                   <option value="">-- select --</option>
-                  {schoolTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                  {examTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
               <div>
@@ -446,31 +469,46 @@ function AdmissionModal({
 
           {/* ── Exam Center + App# + Roll# ── */}
           {isView ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-              <div style={fieldStyle}><span style={labelStyle}>Exam Center</span><span style={valueStyle}>{viewExamCenter?.name ?? "—"}</span></div>
-              <div style={fieldStyle}><span style={labelStyle}>Application #</span><span style={valueStyle}>{exam?.application_number ?? "—"}</span></div>
-              <div style={fieldStyle}><span style={labelStyle}>Roll #</span><span style={valueStyle}>{exam?.roll_number ?? "—"}</span></div>
-            </div>
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={fieldStyle}><span style={labelStyle}>Exam Center</span><span style={valueStyle}>{viewExamCenter?.name ?? "—"}</span></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={fieldStyle}><span style={labelStyle}>Application #</span><span style={valueStyle}>{exam?.application_number ?? "—"}</span></div>
+                <div style={fieldStyle}><span style={labelStyle}>Roll #</span><span style={valueStyle}>{exam?.roll_number ?? "—"}</span></div>
+              </div>
+            </>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end" }}>
-              <div>
-                <label style={grs.fieldLabel}>Exam Center</label>
-                <select value={form.exam_center_id ?? ""} onChange={e => set("exam_center_id", e.target.value === "" ? null : Number(e.target.value))} style={{ ...selStyles, opacity: form.admit_card ? 1 : 0.45, cursor: form.admit_card ? "auto" : "not-allowed" }} disabled={!form.admit_card}>
-                  <option value="">-- select --</option>
-                  {examCenters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "end" }}>
+                <div>
+                  <label style={grs.fieldLabel}>District</label>
+                  <select value={examDistrictFilter} onChange={e => { setExamDistrictFilter(e.target.value === "" ? "" : Number(e.target.value)); set("exam_center_id", null); }} style={selStyles}>
+                    <option value="">-- all --</option>
+                    {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={grs.fieldLabel}>Exam Center</label>
+                  <select value={form.exam_center_id ?? ""} onChange={e => set("exam_center_id", e.target.value === "" ? null : Number(e.target.value))} style={{ ...selStyles, opacity: form.admit_card ? 1 : 0.45, cursor: form.admit_card ? "auto" : "not-allowed" }} disabled={!form.admit_card}>
+                    <option value="">-- select --</option>
+                    {filteredExamCenters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
               </div>
-              {form.applied ? (
-              <div>
-                <label style={grs.fieldLabel}>Application #</label>
-                <input value={form.application_number ?? ""} onChange={e => set("application_number", e.target.value || null)} style={inputStyles} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "end" }}>
+                {form.applied ? (
+                <div>
+                  <label style={grs.fieldLabel}>Application #</label>
+                  <input value={form.application_number ?? ""} onChange={e => set("application_number", e.target.value || null)} style={inputStyles} />
+                </div>
+                ) : <div />}
+                <div>
+                  <label style={grs.fieldLabel}>Roll #</label>
+                  <input value={form.roll_number ?? ""} onChange={e => set("roll_number", e.target.value || null)} style={{ ...inputStyles, opacity: form.admit_card ? 1 : 0.45, cursor: form.admit_card ? "auto" : "not-allowed" }} readOnly={!form.admit_card} />
+                </div>
               </div>
-              ) : <div />}
-              <div>
-                <label style={grs.fieldLabel}>Roll #</label>
-                <input value={form.roll_number ?? ""} onChange={e => set("roll_number", e.target.value || null)} style={{ ...inputStyles, opacity: form.admit_card ? 1 : 0.45, cursor: form.admit_card ? "auto" : "not-allowed" }} readOnly={!form.admit_card} />
-              </div>
-            </div>
+            </>
           )}
 
           {/* ── Scores ── */}
@@ -495,12 +533,9 @@ function AdmissionModal({
                 </div>
               </div>
             )
-          ) : subjects.length > 0 ? (
+          ) : (form.appeared && subjects.length > 0) ? (
             <div>
               <label style={{ ...grs.fieldLabel, fontWeight: 700, marginBottom: 4 }}>Scores</label>
-              {!scoreEnabled && (
-                <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 8px" }}>Enable by checking Selected above</p>
-              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {subjects.map(subj => (
                   <div key={subj.id}>
@@ -509,9 +544,8 @@ function AdmissionModal({
                       type="number" min={0} max={100} step={0.01}
                       value={scoreInputs[subj.id] ?? ""}
                       onChange={e => setScore(subj.id, e.target.value)}
-                      style={{ ...inputStyles, opacity: scoreEnabled ? 1 : 0.45, cursor: scoreEnabled ? "auto" : "not-allowed" }}
+                      style={{ ...inputStyles }}
                       placeholder="—"
-                      disabled={!scoreEnabled}
                     />
                   </div>
                 ))}
@@ -540,7 +574,7 @@ function AdmissionModal({
           {/* ── GRS School ── */}
           {isView ? (
             exam?.selected ? (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 130px 2fr", gap: 8 }}>
                 <div style={fieldStyle}>
                   <span style={labelStyle}>District</span>
                   <span style={valueStyle}>
@@ -550,13 +584,17 @@ function AdmissionModal({
                   </span>
                 </div>
                 <div style={fieldStyle}>
+                  <span style={labelStyle}>School Type</span>
+                  <span style={valueStyle}>{exam?.school_type ?? "—"}</span>
+                </div>
+                <div style={fieldStyle}>
                   <span style={labelStyle}>GRS School</span>
                   <span style={valueStyle}>{admittedSchool ? `${admittedSchool.name} (${admittedSchool.school_type})` : "—"}</span>
                 </div>
               </div>
             ) : null
           ) : form.selected ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8, alignItems: "end" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 130px 2fr", gap: 8, alignItems: "end" }}>
               <div>
                 <label style={grs.fieldLabel}>District</label>
                 <select
@@ -572,7 +610,14 @@ function AdmissionModal({
                 </select>
               </div>
               <div>
-                <label style={grs.fieldLabel}>GRS School</label>
+                <label style={grs.fieldLabel}>School Type</label>
+                <select value={schoolType} onChange={e => setSchoolType(e.target.value)} style={selStyles}>
+                  <option value="">-- all --</option>
+                  {schoolTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={grs.fieldLabel}>GRS School <span style={{ color: "var(--danger)" }}>*</span></label>
                 <select value={form.admitted_school_id ?? ""} onChange={e => set("admitted_school_id", e.target.value === "" ? null : Number(e.target.value))} style={selStyles}>
                   <option value="">-- select --</option>
                   {filteredGrsSchools.map(sc => <option key={sc.id} value={sc.id}>{sc.name} ({sc.school_type})</option>)}
@@ -624,9 +669,9 @@ function AdmissionModal({
             <>
               <button onClick={onClose} style={grs.btnSecondary}>Cancel</button>
               <button
-                disabled={isAdd ? (!studentId || !schoolType || !!saving) : !!saving}
+                disabled={isAdd ? (!studentId || !schoolType || (form.selected && !form.admitted_school_id) || !!saving) : ((form.selected && !form.admitted_school_id) || !!saving)}
                 onClick={handleSave}
-                style={{ ...grs.btnPrimary, opacity: (isAdd && (!studentId || !schoolType)) ? 0.5 : 1 }}
+                style={{ ...grs.btnPrimary, opacity: ((isAdd && (!studentId || !schoolType || (form.selected && !form.admitted_school_id))) || (!isAdd && form.selected && !form.admitted_school_id)) ? 0.5 : 1 }}
               >
                 {isAdd ? "Add" : "Save Changes"}
               </button>
@@ -658,20 +703,53 @@ export default function AdmissionsPage() {
   }, []);
 
   const [year, setYear] = useState(CURRENT_YEAR);
-  const [filterDistrict, setFilterDistrict] = useState<number | "">("");
-  const [filterCluster, setFilterCluster] = useState<number | "">("");
+
+  const defaultDistrict: number | "" = (() => {
+    if (!user) return "";
+    if (user.title === "District Anchor" && user.district_ids.length > 0) return user.district_ids[0];
+    return "";
+  })();
+  const defaultCluster: number | "" = (() => {
+    if (!user) return "";
+    if (user.title === "Cluster Coordinator" && user.cluster_ids.length > 0) return user.cluster_ids[0];
+    return "";
+  })();
+  const defaultKutir: number | "" = (() => {
+    if (!user) return "";
+    if (user.title === "Teacher" && user.kutir_ids.length > 0) return user.kutir_ids[0];
+    return "";
+  })();
+
+  const [filterDistrict, setFilterDistrict] = useState<number | "">(defaultDistrict);
+  const [filterCluster, setFilterCluster] = useState<number | "">(defaultCluster);
+  const [filterKutir, setFilterKutir] = useState<number | "">(defaultKutir);
   const [showAdd, setShowAdd] = useState(false);
   const [editExam, setEditExam] = useState<StudentExam | null>(null);
   const [viewExam, setViewExam] = useState<StudentExam | null>(null);
 
-  const { data: exams = [], isLoading } = useQuery({
-    queryKey: ["student-exams", year],
-    queryFn: () => listExams({ school_start_year: year }),
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
+
+  const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "";
+
+  const { data: examPage = { items: [], total: 0 }, isLoading } = useQuery({
+    queryKey: ["student-exams", year, filterDistrict, filterCluster, filterKutir, page],
+    queryFn: () => listExamsPaged({
+      school_start_year: year,
+      district_id: filterDistrict !== "" ? filterDistrict : undefined,
+      cluster_id: filterCluster !== "" ? filterCluster : undefined,
+      kutir_id: filterKutir !== "" ? filterKutir : undefined,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+    enabled: hasFilter,
   });
+  const exams = examPage.items;
+  const examTotal = examPage.total;
 
   const { data: students = [] } = useQuery({
-    queryKey: ["students"],
-    queryFn: () => listStudents(),
+    queryKey: ["students-names"],
+    queryFn: () => listStudents({ name_only: true }),
   });
 
   const { data: schools = [] } = useQuery({
@@ -713,22 +791,7 @@ export default function AdmissionsPage() {
   const areaMap = new Map(allAreas.map(a => [a.id, a]));
   const clusterMap = new Map(allClusters.map(c => [c.id, c]));
   const filterClusters = allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict);
-  const filtered = exams.filter(e => {
-    const s = studentMap[e.student_id];
-    if (filterCluster !== "" || filterDistrict !== "") {
-      const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
-      if (filterCluster !== "") {
-        if (!kutir || kutir.cluster_id !== filterCluster) return false;
-      } else if (filterDistrict !== "") {
-        if (!kutir) return false;
-        const cl = clusterMap.get(kutir.cluster_id);
-        if (!cl) return false;
-        const ar = areaMap.get(cl.area_id);
-        if (!ar || ar.district_id !== filterDistrict) return false;
-      }
-    }
-    return true;
-  });
+  const filterKutirs = allKutirs.filter(k => filterCluster !== "" ? k.cluster_id === filterCluster : filterKutir !== "" ? k.id === filterKutir : false);
 
 
   const allColumns = useMemo((): Col<StudentExam>[] => [
@@ -899,10 +962,11 @@ export default function AdmissionsPage() {
         title="Admissions"
         subtitle="School entrance exam pipeline tracking"
         columns={columns}
-        data={filtered}
+        data={exams}
+        pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: examTotal, onPageChange: setPage } : undefined}
         rowKey={exam => exam.id}
         isLoading={isLoading}
-        emptyMessage={`No admissions for ${year}.`}
+        emptyMessage={hasFilter ? `No admissions for ${year}.` : "Select a district, cluster, or kutir to view admissions."}
         searchable
         searchPlaceholder="Search student..."
         searchFn={(exam, q) => {
@@ -912,14 +976,14 @@ export default function AdmissionsPage() {
         filters={<>
           <select
             value={year}
-            onChange={e => setYear(Number(e.target.value))}
+            onChange={e => { setYear(Number(e.target.value)); setPage(1); }}
             style={{ ...filterSelectStyle, width: 90 }}
           >
             {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <select
             value={filterDistrict}
-            onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }}
+            onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); setFilterKutir(""); setPage(1); }}
             style={{ ...filterSelectStyle, width: 140 }}
           >
             <option value="">All Districts</option>
@@ -927,13 +991,23 @@ export default function AdmissionsPage() {
           </select>
           <select
             value={filterCluster}
-            onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))}
-            disabled={filterDistrict === ""}
+            onChange={e => { setFilterCluster(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); setPage(1); }}
+            disabled={filterDistrict === "" && filterKutir === ""}
             style={{ ...filterSelectStyle, width: 140 }}
           >
             <option value="">All Clusters</option>
             {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {filterCluster !== "" && (
+            <select
+              value={filterKutir}
+              onChange={e => { setFilterKutir(e.target.value === "" ? "" : Number(e.target.value)); setPage(1); }}
+              style={{ ...filterSelectStyle, width: 130 }}
+            >
+              <option value="">All Kutirs</option>
+              {filterKutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+            </select>
+          )}
         </>}
         headerExtra={isAdmin ? (
           <a href="/admin/field-config?table=admissions" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8125rem", color: "var(--text-secondary)", textDecoration: "none", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6 }}>

@@ -1,9 +1,9 @@
 """
-Students, StudentExams, StudentExamScores, StudentProgress, SchoolTypeSubjects
+Students, StudentExams, StudentExamScores, StudentProgress
 """
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from sqlalchemy import select, delete
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,15 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.auth import get_current_user, require_admin, get_scope
 from app.models.students import (
-    Student, StudentExam, StudentExamScore, StudentProgress, SchoolTypeSubject,
-    school_type_subject_subjects,
+    Student, StudentExam, StudentExamScore, StudentProgress,
 )
+from app.models.kutirs import Kutir
+from app.models.geo import Cluster, Area
 from app.models.lookups import Subject
 from app.schemas.students import (
     StudentCreate, StudentUpdate, StudentOut,
     StudentExamCreate, StudentExamUpdate, StudentExamOut,
     StudentProgressCreate, StudentProgressUpdate, StudentProgressOut,
-    SchoolTypeSubjectCreate, SchoolTypeSubjectUpdate, SchoolTypeSubjectOut,
     ExamScoreCreate,
 )
 import os, uuid, shutil
@@ -41,32 +41,63 @@ def _media(sub: str) -> str:
 
 @router.get("/students", response_model=list[StudentOut], tags=["Students"])
 async def list_students(
+    response: Response,
     kutir_id: Optional[int] = Query(None),
+    district_id: Optional[int] = Query(None),
+    cluster_id: Optional[int] = Query(None),
     gender: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    limit: Optional[int] = Query(None),
+    name_only: Optional[bool] = Query(False),
+    limit: Optional[int] = Query(25),
+    offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
-    q = select(Student)
-    if scope is not None:
-        q = q.where(Student.kutir_id.in_(scope))
-    if kutir_id:
-        q = q.where(Student.kutir_id == kutir_id)
-    if gender:
-        q = q.where(Student.gender == gender)
-    if search:
-        term = f"%{search}%"
-        q = q.where(
-            (Student.first_name.ilike(term)) |
-            (Student.last_name.ilike(term)) |
-            (Student.phone.ilike(term)) |
-            (Student.father_name.ilike(term))
-        )
-    q = q.order_by(Student.last_name, Student.first_name)
-    if limit:
-        q = q.limit(limit)
-    result = await db.execute(q)
+    # ── Build base WHERE (shared by count + data queries) ──
+    def _apply_filters(q):
+        needs_geo = district_id is not None or cluster_id is not None
+        if needs_geo:
+            q = (q
+                 .join(Kutir, Student.kutir_id == Kutir.id)
+                 .join(Cluster, Kutir.cluster_id == Cluster.id)
+                 .join(Area, Cluster.area_id == Area.id))
+        if scope is not None:
+            q = q.where(Student.kutir_id.in_(scope))
+        if kutir_id:
+            q = q.where(Student.kutir_id == kutir_id)
+        if cluster_id:
+            q = q.where(Kutir.cluster_id == cluster_id)
+        elif district_id:
+            q = q.where(Area.district_id == district_id)
+        if gender:
+            q = q.where(Student.gender == gender)
+        if search:
+            term = f"%{search}%"
+            if name_only:
+                q = q.where(
+                    (Student.first_name.ilike(term)) |
+                    (Student.last_name.ilike(term))
+                )
+            else:
+                q = q.where(
+                    (Student.first_name.ilike(term)) |
+                    (Student.last_name.ilike(term)) |
+                    (Student.phone.ilike(term)) |
+                    (Student.father_name.ilike(term))
+                )
+        return q
+
+    # ── Total count (always) ──
+    count_q = _apply_filters(select(func.count()).select_from(Student))
+    total = (await db.execute(count_q)).scalar_one()
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
+
+    # ── Data ──
+    data_q = _apply_filters(select(Student)).order_by(Student.last_name, Student.first_name)
+    if not name_only:
+        data_q = data_q.limit(limit).offset(offset)
+    result = await db.execute(data_q)
     return result.scalars().all()
 
 
@@ -149,25 +180,59 @@ async def upload_student_photo(
 
 @router.get("/student-exams", response_model=list[StudentExamOut], tags=["Student Exams"])
 async def list_exams(
+    response: Response,
     student_id: Optional[int] = Query(None),
     school_id: Optional[int] = Query(None),
     school_start_year: Optional[int] = Query(None),
+    kutir_id: Optional[int] = Query(None),
+    cluster_id: Optional[int] = Query(None),
+    district_id: Optional[int] = Query(None),
+    admitted: Optional[bool] = Query(None),
+    limit: Optional[int] = Query(25),
+    offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
-    q = (
-        select(StudentExam)
-        .options(selectinload(StudentExam.scores))
-    )
-    if scope is not None:
-        q = q.join(Student, StudentExam.student_id == Student.id).where(Student.kutir_id.in_(scope))
-    if student_id:
-        q = q.where(StudentExam.student_id == student_id)
-    if school_id:
-        q = q.where(StudentExam.school_id == school_id)
-    if school_start_year:
-        q = q.where(StudentExam.school_start_year == school_start_year)
-    result = await db.execute(q.order_by(StudentExam.school_start_year.desc()))
+    def _apply_filters(q):
+        needs_student = (
+            scope is not None or kutir_id is not None or
+            cluster_id is not None or district_id is not None
+        )
+        if needs_student:
+            q = q.join(Student, StudentExam.student_id == Student.id)
+        if scope is not None:
+            q = q.where(Student.kutir_id.in_(scope))
+        if kutir_id:
+            q = q.where(Student.kutir_id == kutir_id)
+        if cluster_id is not None or district_id is not None:
+            q = (q.join(Kutir, Student.kutir_id == Kutir.id)
+                  .join(Cluster, Kutir.cluster_id == Cluster.id)
+                  .join(Area, Cluster.area_id == Area.id))
+            if cluster_id:
+                q = q.where(Kutir.cluster_id == cluster_id)
+            elif district_id:
+                q = q.where(Area.district_id == district_id)
+        if student_id:
+            q = q.where(StudentExam.student_id == student_id)
+        if school_id:
+            q = q.where(StudentExam.school_id == school_id)
+        if school_start_year:
+            q = q.where(StudentExam.school_start_year == school_start_year)
+        if admitted is not None:
+            q = q.where(StudentExam.admitted == admitted)
+        return q
+
+    count_q = _apply_filters(select(func.count()).select_from(StudentExam))
+    total = (await db.execute(count_q)).scalar_one()
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
+
+    data_q = _apply_filters(
+        select(StudentExam).options(selectinload(StudentExam.scores))
+    ).order_by(StudentExam.school_start_year.desc())
+    if student_id is None and admitted is not True:
+        data_q = data_q.limit(limit).offset(offset)
+    result = await db.execute(data_q)
     return result.scalars().all()
 
 
@@ -279,19 +344,55 @@ async def delete_exam(id: int, db: AsyncSession = Depends(get_db), _=Depends(get
 
 @router.get("/student-progress", response_model=list[StudentProgressOut], tags=["Student Progress"])
 async def list_progress(
+    response: Response,
     student_id: Optional[int] = Query(None),
     school_id: Optional[int] = Query(None),
+    academic_year: Optional[int] = Query(None),
+    kutir_id: Optional[int] = Query(None),
+    cluster_id: Optional[int] = Query(None),
+    district_id: Optional[int] = Query(None),
+    admitted: Optional[bool] = Query(None),
+    limit: Optional[int] = Query(25),
+    offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
-    q = select(StudentProgress)
-    if scope is not None:
-        q = q.join(Student, StudentProgress.student_id == Student.id).where(Student.kutir_id.in_(scope))
-    if student_id:
-        q = q.where(StudentProgress.student_id == student_id)
-    if school_id:
-        q = q.where(StudentProgress.school_id == school_id)
-    result = await db.execute(q.order_by(StudentProgress.academic_year.desc()))
+    def _apply_filters(q):
+        needs_student = (
+            scope is not None or kutir_id is not None or
+            cluster_id is not None or district_id is not None
+        )
+        if needs_student:
+            q = q.join(Student, StudentProgress.student_id == Student.id)
+        if scope is not None:
+            q = q.where(Student.kutir_id.in_(scope))
+        if kutir_id:
+            q = q.where(Student.kutir_id == kutir_id)
+        if cluster_id is not None or district_id is not None:
+            q = (q.join(Kutir, Student.kutir_id == Kutir.id)
+                  .join(Cluster, Kutir.cluster_id == Cluster.id)
+                  .join(Area, Cluster.area_id == Area.id))
+            if cluster_id:
+                q = q.where(Kutir.cluster_id == cluster_id)
+            elif district_id:
+                q = q.where(Area.district_id == district_id)
+        if student_id:
+            q = q.where(StudentProgress.student_id == student_id)
+        if school_id:
+            q = q.where(StudentProgress.school_id == school_id)
+        if academic_year:
+            q = q.where(StudentProgress.academic_year == academic_year)
+        return q
+
+    count_q = _apply_filters(select(func.count()).select_from(StudentProgress))
+    total = (await db.execute(count_q)).scalar_one()
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
+
+    data_q = _apply_filters(select(StudentProgress)).order_by(StudentProgress.academic_year.desc())
+    if student_id is None:
+        data_q = data_q.limit(limit).offset(offset)
+    result = await db.execute(data_q)
     return result.scalars().all()
 
 
@@ -349,90 +450,3 @@ async def delete_progress(id: int, db: AsyncSession = Depends(get_db), _=Depends
     await db.commit()
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# SCHOOL TYPE SUBJECTS
-# ════════════════════════════════════════════════════════════════════════════
-
-@router.get("/school-type-subjects", response_model=list[SchoolTypeSubjectOut], tags=["School Type Subjects"])
-async def list_school_type_subjects(
-    db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
-):
-    result = await db.execute(select(SchoolTypeSubject).order_by(SchoolTypeSubject.school_type))
-    return result.scalars().all()
-
-
-@router.post("/school-type-subjects", response_model=SchoolTypeSubjectOut, status_code=201, tags=["School Type Subjects"])
-async def create_school_type_subject(
-    data: SchoolTypeSubjectCreate,
-    db: AsyncSession = Depends(get_db),
-    _=Depends(require_admin),
-):
-    obj = SchoolTypeSubject(school_type=data.school_type)
-    db.add(obj)
-    await db.flush()  # persist & get ID
-    # Capture scalar values before commit (commit expires the object)
-    new_id = obj.id
-    new_school_type = obj.school_type
-    if data.subject_ids:
-        await db.execute(
-            school_type_subject_subjects.insert(),
-            [{"school_type_subject_id": new_id, "subject_id": sid} for sid in data.subject_ids],
-        )
-    await db.commit()
-    # Build response manually — avoid any ORM relationship access (Mapped[list] bug)
-    subj_rows = []
-    if data.subject_ids:
-        res = await db.execute(select(Subject).where(Subject.id.in_(data.subject_ids)))
-        subj_rows = [{"id": s.id, "name": s.name} for s in res.scalars().all()]
-    return SchoolTypeSubjectOut(id=new_id, school_type=new_school_type, subjects=subj_rows)
-
-
-@router.get("/school-type-subjects/{id}", response_model=SchoolTypeSubjectOut, tags=["School Type Subjects"])
-async def get_school_type_subject(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
-    obj = await db.get(SchoolTypeSubject, id)
-    if not obj:
-        raise HTTPException(404, "SchoolTypeSubject not found")
-    return obj
-
-
-@router.patch("/school-type-subjects/{id}", response_model=SchoolTypeSubjectOut, tags=["School Type Subjects"])
-async def update_school_type_subject(
-    id: int, data: SchoolTypeSubjectUpdate,
-    db: AsyncSession = Depends(get_db),
-    _=Depends(require_admin),
-):
-    obj = await db.get(SchoolTypeSubject, id)
-    if not obj:
-        raise HTTPException(404, "SchoolTypeSubject not found")
-    # Capture scalar values before commit
-    obj_id = obj.id
-    obj_school_type = obj.school_type
-    final_subject_ids = data.subject_ids if data.subject_ids is not None else []
-    # Replace all subject associations via junction table directly
-    await db.execute(
-        school_type_subject_subjects.delete().where(
-            school_type_subject_subjects.c.school_type_subject_id == obj_id
-        )
-    )
-    if final_subject_ids:
-        await db.execute(
-            school_type_subject_subjects.insert(),
-            [{"school_type_subject_id": obj_id, "subject_id": sid} for sid in final_subject_ids],
-        )
-    await db.commit()
-    # Build response manually — avoid any ORM relationship access (Mapped[list] bug)
-    subj_rows = []
-    if final_subject_ids:
-        res = await db.execute(select(Subject).where(Subject.id.in_(final_subject_ids)))
-        subj_rows = [{"id": s.id, "name": s.name} for s in res.scalars().all()]
-    return SchoolTypeSubjectOut(id=obj_id, school_type=obj_school_type, subjects=subj_rows)
-
-
-@router.delete("/school-type-subjects/{id}", status_code=204, tags=["School Type Subjects"])
-async def delete_school_type_subject(id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
-    obj = await db.get(SchoolTypeSubject, id)
-    if not obj:
-        raise HTTPException(404, "SchoolTypeSubject not found")
-    await db.delete(obj)
-    await db.commit()

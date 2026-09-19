@@ -2,6 +2,13 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+class SubjectRef(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
 class CategoryBase(BaseModel):
     name: str
     code: Optional[str] = None
@@ -93,4 +100,38 @@ class SubjectUpdate(BaseModel):
 
 class SubjectOut(SubjectBase):
     id: int
+    model_config = {"from_attributes": True}
+
+
+# ── SchoolType ────────────────────────────────────────────────────────────────
+
+class SchoolTypeBase(BaseModel):
+    name: str
+
+class SchoolTypeCreate(SchoolTypeBase):
+    pass
+
+class SchoolTypeUpdate(BaseModel):
+    name: Optional[str] = None
+
+class SchoolTypeOut(SchoolTypeBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+
+# ── ExamType ──────────────────────────────────────────────────────────────────
+
+class ExamTypeBase(BaseModel):
+    name: str
+
+class ExamTypeCreate(ExamTypeBase):
+    school_type_ids: list[int] = []
+
+class ExamTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    school_type_ids: Optional[list[int]] = None
+
+class ExamTypeOut(ExamTypeBase):
+    id: int
+    school_types: list[SchoolTypeOut] = []
     model_config = {"from_attributes": True}

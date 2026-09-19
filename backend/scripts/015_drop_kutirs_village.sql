@@ -1,0 +1,1 @@
+ALTER TABLE kutirs DROP COLUMN IF EXISTS village;
