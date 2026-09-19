@@ -87,7 +87,6 @@ export default function GeoPage() {
 
   const columns = useMemo<Col<GeoRow>[]>(() => {
     const cols: Col<GeoRow>[] = [
-      { key: "id",   label: "ID",   sortable: true, tdStyle: { width: 60 } },
       { key: "name", label: "Name", sortable: true, render: r => <strong>{r.name}</strong> },
     ];
     if (tab !== "zones") {

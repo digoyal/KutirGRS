@@ -7,6 +7,7 @@ export interface School {
   street: string | null;
   city: string | null;
   district_id: number | null;
+  district?: { id: number; name: string } | null;
   state: string;
   pincode: string | null;
 }
