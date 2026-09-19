@@ -86,3 +86,42 @@ class Subject(Base, TimestampMixin):
 
     def __repr__(self):
         return f"<Subject {self.name}>"
+
+
+# ── ExamType / SchoolType ─────────────────────────────────────────────────────
+
+from sqlalchemy import Table, Column
+
+exam_type_school_types = Table(
+    "exam_type_school_types", Base.metadata,
+    Column("exam_type_id",   Integer, ForeignKey("exam_types.id",   ondelete="CASCADE"), primary_key=True),
+    Column("school_type_id", Integer, ForeignKey("school_types.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+class ExamType(Base, TimestampMixin):
+    __tablename__ = "exam_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+
+    school_types: Mapped[list["SchoolType"]] = relationship(
+        "SchoolType", secondary=exam_type_school_types, back_populates="exam_types"
+    )
+
+    def __repr__(self):
+        return f"<ExamType {self.name}>"
+
+
+class SchoolType(Base, TimestampMixin):
+    __tablename__ = "school_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+
+    exam_types: Mapped[list["ExamType"]] = relationship(
+        "ExamType", secondary=exam_type_school_types, back_populates="school_types"
+    )
+
+    def __repr__(self):
+        return f"<SchoolType {self.name}>"

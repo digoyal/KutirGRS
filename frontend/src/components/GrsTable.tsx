@@ -29,6 +29,10 @@ interface GrsTableProps<T> {
   searchable?: boolean;
   searchPlaceholder?: string;
   searchFn?: (row: T, q: string) => boolean;
+  /** Controlled search value — bypasses internal state; pair with onExternalSearch. */
+  externalSearch?: string;
+  /** Called when the user types in the search box (controlled mode). */
+  onExternalSearch?: (q: string) => void;
   /** Extra filter controls rendered beside the search box. */
   filters?: React.ReactNode;
   /** Filename for CSV export (without .csv). Omit to hide export button. */
@@ -41,6 +45,8 @@ interface GrsTableProps<T> {
   addLabel?: string;
   /** Row-level view/edit/delete callbacks. When provided, a sticky actions column is added. */
   actions?: (row: T, idx: number) => { onView?: () => void; onEdit?: () => void; onDelete?: () => void; };
+  /** Server-side pagination. When provided, replaces row-count footer with page controls. */
+  pagination?: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -77,20 +83,24 @@ export function GrsTable<T extends object>({
   title, subtitle,
   columns, data, rowKey,
   isLoading, emptyMessage = "No records found.",
-  searchable, searchPlaceholder = "Search…", searchFn,
+  searchable, searchPlaceholder = "Search…", searchFn, externalSearch, onExternalSearch,
   filters, exportFilename, printTitle,
   onAdd, addLabel = "+ Add", headerExtra,
   actions,
+  pagination,
 }: GrsTableProps<T>) {
 
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // ── Filter
+  // ── Filter (externalSearch = server-side; skip client filtering)
+  const activeQuery = externalSearch !== undefined ? externalSearch : query;
   const filtered = useMemo(() => {
-    if (!searchable || !query.trim()) return data;
-    const q = query.trim().toLowerCase();
+    // When externally controlled, data is already filtered server-side
+    if (externalSearch !== undefined) return data;
+    if (!searchable || !activeQuery.trim()) return data;
+    const q = activeQuery.trim().toLowerCase();
     if (searchFn) return data.filter(r => searchFn(r, q));
     return data.filter(r =>
       Object.values(r as Record<string, unknown>).some(v =>
@@ -98,7 +108,7 @@ export function GrsTable<T extends object>({
         (typeof v === "number" && String(v).includes(q))
       )
     );
-  }, [data, query, searchable, searchFn]);
+  }, [data, query, externalSearch, activeQuery, searchable, searchFn]);
 
   // ── Sort
   const sorted = useMemo(() => {
@@ -201,8 +211,8 @@ export function GrsTable<T extends object>({
           {searchable && (
             <input
               placeholder={searchPlaceholder}
-              value={query}
-              onChange={e => setQuery(e.target.value)}
+              value={onExternalSearch ? (externalSearch ?? "") : query}
+              onChange={e => onExternalSearch ? onExternalSearch(e.target.value) : setQuery(e.target.value)}
               style={grs.searchInput}
             />
           )}
@@ -286,13 +296,67 @@ export function GrsTable<T extends object>({
         )}
       </div>
 
-      {/* ── Row count ── */}
-      {!isLoading && sorted.length > 0 && (
-        <p style={{ ...grs.muted, margin: "8px 0 0", textAlign: "right" }}>
-          {sorted.length} {sorted.length === 1 ? "record" : "records"}
-          {data.length !== sorted.length ? ` of ${data.length}` : ""}
-        </p>
+      {/* ── Pagination bar / row count ── */}
+      {pagination ? (
+        (() => {
+          const { page, pageSize, total, onPageChange } = pagination;
+          const totalPages = Math.max(1, Math.ceil(total / pageSize));
+          const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+          const to   = Math.min(page * pageSize, total);
+          return (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 8 }}>
+              <span style={grs.muted}>{total === 0 ? "No records" : `${from}–${to} of ${total}`}</span>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button
+                  onClick={() => onPageChange(1)}
+                  disabled={page <= 1}
+                  style={pageBtnStyle(page <= 1)}
+                  title="First page"
+                >«</button>
+                <button
+                  onClick={() => onPageChange(page - 1)}
+                  disabled={page <= 1}
+                  style={pageBtnStyle(page <= 1)}
+                >‹ Prev</button>
+                <span style={{ padding: "4px 10px", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                  {page} / {totalPages}
+                </span>
+                <button
+                  onClick={() => onPageChange(page + 1)}
+                  disabled={page >= totalPages}
+                  style={pageBtnStyle(page >= totalPages)}
+                >Next ›</button>
+                <button
+                  onClick={() => onPageChange(totalPages)}
+                  disabled={page >= totalPages}
+                  style={pageBtnStyle(page >= totalPages)}
+                  title="Last page"
+                >»</button>
+              </div>
+            </div>
+          );
+        })()
+      ) : (
+        !isLoading && sorted.length > 0 && (
+          <p style={{ ...grs.muted, margin: "8px 0 0", textAlign: "right" }}>
+            {sorted.length} {sorted.length === 1 ? "record" : "records"}
+            {data.length !== sorted.length ? ` of ${data.length}` : ""}
+          </p>
+        )
       )}
     </div>
   );
+}
+
+function pageBtnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: "4px 10px",
+    fontSize: "0.8125rem",
+    border: "1px solid var(--border)",
+    borderRadius: 6,
+    background: "var(--bg-card)",
+    color: disabled ? "var(--text-secondary)" : "var(--text-primary)",
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.45 : 1,
+  };
 }

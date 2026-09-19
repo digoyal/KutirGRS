@@ -27,11 +27,9 @@ class KutirVisit(Base, TimestampMixin):
     visit_date: Mapped[date_type] = mapped_column(Date, nullable=False)
 
     # ── Attendance & implementation ──────────────────────────────────────────
-    avg_attendance_last_week: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     avg_attendance_morning: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     avg_attendance_evening: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     follow_timetable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    follow_monthly_plan: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     kutir_closed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     plan_hindi:   Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     plan_math:    Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -44,8 +42,7 @@ class KutirVisit(Base, TimestampMixin):
     english_topics_pre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     english_topics_upper: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # ── Time slot utilization ────────────────────────────────────────────────
-    timeslot_utilization: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # ── Time slot reason ─────────────────────────────────────────────────────
     timeslot_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # ── GRS preparation ──────────────────────────────────────────────────────
@@ -81,7 +78,6 @@ class KutirVisit(Base, TimestampMixin):
     reg_students_documents: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # ── Regular students ─────────────────────────────────────────────────────
-    regular_students: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     regular_students_morning: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     regular_students_evening: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 

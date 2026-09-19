@@ -568,18 +568,28 @@ export default function ImportDataPage() {
                   <td style={{ ...s.td, textAlign: "center" }}>{r.skipped}</td>
                   <td style={{ ...s.td, textAlign: "center" }}>
                     {r.errors.length > 0 ? (
-                      <span style={s.badge("red")}>{r.errors.length}</span>
+                      r.errors[0] === "Sheet not found in uploaded file"
+                        ? <span style={s.badge("grey")}>—</span>
+                        : <span style={s.badge("red")}>{r.errors.length}</span>
                     ) : (
                       <span style={s.badge("green")}>0</span>
                     )}
                   </td>
                   <td style={s.td}>
-                    {r.errors.length > 0 && (
+                    {r.errors.length > 0 && r.errors[0] !== "Sheet not found in uploaded file" && (
                       <ul style={s.errorList}>
-                        {r.errors.map((e, i) => (
+                        {r.errors.slice(0, 10).map((e, i) => (
                           <li key={i}>{e}</li>
                         ))}
+                        {r.errors.length > 10 && (
+                          <li style={{ color: "var(--text-secondary, #6b7280)", fontStyle: "italic" }}>
+                            +{r.errors.length - 10} more…
+                          </li>
+                        )}
                       </ul>
+                    )}
+                    {r.errors[0] === "Sheet not found in uploaded file" && (
+                      <span style={{ color: "var(--text-secondary, #6b7280)", fontStyle: "italic" }}>not in file</span>
                     )}
                   </td>
                 </tr>

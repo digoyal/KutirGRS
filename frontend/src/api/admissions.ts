@@ -22,6 +22,7 @@ export interface StudentExam {
   student_id: number;
   school_id: number | null;
   school_type: string | null;
+  exam_type_id: number | null;
   school_start_year: number;
   eligible: boolean;
   form_received: boolean;
@@ -37,10 +38,6 @@ export interface StudentExam {
   exam_center_id: number | null;
   roll_number: string | null;
   no_exam_reason_id: number | null;
-  math: number | null;
-  english: number | null;
-  reasoning: number | null;
-  evs: number | null;
   scores: ExamScore[];
   school?: SchoolMin;
   admission_class: number | null;
@@ -52,6 +49,7 @@ export interface StudentExamCreate {
   student_id: number;
   school_id?: number | null;
   school_type?: string | null;
+  exam_type_id?: number | null;
   school_start_year: number;
   eligible?: boolean;
   form_received?: boolean;
@@ -67,10 +65,6 @@ export interface StudentExamCreate {
   exam_center_id?: number | null;
   roll_number?: string | null;
   no_exam_reason_id?: number | null;
-  math?: number | null;
-  english?: number | null;
-  reasoning?: number | null;
-  evs?: number | null;
   scores?: { subject_id: number; score: number | null }[];
   admission_class?: number | null;  // 5 or 8
 }
@@ -111,6 +105,7 @@ export async function listExams(params: {
   student_id?: number;
   school_id?: number;
   school_start_year?: number;
+  admitted?: boolean;
 } = {}): Promise<StudentExam[]> {
   const { data } = await api.get("/student-exams", { params });
   return data;
@@ -154,6 +149,67 @@ export async function updateProgress(id: number, payload: Partial<StudentProgres
   return data;
 }
 
+export interface ExamTypeMin {
+  id: number;
+  name: string;
+}
+
+export async function listExamTypes(): Promise<ExamTypeMin[]> {
+  const { data } = await api.get("/lookups/exam-types");
+  return data;
+}
+
 export async function deleteProgress(id: number): Promise<void> {
   await api.delete(`/student-progress/${id}`);
+}
+
+export interface SubjectRef { id: number; name: string; }
+export interface ExamTypeSubjectRow { id: number; name: string; subjects: SubjectRef[]; }
+
+export async function listExamTypeSubjects(): Promise<ExamTypeSubjectRow[]> {
+  const { data } = await api.get("/lookups/exam-type-subjects");
+  return data;
+}
+
+// ── Paged list helpers ────────────────────────────────────────────────────────
+export interface ExamsListParams {
+  student_id?: number;
+  school_id?: number;
+  school_start_year?: number;
+  kutir_id?: number;
+  cluster_id?: number;
+  district_id?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ExamsPage {
+  items: StudentExam[];
+  total: number;
+}
+
+export async function listExamsPaged(params: ExamsListParams = {}): Promise<ExamsPage> {
+  const { data, headers } = await api.get("/student-exams", { params });
+  return { items: data, total: parseInt(headers["x-total-count"] ?? "0", 10) };
+}
+
+export interface ProgressListParams {
+  student_id?: number;
+  school_id?: number;
+  academic_year?: number;
+  kutir_id?: number;
+  cluster_id?: number;
+  district_id?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ProgressPage {
+  items: StudentProgress[];
+  total: number;
+}
+
+export async function listProgressPaged(params: ProgressListParams = {}): Promise<ProgressPage> {
+  const { data, headers } = await api.get("/student-progress", { params });
+  return { items: data, total: parseInt(headers["x-total-count"] ?? "0", 10) };
 }

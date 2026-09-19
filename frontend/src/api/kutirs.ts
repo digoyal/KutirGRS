@@ -10,7 +10,7 @@ export interface TeacherMin {
 
 export interface Kutir {
   id: number; name: string; kutir_type: string; cluster_id: number;
-  district_id: number | null; village: string | null; street: string | null;
+  district_id: number | null; street: string | null;
   state: string; pincode: string | null;
   donor_id: number | null; enrollment_5th: number | null; enrollment_8th: number | null;
   teachers?: TeacherMin[];
@@ -18,7 +18,7 @@ export interface Kutir {
 
 export interface KutirCreate {
   name: string; kutir_type: string; cluster_id: number; district_id?: number | null;
-  village?: string | null; street?: string | null; state?: string; pincode?: string | null;
+  street?: string | null; state?: string; pincode?: string | null;
   enrollment_5th?: number | null; enrollment_8th?: number | null;
 }
 

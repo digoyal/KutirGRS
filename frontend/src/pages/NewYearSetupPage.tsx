@@ -42,8 +42,8 @@ export default function NewYearSetupPage() {
   const [error, setError] = useState<string | null>(null);
 
   const { data: allStudents = [] } = useQuery({
-    queryKey: ["all-students"],
-    queryFn: () => listStudents({ limit: 5000 }),
+    queryKey: ["students-names"],
+    queryFn: () => listStudents({ name_only: true }),
   });
   const { data: schools = [] } = useQuery<School[]>({
     queryKey: ["schools"],

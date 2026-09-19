@@ -430,7 +430,7 @@ function VisitModal({
           <SectionHead label="Registers & Materials" />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div>
-              <label style={grs.fieldLabel}>Physical vs Registered</label>
+              <label style={grs.fieldLabel}>App vs. Registered Students</label>
               <select value={form.physical_vs_registered} onChange={(e) => set("physical_vs_registered", e.target.value as KutirVisitCreate["physical_vs_registered"])} style={grs.select}>
                 <option value="Matched">Matched</option>
                 <option value="Not Matched">Not Matched</option>
@@ -481,9 +481,9 @@ function VisitModal({
                 ["cleanliness", "Cleanliness"],
                 ["hindi_proficiency", "Hindi Proficiency"],
                 ["english_proficiency", "English Proficiency"],
-                ["maths_proficiency", "Maths Proficiency"],
-                ["evs_proficiency", "EVS Proficiency"],
-                ["reasoning_proficiency", "Reasoning Proficiency"],
+                ["maths_proficiency", "Math Proficiency"],
+                ["evs_proficiency", "EVS Proficiency (class 5 only)"],
+                ["reasoning_proficiency", "Reasoning Proficiency (class 5 only)"],
                 ["material_management", "Material Management"],
                 ["staff_behavior", "Kutir Staff Behavior"],
                 ["kutir_performance", "Kutir Performance"],
@@ -560,9 +560,9 @@ function VisitDetailDrawer({
     ["cleanliness", "Cleanliness"],
     ["hindi_proficiency", "Hindi Proficiency"],
     ["english_proficiency", "English Proficiency"],
-    ["maths_proficiency", "Maths Proficiency"],
-    ["evs_proficiency", "EVS Proficiency"],
-    ["reasoning_proficiency", "Reasoning Proficiency"],
+    ["maths_proficiency", "Math Proficiency"],
+    ["evs_proficiency", "EVS Proficiency (class 5 only)"],
+    ["reasoning_proficiency", "Reasoning Proficiency (class 5 only)"],
     ["material_management", "Material Management"],
     ["staff_behavior", "Kutir Staff Behavior"],
     ["kutir_performance", "Kutir Performance"],
@@ -603,7 +603,7 @@ function VisitDetailDrawer({
             <span style={{ textAlign: "center" as const }}>{visit.regular_students_evening ?? "—"}</span>
           </div>
           <div style={detailGrid}>
-            <span style={detailLabel}>Physical vs Registered</span>
+            <span style={detailLabel}>App vs. Registered Students</span>
             <span>
               <span style={{
                 background: visit.physical_vs_registered === "Matched" ? "var(--status-success-bg)" : "var(--status-danger-bg)",
@@ -842,7 +842,7 @@ export default function VisitsPage() {
     },
     {
       key: "physical_vs_registered",
-      label: "Physical vs Registered",
+      label: "App vs. Registered Students",
       sortable: true,
       render: v => (
         <span style={{
@@ -858,28 +858,6 @@ export default function VisitsPage() {
       sortable: true,
       render: v => <span style={{ color: v.follow_timetable ? "var(--status-success-fg)" : "var(--status-danger-fg)" }}>{v.follow_timetable ? "✓ Yes" : "✗ No"}</span>,
       csvValue: v => v.follow_timetable ? "Yes" : "No",
-    },
-    {
-      key: "follow_monthly_plan",
-      label: "Follows Monthly Teaching Plan",
-      sortable: true,
-      render: v => <span style={{ color: v.follow_monthly_plan ? "var(--status-success-fg)" : "var(--status-danger-fg)" }}>{v.follow_monthly_plan ? "✓ Yes" : "✗ No"}</span>,
-      csvValue: v => v.follow_monthly_plan ? "Yes" : "No",
-    },
-    {
-      key: "timeslot_utilization",
-      label: "Timeslots",
-      sortable: true,
-      render: v => (
-        <span style={{
-          background: v.timeslot_utilization ? "var(--status-success-bg)" : "var(--status-danger-bg)",
-          color: v.timeslot_utilization ? "var(--status-success-fg)" : "var(--status-danger-fg)",
-          borderRadius: 4, padding: "2px 8px", fontSize: "0.78rem",
-        }}>
-          {v.timeslot_utilization ? "On Track" : "Missed"}
-        </span>
-      ),
-      csvValue: v => v.timeslot_utilization ? "On Track" : "Missed",
     },
     {
       key: "workbook_percentage",

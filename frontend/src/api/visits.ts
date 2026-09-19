@@ -5,11 +5,9 @@ export interface KutirVisit {
   kutir_id: number;
   visited_by_id: number | null;
   visit_date: string;
-  avg_attendance_last_week: number | null;
   avg_attendance_morning: number | null;
   avg_attendance_evening: number | null;
   follow_timetable: boolean;
-  follow_monthly_plan: boolean;
   kutir_closed: boolean;
   plan_hindi: boolean;
   plan_math: boolean;
@@ -19,7 +17,6 @@ export interface KutirVisit {
   math_topics_upper: string | null;
   english_topics_pre: string | null;
   english_topics_upper: string | null;
-  timeslot_utilization: boolean;
   timeslot_reason: string | null;
   grs_prep_remarks: string | null;
   physical_vs_registered: "Matched" | "Not Matched";
@@ -42,7 +39,6 @@ export interface KutirVisit {
   reg_students_data: boolean;
   reg_attendance_teachers: boolean;
   reg_students_documents: boolean;
-  regular_students: number | null;
   regular_students_morning: number | null;
   regular_students_evening: number | null;
   timeslot_bal_sabha: boolean;
@@ -61,11 +57,9 @@ export type KutirVisitCreate = Omit<KutirVisit, "id" | "visited_by_id" | "visit_
 export const BLANK_VISIT: KutirVisitCreate = {
   kutir_id: 0,
   visit_date: new Date().toISOString().slice(0, 10),
-  avg_attendance_last_week: null,
   avg_attendance_morning: null,
   avg_attendance_evening: null,
   follow_timetable: false,
-  follow_monthly_plan: false,
   kutir_closed: false,
   plan_hindi: false,
   plan_math: false,
@@ -75,7 +69,6 @@ export const BLANK_VISIT: KutirVisitCreate = {
   math_topics_upper: null,
   english_topics_pre: null,
   english_topics_upper: null,
-  timeslot_utilization: false,
   timeslot_reason: null,
   grs_prep_remarks: null,
   physical_vs_registered: "Matched",
@@ -98,7 +91,6 @@ export const BLANK_VISIT: KutirVisitCreate = {
   reg_students_data: false,
   reg_attendance_teachers: false,
   reg_students_documents: false,
-  regular_students: null,
   regular_students_morning: null,
   regular_students_evening: null,
   timeslot_bal_sabha: false,

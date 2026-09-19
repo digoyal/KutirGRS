@@ -76,7 +76,7 @@ class ClusterOut(ClusterBase):
 
 class ExamCenterBase(BaseModel):
     name: str
-    district_id: int
+    district_id: Optional[int] = None
     street: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None

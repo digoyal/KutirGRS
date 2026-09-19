@@ -9,11 +9,9 @@ class KutirVisitBase(BaseModel):
     visit_date: date
 
     # Attendance & implementation
-    avg_attendance_last_week: Optional[int] = Field(None, ge=0)
     avg_attendance_morning: Optional[int] = Field(None, ge=0)
     avg_attendance_evening: Optional[int] = Field(None, ge=0)
     follow_timetable: bool = False
-    follow_monthly_plan: bool = False
     kutir_closed: bool = False
     plan_hindi: bool = False
     plan_math: bool = False
@@ -27,7 +25,6 @@ class KutirVisitBase(BaseModel):
     english_topics_upper: Optional[str] = None
 
     # Time slots
-    timeslot_utilization: bool = False
     timeslot_reason: Optional[str] = None
 
     # GRS prep
@@ -60,7 +57,6 @@ class KutirVisitBase(BaseModel):
     reg_students_documents: bool = False
 
     # Regular students
-    regular_students: Optional[int] = None
     regular_students_morning: Optional[int] = None
     regular_students_evening: Optional[int] = None
 
@@ -81,11 +77,9 @@ class KutirVisitCreate(KutirVisitBase):
 class KutirVisitUpdate(BaseModel):
     visited_by_id: Optional[int] = None
     visit_date: Optional[date] = None
-    avg_attendance_last_week: Optional[int] = Field(None, ge=0)
     avg_attendance_morning: Optional[int] = Field(None, ge=0)
     avg_attendance_evening: Optional[int] = Field(None, ge=0)
     follow_timetable: Optional[bool] = None
-    follow_monthly_plan: Optional[bool] = None
     kutir_closed: Optional[bool] = None
     plan_hindi: Optional[bool] = None
     plan_math: Optional[bool] = None
@@ -95,7 +89,6 @@ class KutirVisitUpdate(BaseModel):
     math_topics_upper: Optional[str] = None
     english_topics_pre: Optional[str] = None
     english_topics_upper: Optional[str] = None
-    timeslot_utilization: Optional[bool] = None
     timeslot_reason: Optional[str] = None
     grs_prep_remarks: Optional[str] = None
     physical_vs_registered: Optional[str] = None
@@ -118,7 +111,6 @@ class KutirVisitUpdate(BaseModel):
     reg_students_data: Optional[bool] = None
     reg_attendance_teachers: Optional[bool] = None
     reg_students_documents: Optional[bool] = None
-    regular_students: Optional[int] = None
     regular_students_morning: Optional[int] = None
     regular_students_evening: Optional[int] = None
     timeslot_bal_sabha: Optional[bool] = None

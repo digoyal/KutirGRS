@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -274,3 +275,174 @@ async def delete_subject(s_id: int, db: AsyncSession = Depends(get_db), _=Depend
         raise HTTPException(404, "Subject not found")
     await db.delete(obj)
     await db.commit()
+
+
+# ── SchoolTypes ───────────────────────────────────────────────────────────────
+
+from app.models.lookups import SchoolType, ExamType
+from app.schemas.lookups import (
+    SchoolTypeCreate, SchoolTypeUpdate, SchoolTypeOut,
+    ExamTypeCreate, ExamTypeUpdate, ExamTypeOut,
+)
+
+@router.get("/school-types", response_model=list[SchoolTypeOut])
+async def list_school_types(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    result = await db.execute(select(SchoolType).order_by(SchoolType.name))
+    return result.scalars().all()
+
+@router.post("/school-types", response_model=SchoolTypeOut, status_code=201)
+async def create_school_type(body: SchoolTypeCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    obj = SchoolType(**body.model_dump())
+    db.add(obj)
+    await db.commit()
+    await db.refresh(obj)
+    return obj
+
+@router.get("/school-types/{st_id}", response_model=SchoolTypeOut)
+async def get_school_type(st_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    obj = await db.get(SchoolType, st_id)
+    if not obj:
+        raise HTTPException(404, "SchoolType not found")
+    return obj
+
+@router.put("/school-types/{st_id}", response_model=SchoolTypeOut)
+async def update_school_type(st_id: int, body: SchoolTypeUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    obj = await db.get(SchoolType, st_id)
+    if not obj:
+        raise HTTPException(404, "SchoolType not found")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(obj, k, v)
+    await db.commit()
+    await db.refresh(obj)
+    return obj
+
+@router.delete("/school-types/{st_id}", status_code=204)
+async def delete_school_type(st_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    obj = await db.get(SchoolType, st_id)
+    if not obj:
+        raise HTTPException(404, "SchoolType not found")
+    await db.delete(obj)
+    await db.commit()
+
+
+# ── ExamTypes ─────────────────────────────────────────────────────────────────
+
+@router.get("/exam-types", response_model=list[ExamTypeOut])
+async def list_exam_types(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    result = await db.execute(
+        select(ExamType).options(selectinload(ExamType.school_types)).order_by(ExamType.name)
+    )
+    return result.scalars().all()
+
+@router.post("/exam-types", response_model=ExamTypeOut, status_code=201)
+async def create_exam_type(body: ExamTypeCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    data = body.model_dump()
+    st_ids = data.pop("school_type_ids", [])
+    obj = ExamType(**data)
+    for st_id in st_ids:
+        st = await db.get(SchoolType, st_id)
+        if st:
+            obj.school_types.append(st)
+    db.add(obj)
+    await db.commit()
+    r = await db.execute(select(ExamType).where(ExamType.id == obj.id).options(selectinload(ExamType.school_types)))
+    return r.scalar_one()
+
+@router.get("/exam-types/{et_id}", response_model=ExamTypeOut)
+async def get_exam_type(et_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    r = await db.execute(select(ExamType).where(ExamType.id == et_id).options(selectinload(ExamType.school_types)))
+    obj = r.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(404, "ExamType not found")
+    return obj
+
+@router.put("/exam-types/{et_id}", response_model=ExamTypeOut)
+async def update_exam_type(et_id: int, body: ExamTypeUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    r = await db.execute(select(ExamType).where(ExamType.id == et_id).options(selectinload(ExamType.school_types)))
+    obj = r.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(404, "ExamType not found")
+    data = body.model_dump(exclude_unset=True)
+    st_ids = data.pop("school_type_ids", None)
+    for k, v in data.items():
+        setattr(obj, k, v)
+    if st_ids is not None:
+        obj.school_types = []
+        for st_id in st_ids:
+            st = await db.get(SchoolType, st_id)
+            if st:
+                obj.school_types.append(st)
+    await db.commit()
+    r2 = await db.execute(select(ExamType).where(ExamType.id == obj.id).options(selectinload(ExamType.school_types)))
+    return r2.scalar_one()
+
+@router.delete("/exam-types/{et_id}", status_code=204)
+async def delete_exam_type(et_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    obj = await db.get(ExamType, et_id)
+    if not obj:
+        raise HTTPException(404, "ExamType not found")
+    await db.delete(obj)
+    await db.commit()
+
+# ── ExamTypeSubjects (exam type → subjects matrix) ────────────────────────────
+from sqlalchemy import text as _text
+
+async def _load_exam_type_subjects(db: AsyncSession):
+    """Return all exam types with their subjects as a flat structure the UI expects."""
+    from app.schemas.lookups import SubjectRef
+    rows = (await db.execute(
+        _text("""
+            SELECT et.id AS et_id, et.name AS et_name,
+                   s.id  AS s_id,  s.name  AS s_name
+            FROM exam_types et
+            LEFT JOIN exam_type_subjects ets ON ets.exam_type_id = et.id
+            LEFT JOIN subjects s ON s.id = ets.subject_id
+            ORDER BY et.name, s.name
+        """)
+    )).fetchall()
+
+    # Group by exam type
+    from collections import OrderedDict
+    grouped: dict = OrderedDict()
+    for r in rows:
+        if r.et_id not in grouped:
+            grouped[r.et_id] = {"id": r.et_id, "name": r.et_name, "subjects": []}
+        if r.s_id is not None:
+            grouped[r.et_id]["subjects"].append({"id": r.s_id, "name": r.s_name})
+    return list(grouped.values())
+
+
+@router.get("/exam-type-subjects")
+async def list_exam_type_subjects(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    return await _load_exam_type_subjects(db)
+
+
+@router.put("/exam-type-subjects/{exam_type_id}")
+async def set_exam_type_subjects(
+    exam_type_id: int,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """Replace all subjects for this exam type."""
+    # Verify exam type exists
+    et = await db.get(ExamType, exam_type_id)
+    if not et:
+        raise HTTPException(404, "ExamType not found")
+
+    subject_ids: list[int] = body.get("subject_ids", [])
+
+    # Delete existing, then insert new
+    await db.execute(_text("DELETE FROM exam_type_subjects WHERE exam_type_id = :eid"), {"eid": exam_type_id})
+    for sid in subject_ids:
+        await db.execute(
+            _text("INSERT INTO exam_type_subjects (exam_type_id, subject_id) VALUES (:eid, :sid) ON CONFLICT DO NOTHING"),
+            {"eid": exam_type_id, "sid": sid},
+        )
+    await db.commit()
+
+    result = await _load_exam_type_subjects(db)
+    for item in result:
+        if item["id"] == exam_type_id:
+            return item
+    return {"id": exam_type_id, "name": et.name, "subjects": []}

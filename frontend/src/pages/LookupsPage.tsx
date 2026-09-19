@@ -6,7 +6,7 @@ import { grs } from "../styles/grs";
 
 interface LookupItem { id: number; name?: string; reason?: string; category_id?: number }
 
-type Tab = "categories" | "sub-categories" | "exam-categories" | "no-exam-reasons" | "no-admit-reasons" | "subjects" | "school-type-subjects";
+type Tab = "categories" | "sub-categories" | "exam-categories" | "no-exam-reasons" | "no-admit-reasons" | "subjects" | "exam-type-subjects" | "school-types" | "exam-types";
 
 interface TabDef {
   key: Tab;
@@ -18,13 +18,15 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { key: "categories",       label: "Categories",       endpoint: "/lookups/categories",       nameField: "name" },
-  { key: "sub-categories",   label: "Sub-Categories",   endpoint: "/lookups/sub-categories",   nameField: "name", hasParent: true, parentEndpoint: "/lookups/categories" },
-  { key: "exam-categories",  label: "Exam Categories",  endpoint: "/lookups/exam-categories",  nameField: "name" },
-  { key: "no-exam-reasons",  label: "No-Exam Reasons",  endpoint: "/lookups/no-exam-reasons",  nameField: "reason" },
-  { key: "no-admit-reasons", label: "No-Admit Reasons", endpoint: "/lookups/no-admit-reasons", nameField: "reason" },
-  { key: "subjects",         label: "Subjects",         endpoint: "/lookups/subjects",         nameField: "name" },
-  { key: "school-type-subjects", label: "Subjects by School Type", endpoint: "/school-type-subjects", nameField: "name" },
+  { key: "categories",         label: "Categories",           endpoint: "/lookups/categories",       nameField: "name" },
+  { key: "sub-categories",     label: "Sub-Categories",       endpoint: "/lookups/sub-categories",   nameField: "name", hasParent: true, parentEndpoint: "/lookups/categories" },
+  { key: "exam-categories",    label: "Exam Categories",      endpoint: "/lookups/exam-categories",  nameField: "name" },
+  { key: "no-exam-reasons",    label: "No-Exam Reasons",      endpoint: "/lookups/no-exam-reasons",  nameField: "reason" },
+  { key: "no-admit-reasons",   label: "No-Admit Reasons",     endpoint: "/lookups/no-admit-reasons", nameField: "reason" },
+  { key: "school-types",       label: "School Types",         endpoint: "/lookups/school-types",     nameField: "name" },
+  { key: "exam-types",         label: "Exam Types",           endpoint: "/lookups/exam-types",       nameField: "name" },
+  { key: "subjects",           label: "Subjects",             endpoint: "/lookups/subjects",         nameField: "name" },
+  { key: "exam-type-subjects", label: "Subjects by Exam Type", endpoint: "/lookups/exam-type-subjects",     nameField: "name" },
 ];
 
 import React from "react";
@@ -152,7 +154,6 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr>
-                <th className="grs-thead-th" style={grs.th}>#</th>
                 {tab.hasParent && <th className="grs-thead-th" style={grs.th}>Category</th>}
                 <th className="grs-thead-th" style={{ ...grs.th, width: "100%" }}>
                   {tab.nameField === "reason" ? "Reason" : "Name"}
@@ -166,7 +167,6 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
                 const isEditingThis = editing?.id === item.id;
                 return (
                   <tr key={item.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--bg-input)" }}>
-                    <td style={{ ...grs.td, width: 50 }}>{item.id}</td>
                     {tab.hasParent && (
                       <td style={{ ...grs.td, fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                         {parentMap.get(item.category_id ?? 0) ?? "—"}
@@ -233,71 +233,59 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
 }
 
 
-const SCHOOL_TYPES = ["EMRS", "JNV", "KSP", "MRS", "GNV", "KGBV", "SportsBoys", "SportsGirls", "Other"];
-
 interface SubjectRef { id: number; name: string; }
-interface SchoolTypeSubjectRow { id: number; school_type: string; subjects: SubjectRef[]; }
+interface ExamTypeSubjectRow { id: number; name: string; subjects: SubjectRef[]; }
 
-function SchoolTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
+function ExamTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // local matrix state: schoolType -> Set<subjectId>
-  const [checked, setChecked] = useState<Map<string, Set<number>>>(new Map());
+  const [checked, setChecked] = useState<Map<number, Set<number>>>(new Map());
   const [initialized, setInitialized] = useState(false);
 
-  const { data: rows = [], isLoading: loadingRows, isFetching: fetchingRows } = useQuery<SchoolTypeSubjectRow[]>({
-    queryKey: ["school-type-subjects"],
-    queryFn: async () => (await api.get("/school-type-subjects")).data,
+  const { data: rows = [], isLoading: loadingRows, isFetching: fetchingRows } = useQuery<ExamTypeSubjectRow[]>({
+    queryKey: ["exam-type-subjects"],
+    queryFn: async () => (await api.get("/lookups/exam-type-subjects")).data,
   });
   const { data: allSubjects = [], isLoading: loadingSubjects } = useQuery<SubjectRef[]>({
     queryKey: ["subjects"],
     queryFn: async () => (await api.get("/lookups/subjects")).data,
   });
 
-  // server map: schoolType -> { id, subjectIds }
+  // server map: examTypeId -> Set<subjectId>
   const serverMap = useMemo(() => {
-    const m = new Map<string, { id: number; subjectIds: Set<number> }>();
-    for (const row of rows) {
-      m.set(row.school_type, { id: row.id, subjectIds: new Set(row.subjects.map(s => s.id)) });
-    }
+    const m = new Map<number, Set<number>>();
+    for (const row of rows) m.set(row.id, new Set((row.subjects ?? []).map(s => s.id)));
     return m;
   }, [rows]);
 
-  // initialize local state from server data — guard fetchingRows so background refetch
-  // completes before we re-initialize (isLoading stays false during background refetch)
   useEffect(() => {
     if (!loadingRows && !fetchingRows && !loadingSubjects && !initialized && rows !== undefined) {
-      const init = new Map<string, Set<number>>();
-      for (const st of SCHOOL_TYPES) {
-        init.set(st, new Set(serverMap.get(st)?.subjectIds ?? []));
-      }
+      const init = new Map<number, Set<number>>();
+      for (const row of rows) init.set(row.id, new Set(serverMap.get(row.id) ?? []));
       setChecked(init);
       setInitialized(true);
     }
   }, [loadingRows, fetchingRows, loadingSubjects, serverMap, initialized, rows]);
 
-  // dirty rows: local differs from server
-  const dirtyTypes = useMemo(() => {
-    if (!initialized) return new Set<string>();
-    const dirty = new Set<string>();
-    for (const st of SCHOOL_TYPES) {
-      const local = checked.get(st) ?? new Set<number>();
-      const server = serverMap.get(st)?.subjectIds ?? new Set<number>();
-      if (local.size !== server.size || [...local].some(id => !server.has(id))) {
-        dirty.add(st);
-      }
+  const dirtyIds = useMemo(() => {
+    if (!initialized) return new Set<number>();
+    const dirty = new Set<number>();
+    for (const row of rows) {
+      const local = checked.get(row.id) ?? new Set<number>();
+      const server = serverMap.get(row.id) ?? new Set<number>();
+      if (local.size !== server.size || [...local].some(id => !server.has(id))) dirty.add(row.id);
     }
     return dirty;
-  }, [checked, serverMap, initialized]);
+  }, [checked, serverMap, initialized, rows]);
 
-  function toggle(schoolType: string, subjectId: number) {
+  function toggle(examTypeId: number, subjectId: number) {
     if (!isAdmin) return;
     setChecked(prev => {
       const next = new Map(prev);
-      const cur = new Set(next.get(schoolType) ?? []);
+      const cur = new Set(next.get(examTypeId) ?? []);
       if (cur.has(subjectId)) cur.delete(subjectId); else cur.add(subjectId);
-      next.set(schoolType, cur);
+      next.set(examTypeId, cur);
       return next;
     });
   }
@@ -305,20 +293,16 @@ function SchoolTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
   async function handleSave() {
     setSaving(true); setError(null);
     try {
-      await Promise.all([...dirtyTypes].map(st => {
-        const subjectIds = [...(checked.get(st) ?? [])];
-        const existing = serverMap.get(st);
-        return existing
-          ? api.patch(`/school-type-subjects/${existing.id}`, { subject_ids: subjectIds })
-          : api.post("/school-type-subjects", { school_type: st, subject_ids: subjectIds });
+      await Promise.all([...dirtyIds].map(etId => {
+        const subjectIds = [...(checked.get(etId) ?? [])];
+        return api.put(`/lookups/exam-type-subjects/${etId}`, { subject_ids: subjectIds });
       }));
       setInitialized(false);
-      await qc.invalidateQueries({ queryKey: ["school-type-subjects"] });
+      await qc.invalidateQueries({ queryKey: ["exam-type-subjects"] });
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Save failed.");
-      // Re-sync after partial save: some rows may have already committed
       setInitialized(false);
-      await qc.invalidateQueries({ queryKey: ["school-type-subjects"] });
+      await qc.invalidateQueries({ queryKey: ["exam-type-subjects"] });
     } finally {
       setSaving(false);
     }
@@ -340,23 +324,23 @@ function SchoolTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
     <div>
       {error && <div style={{ ...grs.errorBox, marginBottom: 10 }}>{error}</div>}
 
-      {dirtyTypes.size > 0 && (
+      {dirtyIds.size > 0 && (
         <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{ ...grs.btnPrimary, opacity: saving ? 0.6 : 1 }}
-          >
-            {saving ? "Saving…" : `Save Changes (${dirtyTypes.size} row${dirtyTypes.size > 1 ? "s" : ""})`}
+          <button onClick={handleSave} disabled={saving} style={{ ...grs.btnPrimary, opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Saving…" : `Save Changes (${dirtyIds.size} row${dirtyIds.size > 1 ? "s" : ""})`}
           </button>
           <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-            {[...dirtyTypes].join(", ")} {dirtyTypes.size === 1 ? "has" : "have"} unsaved changes
+            {rows.filter(r => dirtyIds.has(r.id)).map(r => r.name).join(", ")} {dirtyIds.size === 1 ? "has" : "have"} unsaved changes
           </span>
         </div>
       )}
 
       {isLoading ? (
         <div style={{ padding: 30, textAlign: "center", color: "var(--text-secondary)" }}>Loading…</div>
+      ) : rows.length === 0 ? (
+        <div style={{ padding: 30, textAlign: "center", color: "var(--text-secondary)" }}>
+          No exam types defined yet. Add exam types in the Exam Types tab first.
+        </div>
       ) : allSubjects.length === 0 ? (
         <div style={{ padding: 30, textAlign: "center", color: "var(--text-secondary)" }}>
           No subjects defined yet. Add subjects in the Subjects tab first.
@@ -366,32 +350,29 @@ function SchoolTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
           <table style={{ borderCollapse: "collapse", background: "var(--bg-card)", minWidth: "100%" }}>
             <thead>
               <tr>
-                <th style={{ ...thBase, textAlign: "left", minWidth: 120, position: "sticky", left: 0, zIndex: 2, background: "var(--bg-thead)" }}>
-                  School Type
+                <th style={{ ...thBase, textAlign: "left", minWidth: 140, position: "sticky", left: 0, zIndex: 2, background: "var(--bg-thead)" }}>
+                  Exam Type
                 </th>
                 {allSubjects.map(s => (
-                  <th key={s.id} style={{ ...thBase, minWidth: 90 }}>
-                    {s.name}
-                  </th>
+                  <th key={s.id} style={{ ...thBase, minWidth: 90 }}>{s.name}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {SCHOOL_TYPES.map((st, i) => {
-                const isDirty = dirtyTypes.has(st);
+              {rows.map((row, i) => {
+                const isDirty = dirtyIds.has(row.id);
                 const rowBg = isDirty
                   ? "var(--dirty-row-bg, rgba(251,191,36,0.08))"
                   : i % 2 === 0 ? "var(--bg-card)" : "var(--bg-row-alt, var(--bg-card))";
                 return (
-                  <tr key={st} style={{ background: rowBg }}>
+                  <tr key={row.id} style={{ background: rowBg }}>
                     <td style={{
                       ...tdBase, textAlign: "left", fontWeight: 600,
                       color: isDirty ? "var(--badge-yellow-fg, #92400e)" : "var(--text-primary)",
-                      position: "sticky", left: 0, zIndex: 1,
-                      background: rowBg,
+                      position: "sticky", left: 0, zIndex: 1, background: rowBg,
                       boxShadow: "2px 0 4px -2px rgba(0,0,0,0.08)",
                     }}>
-                      {st}
+                      {row.name}
                       {isDirty && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--badge-yellow-fg, #92400e)" }}>●</span>}
                     </td>
                     {allSubjects.map(s => (
@@ -399,8 +380,8 @@ function SchoolTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
                         <input
                           type="checkbox"
                           disabled={!isAdmin}
-                          checked={checked.get(st)?.has(s.id) ?? false}
-                          onChange={() => toggle(st, s.id)}
+                          checked={checked.get(row.id)?.has(s.id) ?? false}
+                          onChange={() => toggle(row.id, s.id)}
                           style={{ width: 16, height: 16, cursor: isAdmin ? "pointer" : "default", accentColor: "var(--badge-blue-fg)" }}
                         />
                       </td>
@@ -410,6 +391,201 @@ function SchoolTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+
+interface ExamTypeItem { id: number; name: string; school_types: SchoolTypeRef[] }
+interface SchoolTypeRef { id: number; name: string }
+
+function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
+  const qc = useQueryClient();
+  const [addName, setAddName] = useState("");
+  const [addSchoolTypeIds, setAddSchoolTypeIds] = useState<number[]>([]);
+  const [editing, setEditing] = useState<ExamTypeItem | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editSchoolTypeIds, setEditSchoolTypeIds] = useState<number[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState<ExamTypeItem | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: items = [], isLoading } = useQuery<ExamTypeItem[]>({
+    queryKey: ["exam-types"],
+    queryFn: async () => (await api.get("/lookups/exam-types")).data,
+  });
+  const { data: schoolTypes = [] } = useQuery<SchoolTypeRef[]>({
+    queryKey: ["school-types"],
+    queryFn: async () => (await api.get("/lookups/school-types")).data,
+  });
+
+  function toggleAdd(id: number) {
+    setAddSchoolTypeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+  function toggleEdit(id: number) {
+    setEditSchoolTypeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  async function handleAdd() {
+    const name = addName.trim();
+    if (!name) return;
+    setError(null);
+    try {
+      const { data: newItem } = await api.post("/lookups/exam-types", { name, school_type_ids: addSchoolTypeIds });
+      setAddName(""); setAddSchoolTypeIds([]);
+      qc.setQueryData(["exam-types"], (old: ExamTypeItem[] = []) => [...old, newItem]);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? "Add failed.");
+    }
+  }
+
+  async function handleEdit() {
+    if (!editing) return;
+    setError(null);
+    try {
+      const { data: updated } = await api.put(`/lookups/exam-types/${editing.id}`, { name: editName.trim(), school_type_ids: editSchoolTypeIds });
+      setEditing(null);
+      qc.setQueryData(["exam-types"], (old: ExamTypeItem[] = []) => old.map(item => item.id === updated.id ? updated : item));
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? "Update failed.");
+    }
+  }
+
+  async function handleDelete(id: number) {
+    try {
+      await api.delete(`/lookups/exam-types/${id}`);
+      setConfirmDelete(null);
+      qc.setQueryData(["exam-types"], (old: ExamTypeItem[] = []) => old.filter(item => item.id !== id));
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? "Delete failed — item may be in use.");
+      setConfirmDelete(null);
+    }
+  }
+
+  const chipStyle: React.CSSProperties = {
+    display: "inline-block", marginRight: 4, marginBottom: 2,
+    padding: "1px 9px", borderRadius: 12, fontSize: "0.75rem",
+    background: "var(--badge-blue-bg)", color: "var(--badge-blue-fg)", fontWeight: 600,
+  };
+
+  return (
+    <div>
+      {error && <div style={{ ...grs.errorBox, marginBottom: 10 }}>{error}</div>}
+
+      {isAdmin && (
+        <div style={{ marginBottom: 16, padding: 14, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }}>
+          <p style={{ margin: "0 0 10px", fontWeight: 600, fontSize: "0.85rem" }}>Add Exam Type</p>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 180 }}>
+              <label style={grs.fieldLabel}>Name</label>
+              <input style={grs.input} value={addName} onChange={e => setAddName(e.target.value)}
+                placeholder="e.g. MP Tribals" onKeyDown={e => e.key === "Enter" && handleAdd()} />
+            </div>
+            {schoolTypes.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={grs.fieldLabel}>School Types</label>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  {schoolTypes.map(st => (
+                    <label key={st.id} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: "0.85rem" }}>
+                      <input type="checkbox" checked={addSchoolTypeIds.includes(st.id)} onChange={() => toggleAdd(st.id)} />
+                      {st.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button onClick={handleAdd} style={{ ...grs.btnPrimary, whiteSpace: "nowrap" }} disabled={!addName.trim()}>+ Add</button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <p style={grs.muted}>Loading…</p>
+      ) : items.length === 0 ? (
+        <p style={{ ...grs.muted, textAlign: "center", padding: "24px 0" }}>No exam types yet.</p>
+      ) : (
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr>
+                <th className="grs-thead-th" style={grs.th}>Name</th>
+                <th className="grs-thead-th" style={{ ...grs.th, width: "100%" }}>School Types</th>
+                {isAdmin && <th className="grs-thead-th" style={{ ...grs.th, width: 96, position: "sticky", right: 0, background: "var(--bg-thead)" }}></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, i) => (
+                <tr key={item.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--bg-input)" }}>
+                  <td style={{ ...grs.td, fontWeight: 600, whiteSpace: "nowrap" }}>{item.name}</td>
+                  <td style={grs.td}>
+                    {item.school_types.length === 0
+                      ? <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>—</span>
+                      : item.school_types.map(st => <span key={st.id} style={chipStyle}>{st.name}</span>)}
+                  </td>
+                  {isAdmin && (
+                    <td style={{ ...grs.td, textAlign: "right", width: 96, position: "sticky", right: 0, background: "var(--bg-card)", borderLeft: "1px solid var(--border)" }}>
+                      <RowActions
+                        onEdit={() => { setEditing(item); setEditName(item.name); setEditSchoolTypeIds(item.school_types.map(s => s.id)); setError(null); }}
+                        onDelete={() => setConfirmDelete(item)}
+                      />
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editing && (
+        <div style={grs.overlay}>
+          <div style={{ ...grs.modal, width: 440 }}>
+            <h3 style={{ margin: "0 0 14px", fontSize: "1rem", color: "var(--text-primary)" }}>Edit Exam Type</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={grs.fieldLabel}>Name</label>
+                <input style={grs.input} value={editName} onChange={e => setEditName(e.target.value)} autoFocus />
+              </div>
+              {schoolTypes.length > 0 && (
+                <div>
+                  <label style={grs.fieldLabel}>School Types</label>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+                    {schoolTypes.map(st => (
+                      <label key={st.id} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: "0.85rem" }}>
+                        <input type="checkbox" checked={editSchoolTypeIds.includes(st.id)} onChange={() => toggleEdit(st.id)} />
+                        {st.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {error && <div style={grs.errorBox}>{error}</div>}
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={() => setEditing(null)} style={grs.btnSecondary}>Cancel</button>
+                <button onClick={handleEdit} style={grs.btnPrimary} disabled={!editName.trim()}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div style={grs.overlay}>
+          <div style={{ ...grs.modal, width: 340 }}>
+            <p style={{ margin: "0 0 16px", color: "var(--text-primary)", fontSize: "0.9rem" }}>
+              Delete <strong>"{confirmDelete.name}"</strong>?
+              <span style={{ display: "block", marginTop: 6, color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                This may affect existing records.
+              </span>
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelete(null)} style={grs.btnSecondary}>Cancel</button>
+              <button onClick={() => handleDelete(confirmDelete.id)} style={{ ...grs.btnPrimary, background: "var(--status-danger-fg)" }}>Delete</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -452,8 +628,10 @@ export default function LookupsPage() {
       </div>
 
       <LookupErrorBoundary key={activeTab}>
-        {activeTab === "school-type-subjects"
-          ? <SchoolTypeSubjectsTable isAdmin={isAdmin} />
+        {activeTab === "exam-type-subjects"
+          ? <ExamTypeSubjectsTable isAdmin={isAdmin} />
+          : activeTab === "exam-types"
+          ? <ExamTypesTable isAdmin={isAdmin} />
           : <LookupTable tab={current} isAdmin={isAdmin} />}
       </LookupErrorBoundary>
     </div>

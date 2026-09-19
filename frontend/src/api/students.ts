@@ -52,14 +52,28 @@ export interface StudentCreate {
 
 export interface StudentsListParams {
   kutir_id?: number;
+  district_id?: number;
+  cluster_id?: number;
   skip?: number;
   limit?: number;
+  offset?: number;
   search?: string;
+  name_only?: boolean;
+}
+
+export interface StudentsPage {
+  items: Student[];
+  total: number;
 }
 
 export async function listStudents(params: StudentsListParams = {}): Promise<Student[]> {
   const { data } = await api.get("/students", { params });
   return data;
+}
+
+export async function listStudentsPaged(params: StudentsListParams = {}): Promise<StudentsPage> {
+  const { data, headers } = await api.get("/students", { params });
+  return { items: data, total: parseInt(headers["x-total-count"] ?? "0", 10) };
 }
 
 export async function getStudent(id: number): Promise<Student> {

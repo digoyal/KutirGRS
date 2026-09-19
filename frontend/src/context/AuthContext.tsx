@@ -14,6 +14,9 @@ interface User {
   title: string;
   is_superuser: boolean;
   is_active: boolean;
+  district_ids: number[];
+  cluster_ids: number[];
+  kutir_ids: number[];
 }
 
 interface AuthContextValue {

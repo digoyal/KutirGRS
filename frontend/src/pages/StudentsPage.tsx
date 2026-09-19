@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listStudents, createStudent, deleteStudent, type Student, type StudentCreate } from "../api/students";
+import { listStudentsPaged, createStudent, deleteStudent, type Student, type StudentCreate } from "../api/students";
 import { listKutirs } from "../api/kutirs";
 import { listDistricts, listAreas, listClusters, listCategories, listSubCategories, type Category, type SubCategory } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
@@ -42,8 +42,35 @@ export default function StudentsPage() {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
-  const [filterDistrict, setFilterDistrict] = useState<number | "">("");
-  const [filterCluster, setFilterCluster] = useState<number | "">("");
+  // Initialise geo filters from the logged-in user's role assignments
+  const defaultDistrict: number | "" = (() => {
+    if (!user) return "";
+    if (user.title === "District Anchor" && user.district_ids.length > 0) return user.district_ids[0];
+    return "";
+  })();
+  const defaultCluster: number | "" = (() => {
+    if (!user) return "";
+    if (user.title === "Cluster Coordinator" && user.cluster_ids.length > 0) return user.cluster_ids[0];
+    return "";
+  })();
+  const defaultKutir: number | "" = (() => {
+    if (!user) return "";
+    if (user.title === "Teacher" && user.kutir_ids.length > 0) return user.kutir_ids[0];
+    return "";
+  })();
+  const [filterDistrict, setFilterDistrict] = useState<number | "">(defaultDistrict);
+  const [filterCluster, setFilterCluster] = useState<number | "">(defaultCluster);
+  const [filterKutir, setFilterKutir] = useState<number | "">(defaultKutir);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
+  };
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<StudentCreate>(EMPTY_FORM);
   const [formError, setFormError] = useState("");
@@ -58,10 +85,21 @@ export default function StudentsPage() {
     enabled: formCategoryId !== null,
   });
 
-  const { data: students = [], isLoading } = useQuery({
-    queryKey: ["students"],
-    queryFn: () => listStudents({ limit: 2000 }),
+  const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "" || debouncedSearch !== "";
+  const { data: studentsPage, isLoading } = useQuery({
+    queryKey: ["students", filterDistrict, filterCluster, filterKutir, debouncedSearch, page],
+    queryFn: () => listStudentsPaged({
+      kutir_id: filterKutir !== "" ? filterKutir : undefined,
+      cluster_id: filterKutir !== "" ? undefined : (filterCluster !== "" ? filterCluster : undefined),
+      district_id: filterKutir !== "" || filterCluster !== "" ? undefined : (filterDistrict !== "" ? filterDistrict : undefined),
+      search: debouncedSearch || undefined,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+    enabled: hasFilter,
   });
+  const students = studentsPage?.items ?? [];
+  const studentTotal = studentsPage?.total ?? 0;
 
   const { data: allKutirs = [] } = useQuery({ queryKey: ["all-kutirs"], queryFn: () => listKutirs() });
   const { data: allDistricts = [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
@@ -70,27 +108,14 @@ export default function StudentsPage() {
 
   const kutirMap = new Map(allKutirs.map(k => [k.id, k]));
   const areaMap = new Map(allAreas.map(a => [a.id, a]));
-  const clusterMap = new Map(allClusters.map(c => [c.id, c]));
   const filterClusters = allClusters.filter(c =>
     filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict
   );
+  const filterKutirs = allKutirs.filter(k =>
+    filterCluster !== "" ? k.cluster_id === filterCluster : true
+  );
 
-  const geoFiltered = students.filter(s => {
-    if (filterCluster !== "") {
-      const k = s.kutir_id != null ? kutirMap.get(s.kutir_id) : null;
-      if (!k || k.cluster_id !== filterCluster) return false;
-    } else if (filterDistrict !== "") {
-      const k = s.kutir_id != null ? kutirMap.get(s.kutir_id) : null;
-      if (!k) return false;
-      const cl = clusterMap.get(k.cluster_id);
-      if (!cl) return false;
-      const ar = areaMap.get(cl.area_id);
-      if (!ar || ar.district_id !== filterDistrict) return false;
-    }
-    return true;
-  });
-
-  const enriched: EnrichedStudent[] = geoFiltered.map(s => ({
+  const enriched: EnrichedStudent[] = students.map(s => ({
     ...s,
     docsCount: docCount(s),
     addedDate: new Date(s.created_at).toLocaleDateString("en-IN"),
@@ -220,7 +245,7 @@ export default function StudentsPage() {
       <select
         style={grs.filterSelect}
         value={filterDistrict}
-        onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }}
+        onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); setFilterKutir(""); setPage(1); }}
       >
         <option value="">All Districts</option>
         {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -228,11 +253,20 @@ export default function StudentsPage() {
       <select
         style={grs.filterSelect}
         value={filterCluster}
-        onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))}
-        disabled={filterDistrict === ""}
+        onChange={e => { setFilterCluster(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); setPage(1); }}
+        disabled={filterDistrict === "" && defaultCluster === ""}
       >
         <option value="">All Clusters</option>
         {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+      <select
+        style={grs.filterSelect}
+        value={filterKutir}
+        onChange={e => { setFilterKutir(e.target.value === "" ? "" : Number(e.target.value)); setPage(1); }}
+        disabled={filterCluster === "" && defaultKutir === ""}
+      >
+        <option value="">All Kutirs</option>
+        {filterKutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
       </select>
     </>
   );
@@ -245,19 +279,13 @@ export default function StudentsPage() {
         data={enriched}
         rowKey={s => s.id}
         isLoading={isLoading}
-        emptyMessage="No students found."
+        emptyMessage={hasFilter ? "No students found." : "Select a district or search by name to view students."}
+        pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: studentTotal, onPageChange: setPage } : undefined}
         actions={s => ({ onView: () => window.location.href = `/students/${s.id}`, onEdit: () => window.location.href = `/students/${s.id}`, onDelete: () => { if (confirm(`Delete ${s.first_name} ${s.last_name}?`)) deleteMut.mutate(s.id); } })}
         searchable
         searchPlaceholder="Search by name, phone…"
-        searchFn={(s: EnrichedStudent, q: string) => {
-          const lq = q.toLowerCase();
-          return (
-            `${s.first_name} ${s.last_name}`.toLowerCase().includes(lq) ||
-            (s.phone ?? "").toLowerCase().includes(lq) ||
-            (s.father_name ?? "").toLowerCase().includes(lq) ||
-            (s.mother_name ?? "").toLowerCase().includes(lq)
-          );
-        }}
+        externalSearch={searchQuery}
+        onExternalSearch={handleSearch}
         filters={geoFilters}
         headerExtra={isAdmin ? (
           <a href="/admin/field-config?table=students" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8125rem", color: "var(--text-secondary)", textDecoration: "none", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6 }}>
