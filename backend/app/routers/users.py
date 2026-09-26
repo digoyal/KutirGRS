@@ -5,6 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.auth import get_current_user, require_admin, hash_password
+
+# Role hierarchy lowest->highest; a user may only manage roles strictly below theirs
+TITLES = ["Teacher", "Cluster Coordinator", "Education Coordinator", "District Anchor", "Regional Head", "Admin"]
+MANAGER_ROLES = ["Admin", "Regional Head", "District Anchor", "Education Coordinator"]  # can access Users page
 from app.models.users import User, user_zones, user_districts, user_areas, user_clusters, user_kutirs
 from app.schemas.users import UserCreate, UserUpdate, UserOut
 
@@ -102,7 +106,7 @@ async def list_users(
     is_active: Optional[bool] = Query(None),
     title: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_admin),
+    current_user=Depends(get_current_user),
 ):
     q = select(User).order_by(User.username)
     if is_active is not None:
@@ -111,11 +115,21 @@ async def list_users(
         q = q.where(User.title == title)
     result = await db.execute(q)
     users = result.scalars().all()
+    # Non-admins only see users with roles strictly below their own level (plus themselves)
+    if current_user.title != "Admin":
+        my_index = TITLES.index(current_user.title) if current_user.title in TITLES else -1
+        assignable = set(TITLES[:my_index]) if my_index > 0 else set()
+        users = [u for u in users if u.title in assignable or u.id == current_user.id]
     return [await _attach_geo(db, u) for u in users]
 
 
 @router.post("", response_model=UserOut, status_code=201)
-async def create_user(body: UserCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def create_user(body: UserCreate, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.title not in MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    my_index = TITLES.index(current_user.title) if current_user.title in TITLES else -1
+    if current_user.title != "Admin" and my_index >= 0 and TITLES.index(body.title) >= my_index:
+        raise HTTPException(status_code=403, detail="Cannot assign a role at or above your own level")
     existing = await db.execute(select(User).where(User.username == body.username))
     if existing.scalar_one_or_none():
         raise HTTPException(400, f"Username '{body.username}' already taken")
@@ -142,7 +156,9 @@ async def get_me(current_user=Depends(get_current_user), db: AsyncSession = Depe
 
 
 @router.get("/{user_id}", response_model=UserOut)
-async def get_user(user_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def get_user(user_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.title not in MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     obj = await db.get(User, user_id)
     if not obj:
         raise HTTPException(404, "User not found")
@@ -154,9 +170,11 @@ async def update_user(
     user_id: int,
     body: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_admin),
+    current_user=Depends(get_current_user),
 ):
     obj = await db.get(User, user_id)
+    if current_user.title not in MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     if not obj:
         raise HTTPException(404, "User not found")
 
@@ -212,7 +230,9 @@ async def update_user(
 
 
 @router.delete("/{user_id}", status_code=204)
-async def delete_user(user_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(require_admin)):
+async def delete_user(user_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.title not in MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     if user_id == current_user.id:
         raise HTTPException(400, "Cannot delete your own account")
     obj = await db.get(User, user_id)

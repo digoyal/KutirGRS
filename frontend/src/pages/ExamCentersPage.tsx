@@ -119,6 +119,15 @@ export default function ExamCentersPage() {
 
   const districtMap = Object.fromEntries(districts.map(d => [d.id, d.name]));
 
+  const scopedDistricts = isAdmin || !user
+    ? districts
+    : districts.filter(d => user.district_ids.includes(d.id));
+
+  // Auto-select the single assigned district for non-admin users
+  useEffect(() => {
+    if (scopedDistricts.length === 1) setFilterDistrict(scopedDistricts[0].id);
+  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const addMut = useMutation({
     mutationFn: createExamCenter,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["exam-centers"] }); setShowAdd(false); },
@@ -182,7 +191,7 @@ export default function ExamCentersPage() {
             onChange={e => setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value))}
             style={grs.filterSelect}>
             <option value="">All Districts</option>
-            {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         }
         headerExtra={isAdmin ? (
@@ -198,16 +207,16 @@ export default function ExamCentersPage() {
       />
 
       {showAdd && (
-        <Modal title="Add Exam Center" initial={BLANK} districts={districts}
+        <Modal title="Add Exam Center" initial={BLANK} districts={scopedDistricts}
           onClose={() => setShowAdd(false)} onSave={data => addMut.mutate(data)} />
       )}
       {editItem && (
-        <Modal title="Edit Exam Center" initial={toForm(editItem)} districts={districts}
+        <Modal title="Edit Exam Center" initial={toForm(editItem)} districts={scopedDistricts}
           onClose={() => setEditItem(null)}
           onSave={data => updateMut.mutate({ id: editItem.id, data })} />
       )}
       {viewItem && (
-        <Modal title="View Exam Center" initial={toForm(viewItem)} districts={districts}
+        <Modal title="View Exam Center" initial={toForm(viewItem)} districts={scopedDistricts}
           onClose={() => setViewItem(null)} onSave={() => {}} readOnly />
       )}
     </div>

@@ -1128,8 +1128,8 @@ async def reset_data(
         # Infrastructure
         "exam_centers",
         "schools",
-        "donors",
         "kutirs",
+        "donors",
         # Geography (zones last because districts → areas → clusters reference them)
         "clusters",
         "areas",

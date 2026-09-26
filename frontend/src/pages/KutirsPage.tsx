@@ -66,6 +66,22 @@ function KutirModal({
     setFormError("");
   }, [initial]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Add mode: auto-populate zone/district/area/cluster from scoped props
+  useEffect(() => {
+    if (mode !== "add") return;
+    if (allDistricts.length === 1 && !selDistrict) {
+      const d = allDistricts[0];
+      setSelDistrict(d.id);
+      setSelZone((d as any).zone_id ?? null);
+      const areas = allAreas.filter(a => a.district_id === d.id);
+      if (areas.length === 1) {
+        setSelArea(areas[0].id);
+        const clusters = allClusters.filter(c => c.area_id === areas[0].id);
+        if (clusters.length === 1) setForm(f => ({ ...f, cluster_id: clusters[0].id }));
+      }
+    }
+  }, [allDistricts.length, allAreas.length, allClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const filteredDistricts = selZone ? allDistricts.filter(d => d.zone_id === selZone) : allDistricts;
   const filteredAreas = selDistrict ? allAreas.filter(a => a.district_id === selDistrict) : allAreas;
   const filteredClusters = selArea ? allClusters.filter(c => c.area_id === selArea) : allClusters;
@@ -163,6 +179,8 @@ export default function KutirsPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.title === "Admin";
+  const MANAGER_ROLES_K = ["Admin", "Regional Head", "District Anchor", "Education Coordinator"];
+  const canManageKutirs = MANAGER_ROLES_K.includes(user?.title ?? "");
 
   useEffect(() => {
     if (window.location.search.includes("_=")) {
@@ -188,12 +206,23 @@ export default function KutirsPage() {
 
   const areaMap = new Map(allAreas.map(a => [a.id, a]));
   const clusterMap = new Map(allClusters.map(c => [c.id, c]));
-  const filterClusters = allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict);
+
+  // Scope districts/clusters to the user's assigned scope for non-admin roles
+  const scopedDistricts = isAdmin || !user
+    ? allDistricts
+    : allDistricts.filter(d => user.district_ids.includes(d.id));
+  const scopedClusters = isAdmin || !user
+    ? allClusters
+    : user.cluster_ids.length > 0
+      ? allClusters.filter(c => user.cluster_ids.includes(c.id))
+      : allClusters;
+
+  const filterClusters = scopedClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict);
 
   // Auto-select when scoped user has only one option available
   useEffect(() => {
-    if (allDistricts.length === 1) setFilterDistrict(allDistricts[0].id);
-  }, [allDistricts]);
+    if (scopedDistricts.length === 1) setFilterDistrict(scopedDistricts[0].id);
+  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (filterClusters.length === 1) setFilterCluster(filterClusters[0].id);
@@ -275,7 +304,7 @@ export default function KutirsPage() {
           <select style={grs.filterSelect} value={filterDistrict}
             onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }}>
             <option value="">All Districts</option>
-            {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
           <select style={grs.filterSelect} value={filterCluster}
             onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))}
@@ -292,12 +321,14 @@ export default function KutirsPage() {
         ) : undefined}
         exportFilename="kutirs"
         printTitle="Kutirs"
-        onAdd={() => { setModalItem(null); setModalMode("add"); }}
+        onAdd={canManageKutirs ? () => { setModalItem(null); setModalMode("add"); } : undefined}
         addLabel="+ Add Kutir"
         actions={r => ({
           onView: () => { setModalItem(r); setModalMode("view"); },
-          onEdit: () => { setModalItem(r); setModalMode("edit"); },
-          onDelete: () => { if (confirm(`Delete kutir "${r.name}"?`)) deleteMut.mutate(r.id); },
+          ...(canManageKutirs ? {
+            onEdit: () => { setModalItem(r); setModalMode("edit"); },
+            onDelete: () => { if (confirm(`Delete kutir "${r.name}"?`)) deleteMut.mutate(r.id); },
+          } : {}),
         })}
       />
 
@@ -306,9 +337,9 @@ export default function KutirsPage() {
           mode={modalMode}
           initial={modalItem}
           allZones={allZones}
-          allDistricts={allDistricts}
+          allDistricts={scopedDistricts}
           allAreas={allAreas}
-          allClusters={allClusters}
+          allClusters={scopedClusters}
           onClose={() => { setModalMode(null); setModalItem(null); }}
           onSave={handleModalSave}
         />

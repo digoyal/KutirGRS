@@ -155,6 +155,8 @@ function VisitModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { user } = useAuth();
+  const isModalAdmin = user?.title === "Admin";
   const [form, setForm] = useState<KutirVisitCreate & { id?: number }>(initial);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -166,8 +168,17 @@ function VisitModal({
   const { data: allAreas = [] } = useQuery({ queryKey: ["all-areas"], queryFn: () => listAreas() });
   const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
 
+  const scopedModalDistricts = isModalAdmin || !user
+    ? allDistricts
+    : allDistricts.filter((d: any) => user.district_ids.includes(d.id));
+  const scopedModalClusters = isModalAdmin || !user
+    ? allClusters
+    : user.cluster_ids.length > 0
+      ? allClusters.filter((c: any) => user.cluster_ids.includes(c.id))
+      : allClusters;
+
   const areaMap = new Map(allAreas.map((a: any) => [a.id, a]));
-  const modalFilterClusters = allClusters.filter((c: any) =>
+  const modalFilterClusters = scopedModalClusters.filter((c: any) =>
     filterDistrict === "" || (areaMap.get(c.area_id) as any)?.district_id === filterDistrict
   );
   const filteredKutirs = kutirs.filter((k) => {
@@ -179,6 +190,23 @@ function VisitModal({
     }
     return true;
   });
+
+  // Auto-select district/cluster when only one option
+  useEffect(() => {
+    if (isEdit) return;
+    if (scopedModalDistricts.length === 1 && filterDistrict === "") {
+      const d = scopedModalDistricts[0].id;
+      setFilterDistrict(d);
+      const cls = modalFilterClusters.filter((c: any) => (areaMap.get(c.area_id) as any)?.district_id === d);
+      if (cls.length === 1) setFilterCluster(cls[0].id);
+    }
+  }, [scopedModalDistricts.length, scopedModalClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isEdit || filterDistrict === "") return;
+    const cls = modalFilterClusters;
+    if (cls.length === 1 && filterCluster === "") setFilterCluster(cls[0].id);
+  }, [filterDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isEdit = !!initial.id;
 
@@ -282,8 +310,8 @@ function VisitModal({
                   onChange={(e) => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); set("kutir_id", 0); }}
                   style={grs.select}
                 >
-                  <option value="">All districts</option>
-                  {allDistricts.map((d: any) => (
+                  <option value="">— Select District —</option>
+                  {scopedModalDistricts.map((d: any) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
@@ -296,7 +324,7 @@ function VisitModal({
                   disabled={filterDistrict === ""}
                   style={filterDistrict === "" ? disabledInpStyle : grs.select}
                 >
-                  <option value="">All clusters</option>
+                  <option value="">— Select Cluster —</option>
                   {modalFilterClusters.map((c: any) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -311,7 +339,7 @@ function VisitModal({
                 >
                   <option value="">Select kutir…</option>
                   {filteredKutirs.map((k) => (
-                    <option key={k.id} value={k.id}>{k.name} ({k.code})</option>
+                    <option key={k.id} value={k.id}>{k.name}</option>
                   ))}
                 </select>
               </div>
@@ -725,6 +753,8 @@ function VisitDetailDrawer({
 export default function VisitsPage() {
   const { user } = useAuth();
   const isAdmin = user?.title === "Admin";
+  const MANAGER_ROLES_V = ["Admin", "Regional Head", "District Anchor", "Education Coordinator"];
+  const canManageVisits = MANAGER_ROLES_V.includes(user?.title ?? "");
 
   useEffect(() => {
     if (window.location.search.includes("_=")) {
@@ -757,9 +787,38 @@ export default function VisitsPage() {
 
   const areaMap    = useMemo(() => new Map(allAreas.map(a => [a.id, a])),    [allAreas]);
   const clusterMap = useMemo(() => new Map(allClusters.map(c => [c.id, c])), [allClusters]);
+
+  // For Teachers, restrict visible kutirs to their assigned ones
+  const isTeacher = user?.title === "Teacher";
+  const scopedKutirIds = useMemo(() => {
+    if (!isTeacher || !user) return null; // null = no restriction
+    return new Set(user.kutir_ids ?? []);
+  }, [isTeacher, user]);
+
+  const scopedDistricts = isAdmin || !user
+    ? allDistricts
+    : allDistricts.filter(d => user.district_ids.includes(d.id));
+  const scopedClusters = isAdmin || !user
+    ? allClusters
+    : user.cluster_ids.length > 0
+      ? allClusters.filter(c => user.cluster_ids.includes(c.id))
+      : allClusters;
+  // Auto-select when scoped to a single district / cluster
+  useEffect(() => {
+    if (scopedDistricts.length === 1 && filterDistrict === "") {
+      setFilterDistrict(scopedDistricts[0].id);
+    }
+  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (scopedClusters.length === 1 && filterCluster === "" && !isAdmin) {
+      setFilterCluster(scopedClusters[0].id);
+    }
+  }, [scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const filterClusters = useMemo(
-    () => allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict),
-    [allClusters, filterDistrict, areaMap]
+    () => scopedClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict),
+    [scopedClusters, filterDistrict, areaMap]
   );
 
   const { data: visits = [], isLoading } = useQuery<KutirVisit[]>({
@@ -776,6 +835,8 @@ export default function VisitsPage() {
 
   // Geo filter — kutir-name search is handled by GrsTable's searchFn
   const filtered = useMemo(() => visits.filter(v => {
+    // Teachers only see visits for their assigned kutirs
+    if (scopedKutirIds !== null && !scopedKutirIds.has(v.kutir_id)) return false;
     const kutir = kutirMap.get(v.kutir_id);
     if (filterCluster !== "") {
       if (!kutir || kutir.cluster_id !== filterCluster) return false;
@@ -984,17 +1045,17 @@ export default function VisitsPage() {
         searchPlaceholder="Search by kutir name…"
         searchFn={(v, q) => (kutirMap.get(v.kutir_id)?.name ?? "").toLowerCase().includes(q)}
         filters={<>
-          <select value={filterKutir} onChange={e => setFilterKutir(e.target.value === "" ? "" : Number(e.target.value))} style={grs.filterSelect}>
-            <option value="">All Kutirs</option>
-            {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-          </select>
-          <select value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); }} style={grs.filterSelect}>
+          <select value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); setFilterKutir(""); }} style={grs.filterSelect}>
             <option value="">All Districts</option>
-            {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
-          <select value={filterCluster} onChange={e => setFilterCluster(e.target.value === "" ? "" : Number(e.target.value))} disabled={filterDistrict === ""} style={grs.filterSelect}>
+          <select value={filterCluster} onChange={e => { setFilterCluster(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); }} disabled={filterDistrict === ""} style={grs.filterSelect}>
             <option value="">All Clusters</option>
             {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select value={filterKutir} onChange={e => setFilterKutir(e.target.value === "" ? "" : Number(e.target.value))} disabled={filterCluster === ""} style={filterCluster === "" ? { ...grs.filterSelect, opacity: 0.5 } : grs.filterSelect}>
+            <option value="">All Kutirs</option>
+            {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
           </select>
         </>}
         headerExtra={isAdmin ? (
@@ -1005,16 +1066,16 @@ export default function VisitsPage() {
         ) : undefined}
         exportFilename="visits"
         printTitle="Kutir Visits"
-        onAdd={() => setShowAdd(true)}
+        onAdd={canManageVisits ? () => setShowAdd(true) : undefined}
         addLabel="+ Log Visit"
-        actions={v => ({
+        actions={canManageVisits ? (v => ({
           onView: () => setViewVisit(v),
           onEdit: () => setEditVisit(v),
           onDelete: () => {
             if (confirm(`Delete visit for ${kutirMap.get(v.kutir_id)?.name ?? "this kutir"} on ${v.visit_date}?`))
               deleteMut.mutate(v.id);
           },
-        })}
+        })) : (v => ({ onView: () => setViewVisit(v) }))}
       />
 
       {showAdd && (
