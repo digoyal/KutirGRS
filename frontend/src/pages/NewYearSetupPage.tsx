@@ -6,6 +6,7 @@ import { listKutirs, type Kutir } from "../api/kutirs";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { createProgress, listProgress, listExams, type StudentProgress, type StudentExam } from "../api/admissions";
 import { grs } from "../styles/grs";
+import { useAuth } from "../context/AuthContext";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -33,6 +34,8 @@ const btnPrimary: React.CSSProperties = {
 
 export default function NewYearSetupPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.title === "Admin";
   const [year, setYear] = useState(CURRENT_YEAR);
   const [filterDistrict, setFilterDistrict] = useState<number | "">("");
   const [filterKutir, setFilterKutir] = useState<number | "">("");
@@ -93,8 +96,22 @@ export default function NewYearSetupPage() {
             .map(e => [e.student_id, e.admitted_school_id as number])
   );
 
+  const scopedDistricts = isAdmin || !user
+    ? allDistricts
+    : allDistricts.filter(d => user.district_ids.includes(d.id));
+  const scopedKutirs = isAdmin || !user
+    ? allKutirs
+    : user.kutir_ids.length > 0
+      ? allKutirs.filter(k => user.kutir_ids.includes(k.id))
+      : allKutirs;
+
+  // Auto-select single assigned district for non-admin users
+  useEffect(() => {
+    if (scopedDistricts.length === 1) setFilterDistrict(scopedDistricts[0].id);
+  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Kutirs filtered by selected district
-  const filteredKutirs = allKutirs.filter(k => {
+  const filteredKutirs = scopedKutirs.filter(k => {
     if (filterDistrict === "") return true;
     const cl = clusterMap.get(k.cluster_id);
     if (!cl) return false;
@@ -201,7 +218,7 @@ export default function NewYearSetupPage() {
             onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); }}
           >
             <option value="">All Districts</option>
-            {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </div>
         <div>

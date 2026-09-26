@@ -142,9 +142,20 @@ function AdmissionModal({
   const [studentId, setStudentId] = useState<number | "">(isAdd ? "" : (exam?.student_id ?? ""));
   const [search, setSearch]       = useState("");
   const [kutirFilter, setKutirFilter] = useState<number | "">("");
-  const { data: kutirs = [] } = useQuery({
+  const { user: modalUser } = useAuth();
+  const { data: allKutirsModal = [] } = useQuery({
     queryKey: ["kutirs"], queryFn: () => listKutirs(), staleTime: 5 * 60 * 1000,
   });
+  const kutirs = useMemo(() => {
+    if (!modalUser || modalUser.title === "Admin") return allKutirsModal;
+    return modalUser.kutir_ids.length > 0
+      ? allKutirsModal.filter(k => modalUser.kutir_ids.includes(k.id))
+      : allKutirsModal;
+  }, [allKutirsModal, modalUser]);
+  // Auto-select when only one kutir is available
+  useEffect(() => {
+    if (isAdd && kutirs.length === 1 && kutirFilter === "") setKutirFilter(kutirs[0].id);
+  }, [kutirs.length, isAdd]); // eslint-disable-line react-hooks/exhaustive-deps
   const { data: examTypes = [] } = useQuery<ExamTypeMin[]>({
     queryKey: ["exam-types"], queryFn: listExamTypes, staleTime: 5 * 60 * 1000,
   });
@@ -331,7 +342,7 @@ function AdmissionModal({
                     onChange={e => { setKutirFilter(e.target.value === "" ? "" : Number(e.target.value)); setStudentId(""); setSearch(""); }}
                     style={selStyles}
                   >
-                    <option value="">-- all kutirs --</option>
+                    <option value="">-- Select Kutir --</option>
                     {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
                   </select>
                 </div>
@@ -790,8 +801,34 @@ export default function AdmissionsPage() {
   const districtMap = new Map(allDistricts.map(d => [d.id, d.name]));
   const areaMap = new Map(allAreas.map(a => [a.id, a]));
   const clusterMap = new Map(allClusters.map(c => [c.id, c]));
-  const filterClusters = allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict);
-  const filterKutirs = allKutirs.filter(k => filterCluster !== "" ? k.cluster_id === filterCluster : filterKutir !== "" ? k.id === filterKutir : false);
+  const scopedDistricts = isAdmin || !user
+    ? allDistricts
+    : allDistricts.filter(d => user.district_ids.includes(d.id));
+  const scopedClusters = isAdmin || !user
+    ? allClusters
+    : user.cluster_ids.length > 0
+      ? allClusters.filter(c => user.cluster_ids.includes(c.id))
+      : allClusters;
+  const scopedKutirs = isAdmin || !user
+    ? allKutirs
+    : user.kutir_ids.length > 0
+      ? allKutirs.filter(k => user.kutir_ids.includes(k.id))
+      : allKutirs;
+  // Auto-select when scoped to a single district / cluster
+  useEffect(() => {
+    if (scopedDistricts.length === 1 && filterDistrict === "") {
+      setFilterDistrict(scopedDistricts[0].id);
+    }
+  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (scopedClusters.length === 1 && filterCluster === "" && !isAdmin) {
+      setFilterCluster(scopedClusters[0].id);
+    }
+  }, [scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filterClusters = scopedClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict);
+  const filterKutirs = scopedKutirs.filter(k => filterCluster !== "" ? k.cluster_id === filterCluster : filterKutir !== "" ? k.id === filterKutir : false);
 
 
   const allColumns = useMemo((): Col<StudentExam>[] => [
@@ -987,7 +1024,7 @@ export default function AdmissionsPage() {
             style={{ ...filterSelectStyle, width: 140 }}
           >
             <option value="">All Districts</option>
-            {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
           <select
             value={filterCluster}
@@ -1004,7 +1041,7 @@ export default function AdmissionsPage() {
               onChange={e => { setFilterKutir(e.target.value === "" ? "" : Number(e.target.value)); setPage(1); }}
               style={{ ...filterSelectStyle, width: 130 }}
             >
-              <option value="">All Kutirs</option>
+              <option value="">-- Select Kutir --</option>
               {filterKutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
             </select>
           )}
@@ -1032,7 +1069,7 @@ export default function AdmissionsPage() {
           mode="add"
           students={students}
           schools={schools}
-          districts={allDistricts}
+          districts={scopedDistricts}
           year={year}
           examCategories={examCategories}
           examCenters={examCenters}
@@ -1052,7 +1089,7 @@ export default function AdmissionsPage() {
           student={studentMap[viewExam.student_id]}
           students={students}
           schools={schools}
-          districts={allDistricts}
+          districts={scopedDistricts}
           examCategories={examCategories}
           examCenters={examCenters}
           noExamReasons={noExamReasons}
@@ -1069,7 +1106,7 @@ export default function AdmissionsPage() {
           student={studentMap[editExam.student_id]}
           students={students}
           schools={schools}
-          districts={allDistricts}
+          districts={scopedDistricts}
           examCategories={examCategories}
           examCenters={examCenters}
           noExamReasons={noExamReasons}

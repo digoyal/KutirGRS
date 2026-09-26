@@ -84,6 +84,23 @@ function ProgressModal({
   const [modalDistrict, setModalDistrict] = useState<number | "">("");
   const [modalCluster, setModalCluster] = useState<number | "">("");
 
+  // Add mode: auto-select district/cluster when only one option exists
+  useEffect(() => {
+    if (isEdit) return;
+    if (allDistricts.length === 1 && modalDistrict === "") {
+      const d = allDistricts[0].id;
+      setModalDistrict(d);
+      const cls = allClusters.filter(c => areaDistrictMap.get(clusterAreaMap.get(c.id) ?? -1) === d);
+      if (cls.length === 1) setModalCluster(cls[0].id);
+    }
+  }, [allDistricts.length, allClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isEdit || modalDistrict === "") return;
+    const cls = allClusters.filter(c => areaDistrictMap.get(clusterAreaMap.get(c.id) ?? -1) === modalDistrict);
+    if (cls.length === 1 && modalCluster === "") setModalCluster(cls[0].id);
+  }, [modalDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const kutirMap2 = useMemo(() => new Map(allKutirs.map(k => [k.id, k.cluster_id])), [allKutirs]);
   const clusterAreaMap = useMemo(() => new Map(allClusters.map(c => [c.id, c.area_id])), [allClusters]);
   const areaDistrictMap = useMemo(() => new Map(allAreas.map(a => [a.id, a.district_id])), [allAreas]);
@@ -150,14 +167,14 @@ function ProgressModal({
           <div style={{ flex: 1 }}>
             <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 3 }}>District</label>
             <select style={inp} value={modalDistrict} onChange={e => { setModalDistrict(e.target.value === "" ? "" : Number(e.target.value)); setModalCluster(""); }}>
-              <option value="">All Districts</option>
+              <option value="">— Select District —</option>
               {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
           <div style={{ flex: 1 }}>
             <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 3 }}>Cluster</label>
             <select style={inp} value={modalCluster} onChange={e => setModalCluster(e.target.value === "" ? "" : Number(e.target.value))} disabled={modalDistrict === ""}>
-              <option value="">All Clusters</option>
+              <option value="">— Select Cluster —</option>
               {modalClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
@@ -427,13 +444,39 @@ export default function StudentProgressPage() {
   const studentMap2  = useMemo(() => new Map(allStudents.map(s => [s.id, s])),  [allStudents]);
   const areaMap      = useMemo(() => new Map(allAreas.map(a => [a.id, a])),     [allAreas]);
   const schoolMap    = useMemo(() => new Map(schools.map(s => [s.id, s])),      [schools]);
+  const scopedDistricts = isAdmin || !user
+    ? allDistricts
+    : allDistricts.filter(d => user.district_ids.includes(d.id));
+  const scopedClusters = isAdmin || !user
+    ? allClusters
+    : user.cluster_ids.length > 0
+      ? allClusters.filter(c => user.cluster_ids.includes(c.id))
+      : allClusters;
+  const scopedKutirs = isAdmin || !user
+    ? allKutirs
+    : user.kutir_ids.length > 0
+      ? allKutirs.filter(k => user.kutir_ids.includes(k.id))
+      : allKutirs;
+  // Auto-select when scoped to a single district / cluster
+  useEffect(() => {
+    if (scopedDistricts.length === 1 && filterDistrict === "") {
+      setFilterDistrict(scopedDistricts[0].id);
+    }
+  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (scopedClusters.length === 1 && filterCluster === "" && !isAdmin) {
+      setFilterCluster(scopedClusters[0].id);
+    }
+  }, [scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const filterClusters = useMemo(
-    () => allClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict),
-    [allClusters, filterDistrict, areaMap],
+    () => scopedClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict),
+    [scopedClusters, filterDistrict, areaMap],
   );
   const filterKutirs = useMemo(
-    () => allKutirs.filter(k => filterCluster !== "" ? k.cluster_id === filterCluster : filterKutir !== "" ? k.id === filterKutir : false),
-    [allKutirs, filterCluster, filterKutir],
+    () => scopedKutirs.filter(k => filterCluster !== "" ? k.cluster_id === filterCluster : filterKutir !== "" ? k.id === filterKutir : false),
+    [scopedKutirs, filterCluster, filterKutir],
   );
 
   // Build latestSchoolMap: for each student, the school from their most recent record
@@ -636,7 +679,7 @@ export default function StudentProgressPage() {
             </select>
             <select style={grs.filterSelect} value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); setFilterKutir(""); setPage(1); }}>
               <option value="">All Districts</option>
-              {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
             <select style={grs.filterSelect} value={filterCluster} onChange={e => { setFilterCluster(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); setPage(1); }} disabled={filterDistrict === "" && filterKutir === ""}>
               <option value="">All Clusters</option>
@@ -680,10 +723,10 @@ export default function StudentProgressPage() {
           schools={schools}
           latestSchoolMap={latestSchoolMap}
           admittedSchoolMap={admittedSchoolMap}
-          allDistricts={allDistricts}
+          allDistricts={scopedDistricts}
           allAreas={allAreas}
-          allClusters={allClusters}
-          allKutirs={allKutirs}
+          allClusters={scopedClusters}
+          allKutirs={scopedKutirs}
           onClose={() => setShowModal(false)}
           onSaved={refresh}
         />

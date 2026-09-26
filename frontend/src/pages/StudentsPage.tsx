@@ -108,12 +108,67 @@ export default function StudentsPage() {
 
   const kutirMap = new Map(allKutirs.map(k => [k.id, k]));
   const areaMap = new Map(allAreas.map(a => [a.id, a]));
-  const filterClusters = allClusters.filter(c =>
+  const scopedDistricts = isAdmin || !user
+    ? allDistricts
+    : allDistricts.filter(d => user.district_ids.includes(d.id));
+  const scopedClusters = isAdmin || !user
+    ? allClusters
+    : user.cluster_ids.length > 0
+      ? allClusters.filter(c => user.cluster_ids.includes(c.id))
+      : allClusters;
+  const scopedKutirs = isAdmin || !user
+    ? allKutirs
+    : user.kutir_ids.length > 0
+      ? allKutirs.filter(k => user.kutir_ids.includes(k.id))
+      : allKutirs;
+  // Auto-select when scoped to a single district / cluster
+  useEffect(() => {
+    if (scopedDistricts.length === 1 && filterDistrict === "") {
+      setFilterDistrict(scopedDistricts[0].id);
+    }
+  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (scopedClusters.length === 1 && filterCluster === "" && !isAdmin) {
+      setFilterCluster(scopedClusters[0].id);
+    }
+  }, [scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filterClusters = scopedClusters.filter(c =>
     filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict
   );
-  const filterKutirs = allKutirs.filter(k =>
+  const filterKutirs = scopedKutirs.filter(k =>
     filterCluster !== "" ? k.cluster_id === filterCluster : true
   );
+
+  // Auto-populate modal district/cluster when form opens
+  useEffect(() => {
+    if (!showForm) return;
+    if (scopedDistricts.length === 1) {
+      const d = scopedDistricts[0].id;
+      setFormDistrict(d);
+      const clustersForDistrict = scopedClusters.filter(
+        c => areaMap.get(c.area_id)?.district_id === d
+      );
+      if (clustersForDistrict.length === 1) setFormCluster(clustersForDistrict[0].id);
+    }
+  }, [showForm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When district changes in modal, auto-select cluster if exactly one
+  useEffect(() => {
+    if (!formDistrict || !showForm) return;
+    const clustersForDistrict = scopedClusters.filter(
+      c => areaMap.get(c.area_id)?.district_id === formDistrict
+    );
+    if (clustersForDistrict.length === 1) setFormCluster(clustersForDistrict[0].id);
+  }, [formDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When cluster changes in modal, auto-select kutir if exactly one
+  useEffect(() => {
+    if (!formCluster || !showForm) return;
+    const kutirForCluster = scopedKutirs.filter(k => k.cluster_id === formCluster);
+    if (kutirForCluster.length === 1) setForm(f => ({ ...f, kutir_id: kutirForCluster[0].id }));
+  }, [formCluster]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const enriched: EnrichedStudent[] = students.map(s => ({
     ...s,
@@ -123,7 +178,7 @@ export default function StudentsPage() {
 
   const createMut = useMutation({
     mutationFn: createStudent,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["students"] }); setShowForm(false); setForm(EMPTY_FORM); setFormError(""); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["students"] }); setShowForm(false); setForm(EMPTY_FORM); setFormError(""); setFormDistrict(null); setFormCluster(null); },
     onError: (e: any) => setFormError(e?.response?.data?.detail ?? "Failed to create student"),
   });
 
@@ -248,7 +303,7 @@ export default function StudentsPage() {
         onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); setFilterKutir(""); setPage(1); }}
       >
         <option value="">All Districts</option>
-        {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
       </select>
       <select
         style={grs.filterSelect}
@@ -295,7 +350,7 @@ export default function StudentsPage() {
         ) : undefined}
         exportFilename="students"
         printTitle="Students"
-        onAdd={() => { setShowForm(true); setFormError(""); }}
+        onAdd={() => { setShowForm(false); setForm(EMPTY_FORM); setFormDistrict(null); setFormCluster(null); setFormError(""); setTimeout(() => setShowForm(true), 0); }}
         addLabel="+ Add Student"
       />
 
@@ -315,8 +370,8 @@ export default function StudentsPage() {
                     setFormCluster(null);
                     setForm(f => ({ ...f, kutir_id: null }));
                   }}>
-                    <option value="">— any —</option>
-                    {allDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    {isAdmin && <option value="">— any —</option>}
+                    {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
                 <div>
@@ -326,8 +381,8 @@ export default function StudentsPage() {
                     setFormCluster(id);
                     setForm(f => ({ ...f, kutir_id: null }));
                   }}>
-                    <option value="">— any —</option>
-                    {allClusters
+                    <option value="">— Select —</option>
+                    {scopedClusters
                       .filter(c => !formDistrict || areaMap.get(c.area_id)?.district_id === formDistrict)
                       .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -336,7 +391,7 @@ export default function StudentsPage() {
                   <label style={grs.fieldLabel}>Kutir</label>
                   <select style={grs.select} value={form.kutir_id ?? ""} disabled={!formCluster} onChange={e => setForm(f => ({ ...f, kutir_id: Number(e.target.value) || null }))}>
                     <option value="">— select —</option>
-                    {allKutirs
+                    {scopedKutirs
                       .filter(k => !formCluster || k.cluster_id === formCluster)
                       .map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
                   </select>

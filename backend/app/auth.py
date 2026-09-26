@@ -80,23 +80,20 @@ def require_roles(allowed: list[str]):
 
 # ── Geo-scoped access ─────────────────────────────────────────────────────────
 #
-# Assignment storage per role:
-#   Regional Head            → zones.zonal_head_id          (scalar FK on Zone)
-#   District Anchor       → districts.district_anchor_id  (scalar FK on District)
-#   Education Coordinator → areas.education_coordinator_id (scalar FK on Area)
-#   Cluster Coordinator   → clusters.cluster_coordinator_id (scalar FK on Cluster)
-#   Teacher               → user_kutirs M2M              (managed by _sync_teachers)
-#
-# We query geo tables directly instead of user_* M2M tables (those are unused).
+# Assignment storage per role (all via M2M junction tables on the User model):
+#   Regional Head         → user_zones       (zone_id)
+#   District Anchor       → user_districts   (district_id)
+#   Education Coordinator → user_areas       (area_id)
+#   Cluster Coordinator   → user_clusters    (cluster_id)
+#   Teacher               → user_kutirs      (kutir_id)
 
 
 async def _get_assigned_ids(title: str, user_id: int, db: AsyncSession):
     """
     Return (zone_ids, district_ids, area_ids, cluster_ids, kutir_ids) as sets
-    for a non-admin user, by querying the scalar FK columns on each geo table.
+    for a non-admin user, by querying the M2M junction tables.
     """
-    from app.models.geo import Zone, District, Area, Cluster
-    from app.models.users import user_kutirs
+    from app.models.users import user_zones, user_districts, user_areas, user_clusters, user_kutirs
 
     z_ids: set[int] = set()
     d_ids: set[int] = set()
@@ -105,25 +102,23 @@ async def _get_assigned_ids(title: str, user_id: int, db: AsyncSession):
     k_ids: set[int] = set()
 
     if title == "Regional Head":
-        rows = await db.execute(select(Zone.id).where(Zone.zonal_head_id == user_id))
+        rows = await db.execute(select(user_zones.c.zone_id).where(user_zones.c.user_id == user_id))
         z_ids = {r[0] for r in rows.all()}
 
     elif title == "District Anchor":
-        rows = await db.execute(select(District.id).where(District.district_anchor_id == user_id))
+        rows = await db.execute(select(user_districts.c.district_id).where(user_districts.c.user_id == user_id))
         d_ids = {r[0] for r in rows.all()}
 
     elif title == "Education Coordinator":
-        rows = await db.execute(select(Area.id).where(Area.education_coordinator_id == user_id))
+        rows = await db.execute(select(user_areas.c.area_id).where(user_areas.c.user_id == user_id))
         a_ids = {r[0] for r in rows.all()}
 
     elif title == "Cluster Coordinator":
-        rows = await db.execute(select(Cluster.id).where(Cluster.cluster_coordinator_id == user_id))
+        rows = await db.execute(select(user_clusters.c.cluster_id).where(user_clusters.c.user_id == user_id))
         c_ids = {r[0] for r in rows.all()}
 
     elif title == "Teacher":
-        rows = await db.execute(
-            select(user_kutirs.c.kutir_id).where(user_kutirs.c.user_id == user_id)
-        )
+        rows = await db.execute(select(user_kutirs.c.kutir_id).where(user_kutirs.c.user_id == user_id))
         k_ids = {r[0] for r in rows.all()}
 
     return z_ids, d_ids, a_ids, c_ids, k_ids

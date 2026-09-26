@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listZones, listDistricts, listAreas, listClusters, createZone, createDistrict, createArea, createCluster, updateZone, updateDistrict, updateArea, updateCluster, deleteZone, deleteDistrict, deleteArea, deleteCluster } from "../api/geo";
 import { grs } from "../styles/grs";
@@ -22,6 +23,18 @@ export default function GeoPage() {
   const [form, setForm] = useState<Record<string, any>>({});
   const [formError, setFormError] = useState("");
   const qc = useQueryClient();
+
+  const { user } = useAuth();
+  const role = user?.title ?? "";
+  // canWrite[tab] = true if the current role may add/edit/delete that geo level
+  // Hierarchy: Zone(0) > District(1) > Area(2) > Cluster(3)
+  // A role can only mutate levels BELOW its assignment level
+  const canWrite: Record<Tab, boolean> = {
+    zones:     role === "Admin",
+    districts: role === "Admin",
+    areas:     ["Admin", "Regional Head", "District Anchor"].includes(role),
+    clusters:  ["Admin", "Regional Head", "District Anchor", "Education Coordinator"].includes(role),
+  };
 
   const { data: zones = [] }     = useQuery({ queryKey: ["zones"],           queryFn: listZones });
   const { data: districts = [] } = useQuery({ queryKey: ["districts", null], queryFn: () => listDistricts() });
@@ -134,9 +147,9 @@ export default function GeoPage() {
         searchPlaceholder={`Search ${tab}…`}
         exportFilename={tab}
         printTitle={tab.charAt(0).toUpperCase() + tab.slice(1)}
-        onAdd={() => { setShowForm(true); setEditRow(null); setForm({}); setFormError(""); }}
+        onAdd={canWrite[tab] ? () => { setShowForm(true); setEditRow(null); setForm({}); setFormError(""); } : undefined}
         addLabel={`+ Add ${addLabel}`}
-        actions={r => ({
+        actions={r => canWrite[tab] ? ({
           onEdit: () => {
             const raw =
               tab === "zones"     ? zones.find(z => z.id === r.id) :
@@ -151,7 +164,7 @@ export default function GeoPage() {
           onDelete: () => {
             if (confirm(`Delete "${r.name}"?`)) deleteMut.mutate(r.id);
           },
-        })}
+        }) : {}}
       />
 
       {showForm && (

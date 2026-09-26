@@ -123,6 +123,11 @@ export default function UsersPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.title === "Admin";
+  const MANAGER_ROLES_UI = ["Admin", "Regional Head", "District Anchor", "Education Coordinator"];
+  const canManage = MANAGER_ROLES_UI.includes(user?.title ?? "");
+  // A user can only assign roles strictly below their own level
+  const myRoleIndex = TITLES.indexOf(user?.title ?? "");
+  const assignableTitles = user?.title === "Admin" ? TITLES : (myRoleIndex === -1 ? [] : TITLES.slice(0, myRoleIndex));
 
   useEffect(() => {
     if (window.location.search.includes("_=")) {
@@ -168,6 +173,27 @@ export default function UsersPage() {
   const filteredKutirs = useMemo(() =>
     filterCluster ? allKutirs.filter(k => k.cluster_id === filterCluster) : [],
     [allKutirs, filterCluster]);
+
+  // Auto-select filter when only one option exists (add mode only)
+  useEffect(() => {
+    if (!showForm || editId !== null) return;
+    if (allZones.length === 1 && filterZone === null) setFilterZone(allZones[0].id);
+  }, [showForm, allZones.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!showForm || editId !== null || filterZone === null) return;
+    if (filteredDistricts.length === 1 && filterDistrict === null) setFilterDistrict(filteredDistricts[0].id);
+  }, [showForm, filterZone, filteredDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!showForm || editId !== null || filterDistrict === null) return;
+    if (filteredAreas.length === 1 && filterArea === null) setFilterArea(filteredAreas[0].id);
+  }, [showForm, filterDistrict, filteredAreas.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!showForm || editId !== null || filterArea === null) return;
+    if (filteredClusters.length === 1 && filterCluster === null) setFilterCluster(filteredClusters[0].id);
+  }, [showForm, filterArea, filteredClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const leaf = ROLE_LEAF[form.title] ?? null;
 
@@ -511,7 +537,7 @@ export default function UsersPage() {
         rowKey={u => u.id}
         isLoading={isLoading}
         emptyMessage="No users found."
-        actions={u => ({ onEdit: () => openEdit(u), onDelete: () => handleDelete(u) })}
+        actions={canManage ? (u => ({ onEdit: () => openEdit(u), onDelete: () => handleDelete(u) })) : undefined}
         searchable
         searchFn={(u, q) => {
           const s = q.toLowerCase();
@@ -531,7 +557,7 @@ export default function UsersPage() {
         ) : undefined}
         exportFilename="users"
         printTitle="Users"
-        onAdd={() => { setShowForm(true); setFormError(""); }}
+        onAdd={canManage ? () => { setShowForm(true); setFormError(""); } : undefined}
         addLabel="Add User"
       />
 
@@ -592,7 +618,7 @@ export default function UsersPage() {
               <div style={{ marginBottom: 10 }}>
                 <label style={grs.fieldLabel}>Role</label>
                 <select style={grs.select} value={form.title} onChange={e => handleRoleChange(e.target.value)}>
-                  {TITLES.map(t => <option key={t}>{t}</option>)}
+                  {assignableTitles.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
 
