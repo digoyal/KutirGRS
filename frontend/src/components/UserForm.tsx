@@ -92,15 +92,15 @@ export function UserForm({
   filterZone, setFilterZone, filterDistrict, setFilterDistrict,
   filterArea, setFilterArea, filterCluster, setFilterCluster,
 }: UserFormProps) {
-  const { data: allZonesRaw }        = useQuery<Zone[]>({ queryKey: ["zones"],        queryFn: listZones });
+  const { data: allZonesRaw }        = useQuery<Zone[]>({ queryKey: ["zones"],        queryFn: () => listZones() });
   const allZones: Zone[] = allZonesRaw ?? [];
-  const { data: allDistrictsRaw }    = useQuery<District[]>({ queryKey: ["districts"],    queryFn: listDistricts });
+  const { data: allDistrictsRaw }    = useQuery<District[]>({ queryKey: ["districts"],    queryFn: () => listDistricts() });
   const allDistricts: District[] = allDistrictsRaw ?? [];
-  const { data: allAreasRaw }        = useQuery<Area[]>({ queryKey: ["areas"],        queryFn: listAreas });
+  const { data: allAreasRaw }        = useQuery<Area[]>({ queryKey: ["areas"],        queryFn: () => listAreas() });
   const allAreas: Area[] = allAreasRaw ?? [];
-  const { data: allClustersRaw }     = useQuery<Cluster[]>({ queryKey: ["clusters"],     queryFn: listClusters });
+  const { data: allClustersRaw }     = useQuery<Cluster[]>({ queryKey: ["clusters"],     queryFn: () => listClusters() });
   const allClusters: Cluster[] = allClustersRaw ?? [];
-  const { data: allKutirsRaw }       = useQuery<Kutir[]>({ queryKey: ["kutirs"],       queryFn: listKutirs });
+  const { data: allKutirsRaw }       = useQuery<Kutir[]>({ queryKey: ["kutirs"],       queryFn: () => listKutirs() });
   const allKutirs: Kutir[] = allKutirsRaw ?? [];
 
   const filteredDistricts = useMemo(() => filterZone ? allDistricts.filter(d => d.zone_id === filterZone) : allDistricts, [allDistricts, filterZone]);
