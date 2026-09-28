@@ -4,8 +4,8 @@
  */
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listZones, listDistricts, listAreas, listClusters } from "../api/geo";
-import { listKutirs } from "../api/kutirs";
+import { listZones, listDistricts, listAreas, listClusters, type Zone, type District, type Area, type Cluster } from "../api/geo";
+import { listKutirs, type Kutir } from "../api/kutirs";
 import { grs } from "../styles/grs";
 
 export const TITLES = [
@@ -92,11 +92,11 @@ export function UserForm({
   filterZone, setFilterZone, filterDistrict, setFilterDistrict,
   filterArea, setFilterArea, filterCluster, setFilterCluster,
 }: UserFormProps) {
-  const { data: allZones = [] }     = useQuery({ queryKey: ["zones"],        queryFn: listZones });
-  const { data: allDistricts = [] } = useQuery({ queryKey: ["districts"],    queryFn: listDistricts });
-  const { data: allAreas = [] }     = useQuery({ queryKey: ["areas"],        queryFn: listAreas });
-  const { data: allClusters = [] }  = useQuery({ queryKey: ["clusters"],     queryFn: listClusters });
-  const { data: allKutirs = [] }    = useQuery({ queryKey: ["kutirs"],       queryFn: listKutirs });
+  const { data: allZones = [] }     = useQuery<Zone[]>({ queryKey: ["zones"],        queryFn: listZones });
+  const { data: allDistricts = [] } = useQuery<District[]>({ queryKey: ["districts"],    queryFn: listDistricts });
+  const { data: allAreas = [] }     = useQuery<Area[]>({ queryKey: ["areas"],        queryFn: listAreas });
+  const { data: allClusters = [] }  = useQuery<Cluster[]>({ queryKey: ["clusters"],     queryFn: listClusters });
+  const { data: allKutirs = [] }    = useQuery<Kutir[]>({ queryKey: ["kutirs"],       queryFn: listKutirs });
 
   const filteredDistricts = useMemo(() => filterZone ? allDistricts.filter(d => d.zone_id === filterZone) : allDistricts, [allDistricts, filterZone]);
   const filteredAreas     = useMemo(() => filterDistrict ? allAreas.filter(a => a.district_id === filterDistrict) : allAreas, [allAreas, filterDistrict]);

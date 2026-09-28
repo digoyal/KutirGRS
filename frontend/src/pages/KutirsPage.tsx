@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listKutirs, deleteKutir, type Kutir } from "../api/kutirs";
+import { listKutirs, deleteKutir } from "../api/kutirs";
 import { useAuth } from "../context/AuthContext";
 import { listClusters, listAreas, listDistricts } from "../api/geo";
 import { grs } from "../styles/grs";

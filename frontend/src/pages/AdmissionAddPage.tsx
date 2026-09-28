@@ -9,7 +9,7 @@ import { useAuth } from "../context/AuthContext";
 import { listKutirs } from "../api/kutirs";
 import { grs } from "../styles/grs";
 import { listDistricts, listExamCenters, listExamCategories, listNoExamReasons, listNoAdmitReasons } from "../api/geo";
-import { STAGES, type StageKey, PipelineStepper, subjectsForExamType } from "../components/admissions-pipeline";
+import { type StageKey, PipelineStepper, subjectsForExamType } from "../components/admissions-pipeline";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
@@ -353,7 +353,7 @@ export default function AdmissionAddPage() {
         <section style={sec}>
           <div style={secTitle}>Scores</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {subjects.map(subj => (
+            {subjects.map((subj: any) => (
               <div key={subj.id}>
                 <label style={grs.fieldLabel}>{subj.name}</label>
                 <input
