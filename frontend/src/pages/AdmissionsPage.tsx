@@ -7,7 +7,6 @@ import { listStudents } from "../api/students";
 import { listSchools } from "../api/schools";
 import { useAuth } from "../context/AuthContext";
 import { listKutirs } from "../api/kutirs";
-import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";

@@ -50,16 +50,18 @@ export default function AdmissionDetailPage() {
   const [saveError, setSaveError] = useState("");
 
   // Load exam
-  const { data: exam, isLoading } = useQuery({
+  const { data: exam, isLoading } = useQuery<StudentExam>({
     queryKey: ["admission", id],
     queryFn: () => getExam(Number(id)),
     enabled: !!id && !isNaN(Number(id)),
-    onSuccess: (e: StudentExam) => {
-      setForm({ ...e });
-      setSchoolType(e.school_type ?? "");
-      setScoreInputs(Object.fromEntries((e.scores ?? []).map(s => [s.subject_id, s.score != null ? String(s.score) : ""])));
-    },
-  } as any);
+  });
+
+  useEffect(() => {
+    if (!exam) return;
+    setForm({ ...exam });
+    setSchoolType(exam.school_type ?? "");
+    setScoreInputs(Object.fromEntries((exam.scores ?? []).map(s => [s.subject_id, s.score != null ? String(s.score) : ""])));
+  }, [exam?.student_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load student name
   const { data: student } = useQuery({
@@ -421,7 +423,7 @@ export default function AdmissionDetailPage() {
         <section style={sec}>
           <div style={secTitle}>Scores</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {subjects.map(subj => (
+            {subjects.map((subj: any) => (
               <div key={subj.id}>
                 <label style={grs.fieldLabel}>{subj.name}</label>
                 <input

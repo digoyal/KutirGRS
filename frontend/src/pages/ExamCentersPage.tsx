@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listExamCenters, listDistricts, deleteExamCenter } from "../api/geo";
-import type { ExamCenter } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
