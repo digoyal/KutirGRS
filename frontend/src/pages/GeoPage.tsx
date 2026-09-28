@@ -148,7 +148,7 @@ export default function GeoPage() {
         exportFilename={tab}
         printTitle={tab.charAt(0).toUpperCase() + tab.slice(1)}
         onAdd={canWrite[tab] ? () => { setShowForm(true); setEditRow(null); setForm({}); setFormError(""); } : undefined}
-        addLabel={`+ Add ${addLabel}`}
+        addLabel="+ Add"
         actions={r => canWrite[tab] ? ({
           onEdit: () => {
             const raw =
