@@ -29,7 +29,7 @@ npm ci --silent
 npm run build
 
 echo "=== [5/5] Restarting services ==="
-sudo systemctl restart kutir-backend || true
+sudo systemctl restart sevakutir || true
 
 echo "=== Deploy complete ==="
 """.format(root=PROJECT_ROOT)
