@@ -25,7 +25,11 @@ export const deleteCluster = async (id: number): Promise<void>                  
 
 // ── Exam Centers ─────────────────────────────────────────────────────────────
 export interface ExamCenter { id: number; name: string; district_id?: number | null; street?: string | null; city?: string | null; state?: string | null; pincode?: string | null; }
-export const listExamCenters = async (): Promise<ExamCenter[]> => (await api.get("/geo/exam-centers")).data;
+export const listExamCenters  = async (): Promise<ExamCenter[]>                                    => (await api.get("/geo/exam-centers")).data;
+export const getExamCenter    = async (id: number): Promise<ExamCenter>                            => (await api.get(`/geo/exam-centers/${id}`)).data;
+export const createExamCenter = async (data: Omit<ExamCenter, "id">): Promise<ExamCenter>          => (await api.post("/geo/exam-centers", data)).data;
+export const updateExamCenter = async (id: number, data: Partial<ExamCenter>): Promise<ExamCenter> => (await api.put(`/geo/exam-centers/${id}`, data)).data;
+export const deleteExamCenter = async (id: number): Promise<void>                                  => { await api.delete(`/geo/exam-centers/${id}`); };
 
 // ── Lookups ──────────────────────────────────────────────────────────────────
 export interface ExamCategory   { id: number; name: string; }

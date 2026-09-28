@@ -1,24 +1,14 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listStudentsPaged, createStudent, deleteStudent, type Student, type StudentCreate } from "../api/students";
+import { listStudentsPaged, deleteStudent, type Student } from "../api/students";
 import { listKutirs } from "../api/kutirs";
-import { listDistricts, listAreas, listClusters, listCategories, listSubCategories, type Category, type SubCategory } from "../api/geo";
+import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { STUDENTS_FIELDS } from "../constants/studentsFields";
-
-const EMPTY_FORM: StudentCreate = {
-  first_name: "", last_name: "", gender: "Boy",
-  kutir_id: null, dob: null, phone: null, email: null,
-  father_name: null, mother_name: null,
-  category_id: null, sub_category_id: null,
-  alt_contact_name: null, alt_contact_phone: null,
-  aadhaar: false, category_cert: false, birth_cert: false,
-  residence_proof: false, medical: false,
-};
 
 type EnrichedStudent = Student & { docsCount: number; addedDate: string };
 
@@ -30,6 +20,16 @@ export default function StudentsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const isAdmin = user?.title === "Admin";
+  const navigate = useNavigate();
+
+  // Restore filter state saved before navigating to an edit/add page
+  const _savedFilters = (() => {
+    try {
+      const s = sessionStorage.getItem("students_filter_state");
+      if (s) { sessionStorage.removeItem("students_filter_state"); return JSON.parse(s); }
+    } catch {}
+    return null;
+  })();
 
   useEffect(() => {
     if (window.location.search.includes("_=")) {
@@ -58,32 +58,19 @@ export default function StudentsPage() {
     if (user.title === "Teacher" && user.kutir_ids.length > 0) return user.kutir_ids[0];
     return "";
   })();
-  const [filterDistrict, setFilterDistrict] = useState<number | "">(defaultDistrict);
-  const [filterCluster, setFilterCluster] = useState<number | "">(defaultCluster);
-  const [filterKutir, setFilterKutir] = useState<number | "">(defaultKutir);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? defaultDistrict);
+  const [filterCluster, setFilterCluster] = useState<number | "">(_savedFilters?.cluster ?? defaultCluster);
+  const [filterKutir, setFilterKutir] = useState<number | "">(_savedFilters?.kutir ?? defaultKutir);
+  const [searchQuery, setSearchQuery] = useState(_savedFilters?.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(_savedFilters?.search ?? "");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const PAGE_SIZE = 25;
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(_savedFilters?.page ?? 1);
   const handleSearch = (q: string) => {
     setSearchQuery(q);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
   };
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<StudentCreate>(EMPTY_FORM);
-  const [formError, setFormError] = useState("");
-  const [formCategoryId, setFormCategoryId] = useState<number | null>(null);
-  const [formDistrict, setFormDistrict] = useState<number | null>(null);
-  const [formCluster, setFormCluster] = useState<number | null>(null);
-
-  const { data: categories = [] } = useQuery<Category[]>({ queryKey: ["categories"], queryFn: listCategories });
-  const { data: subCategories = [] } = useQuery<SubCategory[]>({
-    queryKey: ["sub-categories", formCategoryId],
-    queryFn: () => listSubCategories(formCategoryId ?? undefined),
-    enabled: formCategoryId !== null,
-  });
 
   const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "" || debouncedSearch !== "";
   const { data: studentsPage, isLoading } = useQuery({
@@ -121,6 +108,7 @@ export default function StudentsPage() {
     : user.kutir_ids.length > 0
       ? allKutirs.filter(k => user.kutir_ids.includes(k.id))
       : allKutirs;
+
   // Auto-select when scoped to a single district / cluster
   useEffect(() => {
     if (scopedDistricts.length === 1 && filterDistrict === "") {
@@ -141,56 +129,22 @@ export default function StudentsPage() {
     filterCluster !== "" ? k.cluster_id === filterCluster : true
   );
 
-  // Auto-populate modal district/cluster when form opens
-  useEffect(() => {
-    if (!showForm) return;
-    if (scopedDistricts.length === 1) {
-      const d = scopedDistricts[0].id;
-      setFormDistrict(d);
-      const clustersForDistrict = scopedClusters.filter(
-        c => areaMap.get(c.area_id)?.district_id === d
-      );
-      if (clustersForDistrict.length === 1) setFormCluster(clustersForDistrict[0].id);
-    }
-  }, [showForm]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // When district changes in modal, auto-select cluster if exactly one
-  useEffect(() => {
-    if (!formDistrict || !showForm) return;
-    const clustersForDistrict = scopedClusters.filter(
-      c => areaMap.get(c.area_id)?.district_id === formDistrict
-    );
-    if (clustersForDistrict.length === 1) setFormCluster(clustersForDistrict[0].id);
-  }, [formDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // When cluster changes in modal, auto-select kutir if exactly one
-  useEffect(() => {
-    if (!formCluster || !showForm) return;
-    const kutirForCluster = scopedKutirs.filter(k => k.cluster_id === formCluster);
-    if (kutirForCluster.length === 1) setForm(f => ({ ...f, kutir_id: kutirForCluster[0].id }));
-  }, [formCluster]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const enriched: EnrichedStudent[] = students.map(s => ({
     ...s,
     docsCount: docCount(s),
     addedDate: new Date(s.created_at).toLocaleDateString("en-IN"),
   }));
 
-  const createMut = useMutation({
-    mutationFn: createStudent,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["students"] }); setShowForm(false); setForm(EMPTY_FORM); setFormError(""); setFormDistrict(null); setFormCluster(null); },
-    onError: (e: any) => setFormError(e?.response?.data?.detail ?? "Failed to create student"),
-  });
-
   const deleteMut = useMutation({
     mutationFn: deleteStudent,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["students"] }),
   });
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.first_name.trim() || !form.last_name.trim()) { setFormError("First and last name are required"); return; }
-    createMut.mutate(form);
+  function saveFilters() {
+    sessionStorage.setItem("students_filter_state", JSON.stringify({
+      district: filterDistrict, cluster: filterCluster,
+      kutir: filterKutir, search: searchQuery, page,
+    }));
   }
 
   const allColumns: Col<EnrichedStudent>[] = [
@@ -336,176 +290,23 @@ export default function StudentsPage() {
         isLoading={isLoading}
         emptyMessage={hasFilter ? "No students found." : "Select a district or search by name to view students."}
         pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: studentTotal, onPageChange: setPage } : undefined}
-        actions={s => ({ onView: () => window.location.href = `/students/${s.id}`, onEdit: () => window.location.href = `/students/${s.id}`, onDelete: () => { if (confirm(`Delete ${s.first_name} ${s.last_name}?`)) deleteMut.mutate(s.id); } })}
+        actions={s => ({
+          onView: () => { saveFilters(); navigate(`/students/${s.id}`); },
+          onEdit: () => {
+            saveFilters();
+            navigate(`/students/${s.id}?edit=1`);
+          },
+          onDelete: () => { if (confirm(`Delete ${s.first_name} ${s.last_name}?`)) deleteMut.mutate(s.id); },
+        })}
         searchable
         searchPlaceholder="Search by name, phone…"
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
         filters={geoFilters}
-        headerExtra={isAdmin ? (
-          <a href="/admin/field-config?table=students" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8125rem", color: "var(--text-secondary)", textDecoration: "none", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 6 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            <span>Columns</span>
-          </a>
-        ) : undefined}
         exportFilename="students"
         printTitle="Students"
-        onAdd={() => { setShowForm(false); setForm(EMPTY_FORM); setFormDistrict(null); setFormCluster(null); setFormError(""); setTimeout(() => setShowForm(true), 0); }}
-        addLabel="+ Add Student"
+        onAdd={() => { saveFilters(); navigate("new"); }}
       />
-
-      {showForm && (
-        <div style={grs.overlay}>
-          <div style={grs.modal}>
-            <h3 style={grs.modalTitle}>Add Student</h3>
-            {formError && <p style={grs.errorBox}>{formError}</p>}
-            <form onSubmit={handleSubmit}>
-              {/* Kutir selector: District → Cluster → Kutir */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-                <div>
-                  <label style={grs.fieldLabel}>District</label>
-                  <select style={grs.select} value={formDistrict ?? ""} onChange={e => {
-                    const id = Number(e.target.value) || null;
-                    setFormDistrict(id);
-                    setFormCluster(null);
-                    setForm(f => ({ ...f, kutir_id: null }));
-                  }}>
-                    {isAdmin && <option value="">— any —</option>}
-                    {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={grs.fieldLabel}>Cluster</label>
-                  <select style={grs.select} value={formCluster ?? ""} disabled={!formDistrict} onChange={e => {
-                    const id = Number(e.target.value) || null;
-                    setFormCluster(id);
-                    setForm(f => ({ ...f, kutir_id: null }));
-                  }}>
-                    <option value="">— Select —</option>
-                    {scopedClusters
-                      .filter(c => !formDistrict || areaMap.get(c.area_id)?.district_id === formDistrict)
-                      .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={grs.fieldLabel}>Kutir</label>
-                  <select style={grs.select} value={form.kutir_id ?? ""} disabled={!formCluster} onChange={e => setForm(f => ({ ...f, kutir_id: Number(e.target.value) || null }))}>
-                    <option value="">— select —</option>
-                    {scopedKutirs
-                      .filter(k => !formCluster || k.cluster_id === formCluster)
-                      .map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              {/* Row 1: First Name + Last Name */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={grs.fieldLabel}>First Name *</label>
-                  <input style={grs.input} value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={grs.fieldLabel}>Last Name *</label>
-                  <input style={grs.input} value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} />
-                </div>
-              </div>
-              {/* Row 2: Gender + DOB */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={grs.fieldLabel}>Gender</label>
-                  <select style={grs.select} value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}>
-                    <option>Boy</option>
-                    <option>Girl</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={grs.fieldLabel}>Date of Birth</label>
-                  <input style={grs.input} type="date" value={form.dob ?? ""} onChange={e => setForm(f => ({ ...f, dob: e.target.value || null }))} />
-                </div>
-              </div>
-              {/* Row 3: Category + Sub-Category */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={grs.fieldLabel}>Category</label>
-                  <select style={grs.select} value={formCategoryId ?? ""} onChange={e => {
-                    const id = Number(e.target.value) || null;
-                    setFormCategoryId(id);
-                    setForm(f => ({ ...f, category_id: id, sub_category_id: null }));
-                  }}>
-                    <option value="">— none —</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={grs.fieldLabel}>Sub-Category</label>
-                  <select style={grs.select} value={form.sub_category_id ?? ""} onChange={e => setForm(f => ({ ...f, sub_category_id: Number(e.target.value) || null }))} disabled={!formCategoryId}>
-                    <option value="">— none —</option>
-                    {subCategories.map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              {/* Row 4: Father's Name + Mother's Name */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={grs.fieldLabel}>Father's Name</label>
-                  <input style={grs.input} value={form.father_name ?? ""} onChange={e => setForm(f => ({ ...f, father_name: e.target.value || null }))} />
-                </div>
-                <div>
-                  <label style={grs.fieldLabel}>Mother's Name</label>
-                  <input style={grs.input} value={form.mother_name ?? ""} onChange={e => setForm(f => ({ ...f, mother_name: e.target.value || null }))} />
-                </div>
-              </div>
-              {/* Row 5: Phone + Email */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={grs.fieldLabel}>Phone</label>
-                  <input style={grs.input} value={form.phone ?? ""} onChange={e => setForm(f => ({ ...f, phone: e.target.value || null }))} />
-                </div>
-                <div>
-                  <label style={grs.fieldLabel}>Email</label>
-                  <input style={grs.input} type="email" value={form.email ?? ""} onChange={e => setForm(f => ({ ...f, email: e.target.value || null }))} />
-                </div>
-              </div>
-              {/* Row 6: Alt Contact Name + Alt Contact Phone */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <div>
-                  <label style={grs.fieldLabel}>Alt Contact Name</label>
-                  <input style={grs.input} value={form.alt_contact_name ?? ""} onChange={e => setForm(f => ({ ...f, alt_contact_name: e.target.value || null }))} />
-                </div>
-                <div>
-                  <label style={grs.fieldLabel}>Alt Contact Phone</label>
-                  <input style={grs.input} value={form.alt_contact_phone ?? ""} onChange={e => setForm(f => ({ ...f, alt_contact_phone: e.target.value || null }))} />
-                </div>
-              </div>
-              {/* Documents */}
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ ...grs.fieldLabel, marginBottom: 6 }}>Documents Collected</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                  {([
-                    ["aadhaar", "Aadhaar"],
-                    ["category_cert", "Category Cert"],
-                    ["birth_cert", "Birth Cert"],
-                    ["residence_proof", "Residence Proof"],
-                    ["medical", "Medical"],
-                  ] as const).map(([key, label]) => (
-                    <label key={key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, cursor: "pointer", color: "var(--text-primary)" }}>
-                      <input type="checkbox" checked={!!form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.checked }))} />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                <button type="submit" style={grs.btnPrimary} disabled={createMut.isPending}>
-                  {createMut.isPending ? "Saving…" : "Save"}
-                </button>
-                <button type="button" style={grs.btnSecondary} onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setFormCategoryId(null); setFormDistrict(null); setFormCluster(null); }}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

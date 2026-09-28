@@ -31,6 +31,7 @@ from app.routers.students import router as students_router
 from app.routers.visits import router as visits_router
 from app.routers.settings import router as settings_router
 from app.routers.import_data import router as import_router
+from app.routers.deploy import router as deploy_router
 
 
 @asynccontextmanager
@@ -71,6 +72,7 @@ app.include_router(students_router, prefix=PREFIX)
 app.include_router(visits_router, prefix=PREFIX)
 app.include_router(settings_router, prefix=PREFIX)
 app.include_router(import_router, prefix=PREFIX)
+app.include_router(deploy_router, prefix=PREFIX)
 
 
 @app.get("/health", tags=["Health"])

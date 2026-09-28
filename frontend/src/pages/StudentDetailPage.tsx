@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStudent, updateStudent, type Student } from "../api/students";
 import { listKutirs } from "../api/kutirs";
 import type { Kutir } from "../api/kutirs";
-import { listDistricts, listClusters, listCategories, listSubCategories } from "../api/geo";
+import { listDistricts, listAreas, listClusters, listCategories, listSubCategories } from "../api/geo";
 import type { District, Cluster, Category, SubCategory } from "../api/geo";
 import { grs } from "../styles/grs";
+import { useAuth } from "../context/AuthContext";
 
 const DOCS: { key: keyof Student; label: string }[] = [
   { key: "aadhaar",        label: "Aadhaar Card" },
@@ -21,19 +22,33 @@ export default function StudentDetailPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const qc = useQueryClient();
-  const [editing, setEditing] = useState(() => searchParams.get("edit") === "1");
+  const { user } = useAuth();
+  const enteredViaEdit = searchParams.get("edit") === "1";
+  const [editing, setEditing] = useState(enteredViaEdit);
   const [form, setForm] = useState<Partial<Student>>({});
   const [saveError, setSaveError] = useState("");
+
+  // null = "not set by user" (fall back to reactive derivation)
+  // "" or number = explicit user choice
+  const [districtOverride, setDistrictOverride] = useState<number | "" | null>(null);
+  const [clusterOverride, setClusterOverride]   = useState<number | "" | null>(null);
 
   const { data: student, isLoading } = useQuery({
     queryKey: ["student", id],
     queryFn: () => getStudent(Number(id)),
-    onSuccess: (s: Student) => setForm(s),
-  } as any);
+    enabled: !!id && !isNaN(Number(id)),
+  });
+
+  // Initialize form from student once loaded (onSuccess removed in TanStack Query v5)
+  useEffect(() => {
+    if (student) setForm(student);
+  }, [student]);
 
   const { data: kutirs = [] }    = useQuery<Kutir[]>({ queryKey: ["all-kutirs"],    queryFn: () => listKutirs() });
   const { data: districts = [] } = useQuery<District[]>({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
+  const { data: areas = [] }     = useQuery<any[]>({ queryKey: ["all-areas"],     queryFn: () => listAreas() });
   const { data: clusters = [] }  = useQuery<Cluster[]>({ queryKey: ["all-clusters"],  queryFn: () => listClusters() });
+  const areaMap = useMemo(() => new Map(areas.map((a: any) => [a.id, a])), [areas]);
   const { data: categories = [] }= useQuery<Category[]>({ queryKey: ["categories"],    queryFn: () => listCategories() });
   const formCategoryId = (form.category_id as number | null) ?? null;
   const { data: subCategories = [] } = useQuery({
@@ -42,13 +57,80 @@ export default function StudentDetailPage() {
     enabled: formCategoryId != null,
   });
 
+  // ── Role-scoped options ───────────────────────────────────────────────────
+  const scopedKutirs = useMemo(() => {
+    if (!user || user.title === "Admin") return kutirs;
+    return user.kutir_ids?.length > 0
+      ? kutirs.filter(k => user.kutir_ids.includes(k.id))
+      : kutirs;
+  }, [kutirs, user]);
+
+  const scopedClusterIds = useMemo(
+    () => new Set(scopedKutirs.map(k => (k as any).cluster_id).filter(Boolean)),
+    [scopedKutirs],
+  );
+  const scopedClusters = useMemo(
+    () => clusters.filter(c => scopedClusterIds.has(c.id)),
+    [clusters, scopedClusterIds],
+  );
+  const scopedDistrictIds = useMemo(
+    () => new Set(scopedClusters.map(c => areaMap.get((c as any).area_id)?.district_id).filter(Boolean)),
+    [scopedClusters, areaMap],
+  );
+  const scopedDistricts = useMemo(
+    () => districts.filter(d => scopedDistrictIds.has(d.id)),
+    [districts, scopedDistrictIds],
+  );
+
+  // ── Reactively derive district/cluster from form.kutir_id ─────────────────
+  // No useEffect needed — these update instantly whenever form.kutir_id or
+  // reference data changes, eliminating the timing race.
+  const formKutir    = useMemo(() => kutirs.find(k => k.id === form.kutir_id), [kutirs, form.kutir_id]);
+  const formCluster  = useMemo(() => formKutir ? clusters.find(c => c.id === (formKutir as any).cluster_id) : undefined, [clusters, formKutir]);
+  // cluster → area → district (three-level chain)
+  const formArea     = useMemo(() => formCluster ? areaMap.get((formCluster as any).area_id) : undefined, [areaMap, formCluster]);
+  const formDistrict = useMemo(() => formArea ? districts.find(d => d.id === (formArea as any).district_id) : undefined, [districts, formArea]);
+
+  const singleScopedDistrict = scopedDistricts.length === 1 ? scopedDistricts[0] : undefined;
+
+  // Priority: explicit user override → student's existing kutir chain → single scoped district
+  const effectiveDistrictFilter: number | "" =
+    districtOverride !== null  ? districtOverride :
+    formDistrict               ? formDistrict.id :
+    singleScopedDistrict       ? singleScopedDistrict.id : "";
+
+  const filteredClusters = useMemo(
+    () => effectiveDistrictFilter === ""
+      ? scopedClusters
+      : scopedClusters.filter(c => areaMap.get((c as any).area_id)?.district_id === effectiveDistrictFilter),
+    [scopedClusters, effectiveDistrictFilter, areaMap],
+  );
+
+  const singleFilteredCluster = filteredClusters.length === 1 ? filteredClusters[0] : undefined;
+
+  // Priority: explicit user override → student's existing cluster → single filtered cluster
+  const effectiveClusterFilter: number | "" =
+    clusterOverride !== null   ? clusterOverride :
+    formCluster                ? formCluster.id :
+    singleFilteredCluster      ? singleFilteredCluster.id : "";
+
+  const filteredClusterIds = useMemo(() => new Set(filteredClusters.map(c => c.id)), [filteredClusters]);
+  const filteredKutirs = useMemo(
+    () => effectiveClusterFilter !== ""
+      ? scopedKutirs.filter(k => (k as any).cluster_id === effectiveClusterFilter)
+      : effectiveDistrictFilter !== ""
+        ? scopedKutirs.filter(k => filteredClusterIds.has((k as any).cluster_id))
+        : scopedKutirs,
+    [scopedKutirs, effectiveClusterFilter, effectiveDistrictFilter, filteredClusterIds],
+  );
+
+  // ── Mutation ──────────────────────────────────────────────────────────────
   const updateMut = useMutation({
     mutationFn: (data: Partial<Student>) => updateStudent(Number(id), data),
     onSuccess: (updated: Student) => {
       qc.setQueryData(["student", id], updated);
       qc.invalidateQueries({ queryKey: ["students"] });
-      setEditing(false);
-      setSaveError("");
+      if (enteredViaEdit) { navigate(-1); } else { setEditing(false); setSaveError(""); }
     },
     onError: (e: any) => setSaveError(e?.response?.data?.detail ?? "Save failed"),
   });
@@ -61,8 +143,8 @@ export default function StudentDetailPage() {
   // Derived display values for view mode
   const kutir    = kutirs.find(k => k.id === s.kutir_id);
   const cluster  = clusters.find(c => c.id === (kutir as any)?.cluster_id);
-  const district = districts.find(d => { const area_id = (cluster as any)?.area_id; return !!area_id && (d as any).id === area_id; });
-  const category    = categories.find(c => c.id === s.category_id);
+  const district = districts.find(d => d.id === (cluster as any)?.area_id);
+  const category = categories.find(c => c.id === s.category_id);
 
   function inp(label: string, key: keyof Student, type = "text") {
     return (
@@ -90,9 +172,6 @@ export default function StudentDetailPage() {
         <button style={{ background: "none", border: "none", color: "var(--link-color)", cursor: "pointer", fontSize: 14, padding: 0 }}
           onClick={() => navigate("/students")}>← Back</button>
         <h2 style={{ margin: 0, fontSize: 20 }}>{s.first_name} {s.last_name}</h2>
-        {!editing && (
-          <button style={{ ...grs.btnPrimary, marginLeft: "auto" }} onClick={() => { setEditing(true); setForm(s); }}>Edit</button>
-        )}
       </div>
 
       {saveError && (
@@ -108,18 +187,27 @@ export default function StudentDetailPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
             <div>
               <label style={grs.fieldLabel}>District</label>
-              <select style={grs.select} value={(form as any).district_filter ?? district?.id ?? ""}
-                onChange={() => setForm(f => ({ ...f, kutir_id: null }))}>
+              <select style={grs.select} value={effectiveDistrictFilter}
+                onChange={e => {
+                  const v = e.target.value === "" ? "" : Number(e.target.value);
+                  setDistrictOverride(v);
+                  setClusterOverride("");
+                  setForm(f => ({ ...f, kutir_id: null }));
+                }}>
                 <option value="">— any —</option>
-                {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div>
               <label style={grs.fieldLabel}>Cluster</label>
-              <select style={grs.select} value={cluster?.id ?? ""}
-                onChange={() => setForm(f => ({ ...f, kutir_id: null }))}>
+              <select style={grs.select} value={effectiveClusterFilter}
+                onChange={e => {
+                  const v = e.target.value === "" ? "" : Number(e.target.value);
+                  setClusterOverride(v);
+                  setForm(f => ({ ...f, kutir_id: null }));
+                }}>
                 <option value="">— any —</option>
-                {clusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {filteredClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
@@ -127,7 +215,7 @@ export default function StudentDetailPage() {
               <select style={grs.select} value={form.kutir_id ?? ""}
                 onChange={e => setForm(f => ({ ...f, kutir_id: Number(e.target.value) || null }))}>
                 <option value="">— select —</option>
-                {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+                {filteredKutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
               </select>
             </div>
           </div>
@@ -144,13 +232,11 @@ export default function StudentDetailPage() {
       <section style={sec}>
         <div style={secTitle}>Personal Info</div>
 
-        {/* First + Last Name */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           {inp("First Name", "first_name")}
           {inp("Last Name", "last_name")}
         </div>
 
-        {/* Gender + DOB + Class */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 110px", gap: 8, marginBottom: 8 }}>
           <div>
             <label style={grs.fieldLabel}>Gender</label>
@@ -164,15 +250,14 @@ export default function StudentDetailPage() {
           {inp("Date of Birth", "dob", "date")}
         </div>
 
-        {/* Category + Sub-category */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           <div>
             <label style={grs.fieldLabel}>Category</label>
             {editing
               ? <select style={grs.select} value={form.category_id ?? ""}
                   onChange={e => {
-                    const id = Number(e.target.value) || null;
-                    setForm(f => ({ ...f, category_id: id, sub_category_id: null }));
+                    const cid = Number(e.target.value) || null;
+                    setForm(f => ({ ...f, category_id: cid, sub_category_id: null }));
                   }}>
                   <option value="">— none —</option>
                   {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -192,7 +277,6 @@ export default function StudentDetailPage() {
           </div>
         </div>
 
-        {/* Phone + Email */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {inp("Phone", "phone")}
           {inp("Email", "email", "email")}
@@ -242,13 +326,30 @@ export default function StudentDetailPage() {
         </div>
       </section>
 
+      {/* ── Edit button (view mode) ── */}
+      {!editing && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <button style={grs.btnPrimary} onClick={() => setEditing(true)}>Edit</button>
+        </div>
+      )}
+
       {/* ── Save / Cancel (edit mode) ── */}
       {editing && (
         <div style={{ display: "flex", gap: 10, marginTop: 12, justifyContent: "flex-end" }}>
           <button style={grs.btnSecondary}
-            onClick={() => { setEditing(false); setForm(s); setSaveError(""); }}>Cancel</button>
+            onClick={() => {
+              if (enteredViaEdit) navigate(-1);
+              else {
+                setEditing(false);
+                setForm(s);
+                setSaveError("");
+                // Reset overrides → district/cluster revert to the student's saved kutir chain
+                setDistrictOverride(null);
+                setClusterOverride(null);
+              }
+            }}>Cancel</button>
           <button style={grs.btnPrimary} disabled={updateMut.isPending}
-            onClick={() => updateMut.mutate(form, { onSuccess: () => navigate("/students") })}>
+            onClick={() => updateMut.mutate(form)}>
             {updateMut.isPending ? "Saving…" : "Save Changes"}
           </button>
         </div>

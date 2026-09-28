@@ -186,13 +186,11 @@ export function GrsTable<T extends object>({
           {exportFilename && (
             <button onClick={exportCsv} style={grs.btnIcon} title="Export CSV">
               <IconDownload />
-              <span>Export CSV</span>
             </button>
           )}
           {printTitle !== undefined && (
             <button onClick={doPrint} style={grs.btnIcon} title="Print">
               <IconPrint />
-              <span>Print</span>
             </button>
           )}
           {headerExtra}

@@ -84,6 +84,7 @@ const navItems: { to?: string; label: string; divider?: boolean; sub?: boolean; 
   { to: "/lookups", label: "Lookups", adminOnly: true },
   { to: "/users", label: "Users" },
   { to: "/admin/field-config", label: "Column Settings", adminOnly: true },
+  { to: "/admin/deploy", label: "🚀 Deploy", adminOnly: true },
   { to: "/import", label: "Import Data", adminOnly: true },
 ];
 

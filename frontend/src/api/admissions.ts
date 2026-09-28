@@ -139,6 +139,11 @@ export async function listProgress(params: {
   return data;
 }
 
+export async function getProgress(id: number): Promise<StudentProgress> {
+  const { data } = await api.get(`/student-progress/${id}`);
+  return data;
+}
+
 export async function createProgress(payload: StudentProgressCreate): Promise<StudentProgress> {
   const { data } = await api.post("/student-progress", payload);
   return data;
