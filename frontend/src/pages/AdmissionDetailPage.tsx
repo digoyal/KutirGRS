@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getExam, updateExam, listExams, listExamTypes, listExamTypeSubjects } from "../api/admissions";
@@ -7,7 +7,7 @@ import { getStudent } from "../api/students";
 import { listSchools } from "../api/schools";
 import { listDistricts, listExamCenters, listExamCategories, listNoExamReasons, listNoAdmitReasons } from "../api/geo";
 import { grs } from "../styles/grs";
-import { STAGES, type StageKey, StageBadge, PipelineStepper, subjectsForExamType } from "../components/admissions-pipeline";
+import { type StageKey, StageBadge, PipelineStepper, subjectsForExamType } from "../components/admissions-pipeline";
 
 const NAVY_BG     = "#1e3a5f";
 const NAVY_TEXT   = "#ffffff";
@@ -105,7 +105,7 @@ export default function AdmissionDetailPage() {
   function toggleStage(updates: Partial<Record<StageKey, boolean>>) {
     if (updates.admitted === true) {
       const alreadyAdmitted = studentAllExams.find(
-        e => e.student_id === exam.student_id && e.admitted && e.id !== exam.id
+        e => e.student_id === exam!.student_id && e.admitted && e.id !== exam!.id
       );
       if (alreadyAdmitted) {
         setAdmitBlockMsg(
