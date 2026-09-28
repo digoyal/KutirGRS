@@ -7,7 +7,7 @@ from app.auth import require_admin
 router = APIRouter(prefix="/admin/deploy", tags=["deploy"])
 
 # Path to the project root on the server — adjust if needed
-PROJECT_ROOT = os.environ.get("PROJECT_ROOT", "/home/ubuntu/KutirGRS")
+PROJECT_ROOT = os.environ.get("PROJECT_ROOT", "/opt/sevakutir")
 
 DEPLOY_SCRIPT = """
 set -e
