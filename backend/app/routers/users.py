@@ -14,6 +14,55 @@ from app.schemas.users import UserCreate, UserUpdate, UserOut
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
+
+def _is_admin_or_super(user: User) -> bool:
+    return user.title == "Admin" or bool(user.is_superuser)
+
+
+def _title_index(title: Optional[str]) -> int:
+    if title and title in TITLES:
+        return TITLES.index(title)
+    return -1
+
+
+def _assert_can_assign_title(actor: User, title: Optional[str]) -> None:
+    """Managers may only assign titles strictly below their own (Admin/superuser unrestricted)."""
+    if _is_admin_or_super(actor):
+        return
+    my_index = _title_index(actor.title)
+    if my_index < 0 or title is None or title not in TITLES:
+        return
+    if TITLES.index(title) >= my_index:
+        raise HTTPException(status_code=403, detail="Cannot assign a role at or above your own level")
+
+
+def _assert_can_manage_target(actor: User, target: User) -> None:
+    """Block managers from editing peers or seniors (self still allowed for non-escalating edits)."""
+    if _is_admin_or_super(actor):
+        return
+    if target.id == actor.id:
+        return
+    my_index = _title_index(actor.title)
+    their_index = _title_index(target.title)
+    if my_index < 0 or their_index >= my_index:
+        raise HTTPException(status_code=403, detail="Cannot edit a user at or above your own level")
+
+
+def _apply_is_superuser_policy(actor: User, data: dict, *, creating: bool) -> None:
+    """Only Admin/superuser may set is_superuser; strip otherwise (reject True on create/update)."""
+    if _is_admin_or_super(actor):
+        return
+    if "is_superuser" not in data:
+        if creating:
+            data["is_superuser"] = False
+        return
+    if data.get("is_superuser"):
+        raise HTTPException(status_code=403, detail="Only Admin may set is_superuser")
+    # Non-admin sent false / null — strip so they cannot clear an existing superuser flag either
+    del data["is_superuser"]
+    if creating:
+        data["is_superuser"] = False
+
 # ── M2M sync helpers ──────────────────────────────────────────────────────────
 
 async def _sync_zones(db: AsyncSession, user_id: int, ids: list[int]) -> None:
@@ -127,9 +176,7 @@ async def list_users(
 async def create_user(body: UserCreate, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.title not in MANAGER_ROLES:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
-    my_index = TITLES.index(current_user.title) if current_user.title in TITLES else -1
-    if current_user.title != "Admin" and my_index >= 0 and TITLES.index(body.title) >= my_index:
-        raise HTTPException(status_code=403, detail="Cannot assign a role at or above your own level")
+    _assert_can_assign_title(current_user, body.title)
     existing = await db.execute(select(User).where(User.username == body.username))
     if existing.scalar_one_or_none():
         raise HTTPException(400, f"Username '{body.username}' already taken")
@@ -137,6 +184,7 @@ async def create_user(body: UserCreate, db: AsyncSession = Depends(get_db), curr
     geo_keys = {"zone_ids", "district_ids", "area_ids", "cluster_ids", "kutir_ids"}
     data = body.model_dump(exclude=geo_keys)
     data["password"] = hash_password(data["password"])
+    _apply_is_superuser_policy(current_user, data, creating=True)
 
     obj = User(**data)
     db.add(obj)
@@ -178,8 +226,13 @@ async def update_user(
     if not obj:
         raise HTTPException(404, "User not found")
 
+    _assert_can_manage_target(current_user, obj)
+    if body.title is not None:
+        _assert_can_assign_title(current_user, body.title)
+
     geo_keys = {"zone_ids", "district_ids", "area_ids", "cluster_ids", "kutir_ids"}
     data = body.model_dump(exclude_unset=True, exclude=geo_keys)
+    _apply_is_superuser_policy(current_user, data, creating=False)
     if "password" in data:
         if data["password"]:
             data["password"] = hash_password(data["password"])
