@@ -14,6 +14,7 @@ import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { ADMISSIONS_FIELDS } from "../constants/admissionsFields";
 import { listDistricts, listAreas, listClusters, listExamCenters, listExamCategories } from "../api/geo";
 import { STAGES, StageBadge, pipelineStage } from "../components/admissions-pipeline";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
@@ -57,6 +58,7 @@ export default function AdmissionsPage() {
   const [filterCluster, setFilterCluster]   = useState<number | "">(_savedFilters?.cluster  ?? defaultCluster);
   const [filterKutir, setFilterKutir]       = useState<number | "">(_savedFilters?.kutir    ?? defaultKutir);
   const [page, setPage] = useState<number>(_savedFilters?.page ?? 1);
+  const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
 
   const PAGE_SIZE = 25;
   const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "";
@@ -367,9 +369,16 @@ export default function AdmissionsPage() {
         actions={(exam) => ({
           onView: () => { saveFilters(); navigate(String(exam.id)); },
           onEdit: () => { saveFilters(); navigate(`${exam.id}?edit=1`); },
-          onDelete: () => { if (confirm("Delete this admission?")) deleteMut.mutate(exam.id); },
+          onDelete: () => setPendingDelete({ id: exam.id }),
         })}
       />
+      {pendingDelete && (
+        <ConfirmDialog
+          message="Delete this admission?"
+          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

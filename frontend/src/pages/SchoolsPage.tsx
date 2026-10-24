@@ -8,6 +8,7 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { SCHOOLS_FIELDS } from "../constants/schoolsFields";
 import { canManageSchools } from "../constants/roles";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { grs } from "../styles/grs";
 
 const SCHOOL_TYPES = ["EMRS", "JNV", "KSP", "MRS", "GNV", "KGBV", "SportsBoys", "SportsGirls", "Other"];
@@ -47,6 +48,7 @@ export default function SchoolsPage() {
   useBfcacheReload();
 
   const [filterType, setFilterType] = useState(_savedFilters?.type ?? "");
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
 
   const { data: schools = [], isLoading } = useQuery<SchoolWithDistrict[]>({
     queryKey: ["schools"],
@@ -100,7 +102,7 @@ export default function SchoolsPage() {
           onView: () => { saveFilters(); navigate(`/schools/${s.id}`); },
           ...(canManage ? {
             onEdit: () => { saveFilters(); navigate(`/schools/${s.id}?edit=1`); },
-            onDelete: () => { if (confirm(`Delete "${s.name}"?`)) deleteMut.mutate(s.id); },
+            onDelete: () => setPendingDelete({ id: s.id, name: s.name }),
           } : {}),
         })}
         searchable
@@ -122,6 +124,13 @@ export default function SchoolsPage() {
         printTitle="Schools"
         onAdd={canManage ? () => navigate("/schools/new") : undefined}
       />
+      {pendingDelete && (
+        <ConfirmDialog
+          message={<>Delete <strong>"{pendingDelete.name}"</strong>?</>}
+          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

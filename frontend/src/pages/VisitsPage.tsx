@@ -13,6 +13,7 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { VISITS_FIELDS } from "../constants/visitsFields";
 import { canManageVisits as roleCanManageVisits, isAdmin as roleIsAdmin } from "../constants/roles";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
 
@@ -58,6 +59,7 @@ export default function VisitsPage() {
   const [filterKutir, setFilterKutir]   = useState<number | "">(_savedFilters?.kutir ?? "");
   const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? "");
   const [filterCluster, setFilterCluster]   = useState<number | "">(_savedFilters?.cluster ?? "");
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; label: string } | null>(null);
 
   function saveFilters() {
     try {
@@ -331,14 +333,21 @@ export default function VisitsPage() {
           ? (v => ({
               onView: () => { saveFilters(); navigate(String(v.id)); },
               onEdit: () => { saveFilters(); navigate(`${v.id}?edit=1`); },
-              onDelete: () => {
-                if (confirm(`Delete visit for ${kutirMap.get(v.kutir_id)?.name ?? "this kutir"} on ${v.visit_date}?`))
-                  deleteMut.mutate(v.id);
-              },
+              onDelete: () => setPendingDelete({
+                id: v.id,
+                label: `${kutirMap.get(v.kutir_id)?.name ?? "this kutir"} on ${v.visit_date}`,
+              }),
             }))
           : (v => ({ onView: () => { saveFilters(); navigate(String(v.id)); } }))
         }
       />
+      {pendingDelete && (
+        <ConfirmDialog
+          message={<>Delete visit for <strong>{pendingDelete.label}</strong>?</>}
+          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

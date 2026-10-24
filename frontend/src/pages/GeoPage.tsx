@@ -6,6 +6,9 @@ import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { canManageGeography, isAdmin as roleIsAdmin } from "../constants/roles";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { GrsModal } from "../components/GrsModal";
+import { GrsTabs } from "../components/GrsTabs";
 
 type Tab = "zones" | "districts" | "areas" | "clusters";
 
@@ -23,6 +26,7 @@ export default function GeoPage() {
   const [editRow, setEditRow] = useState<{ id: number } | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
   const [formError, setFormError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
   const qc = useQueryClient();
 
   const { user } = useAuth();
@@ -109,34 +113,20 @@ export default function GeoPage() {
     return cols;
   }, [tab]);
 
-  const tabs: Tab[] = ["zones", "districts", "areas", "clusters"];
   const tabCount: Record<Tab, number> = { zones: zones.length, districts: districts.length, areas: areas.length, clusters: clusters.length };
   const addLabel = tab.slice(0, 1).toUpperCase() + tab.slice(1, -1);
 
   return (
     <div style={{ padding: "24px 28px" }}>
-      {/* Tab strip */}
-      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid var(--border)", marginBottom: 0 }}>
-        {tabs.map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              padding: "8px 16px", border: "none", background: "none", cursor: "pointer",
-              fontSize: "0.875rem", display: "flex", gap: 6, alignItems: "center",
-              borderBottom: tab === t ? "2px solid var(--badge-blue-fg)" : "2px solid transparent",
-              marginBottom: -2,
-              color: tab === t ? "var(--badge-blue-fg)" : "var(--text-secondary)",
-              fontWeight: tab === t ? 600 : 400,
-            }}
-          >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
-            <span style={{ background: "var(--bg-input)", color: "var(--text-secondary)", borderRadius: 10, padding: "1px 6px", fontSize: "0.7rem", fontWeight: 700 }}>
-              {tabCount[t]}
-            </span>
-          </button>
-        ))}
-      </div>
+      <GrsTabs
+        value={tab}
+        onChange={setTab}
+        tabs={(["zones", "districts", "areas", "clusters"] as Tab[]).map(t => ({
+          key: t,
+          label: t.charAt(0).toUpperCase() + t.slice(1),
+          badge: tabCount[t],
+        }))}
+      />
 
       <GrsTable<GeoRow>
         key={tab}
@@ -162,16 +152,15 @@ export default function GeoPage() {
             setFormError("");
             setShowForm(true);
           },
-          onDelete: () => {
-            if (confirm(`Delete "${r.name}"?`)) deleteMut.mutate(r.id);
-          },
+          onDelete: () => setPendingDelete({ id: r.id, name: r.name }),
         }) : {}}
       />
 
       {showForm && (
-        <div style={grs.overlay}>
-          <div style={grs.modal}>
-            <h3 style={grs.modalTitle}>{editRow ? `Edit ${addLabel}` : `Add ${addLabel}`}</h3>
+        <GrsModal
+          title={editRow ? `Edit ${addLabel}` : `Add ${addLabel}`}
+          onClose={() => { setShowForm(false); setEditRow(null); setForm({}); }}
+        >
             {formError && <div style={grs.errorBox}>{formError}</div>}
             <form onSubmit={handleSubmit}>
               <div style={{ marginBottom: 10 }}>
@@ -210,8 +199,15 @@ export default function GeoPage() {
                 <button type="button" style={grs.btnSecondary} onClick={() => { setShowForm(false); setEditRow(null); setForm({}); }}>Cancel</button>
               </div>
             </form>
-          </div>
-        </div>
+        </GrsModal>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          message={<>Delete <strong>"{pendingDelete.name}"</strong>?</>}
+          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </div>
   );

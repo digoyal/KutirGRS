@@ -10,6 +10,7 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { EXAM_CENTERS_FIELDS } from "../constants/examCentersFields";
 import { canManageExamCenters } from "../constants/roles";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const _savedFilters = (() => {
   try {
@@ -28,6 +29,7 @@ export default function ExamCentersPage() {
   useBfcacheReload();
 
   const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? "");
+  const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
 
   const { data: centers = [], isLoading } = useQuery({ queryKey: ["exam-centers"], queryFn: () => listExamCenters() });
   const { data: districts = [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
@@ -77,7 +79,7 @@ export default function ExamCentersPage() {
           onView: () => { saveFilters(); navigate(`/exam-centers/${r.id}`); },
           ...(canManage ? {
             onEdit: () => { saveFilters(); navigate(`/exam-centers/${r.id}?edit=1`); },
-            onDelete: () => { if (confirm("Delete this exam center?")) deleteMut.mutate(r.id); },
+            onDelete: () => setPendingDelete({ id: r.id }),
           } : {}),
         })}
         searchable
@@ -94,6 +96,13 @@ export default function ExamCentersPage() {
         printTitle="Exam Centers"
         onAdd={canManage ? () => navigate("/exam-centers/new") : undefined}
       />
+      {pendingDelete && (
+        <ConfirmDialog
+          message="Delete this exam center?"
+          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

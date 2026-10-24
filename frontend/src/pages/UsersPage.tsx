@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listUsers, deleteUser, type User } from "../api/users";
@@ -8,6 +8,7 @@ import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { USERS_FIELDS } from "../constants/usersFields";
 import { canManageUsers } from "../constants/roles";
 import { GrsTable, type Col } from "../components/GrsTable";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { grs } from "../styles/grs";
 
 const COLS: Col<User>[] = [
@@ -34,6 +35,7 @@ export default function UsersPage() {
   useBfcacheReload();
 
   const canManage = canManageUsers(user?.title);
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; username: string } | null>(null);
 
   const { data: users = [], isLoading } = useQuery({ queryKey: ["users"], queryFn: listUsers });
 
@@ -61,7 +63,7 @@ export default function UsersPage() {
           ? (u => ({
               onView: () => navigate(`/users/${u.id}`),
               onEdit: () => navigate(`/users/${u.id}?edit=1`),
-              onDelete: () => { if (confirm(`Delete user "${u.username}"? This cannot be undone.`)) deleteMut.mutate(u.id); },
+              onDelete: () => setPendingDelete({ id: u.id, username: u.username }),
             }))
           : undefined}
         searchable
@@ -76,6 +78,13 @@ export default function UsersPage() {
         printTitle="Users"
         onAdd={canManage ? () => navigate("/users/new") : undefined}
       />
+      {pendingDelete && (
+        <ConfirmDialog
+          message={<>Delete user <strong>"{pendingDelete.username}"</strong>? This cannot be undone.</>}
+          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

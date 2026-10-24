@@ -19,6 +19,7 @@ import { grs } from "../styles/grs";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { PROGRESS_FIELDS } from "../constants/progressFields";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -84,6 +85,7 @@ export default function StudentProgressPage() {
 
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(_savedFilters?.page ?? 1);
+  const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
   const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "";
 
   const { isVisible, orderedMetas } = useFieldConfig("progress", PROGRESS_FIELDS);
@@ -327,9 +329,16 @@ export default function StudentProgressPage() {
         actions={(p) => ({
           onView:   () => { saveFilters(); navigate(`/progress/${p.id}`); },
           onEdit:   () => { saveFilters(); navigate(`/progress/${p.id}?edit=1`); },
-          onDelete: () => { if (confirm("Delete this record?")) deleteMut.mutate(p.id); },
+          onDelete: () => setPendingDelete({ id: p.id }),
         })}
       />
+      {pendingDelete && (
+        <ConfirmDialog
+          message="Delete this record?"
+          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

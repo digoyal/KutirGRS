@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { grs } from "../styles/grs";
 import { canManageVisits as roleCanManageVisits } from "../constants/roles";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
 
@@ -79,6 +80,7 @@ export default function VisitDetailPage() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterDistrict, setFilterDistrict] = useState<number | "">("");
   const [filterCluster, setFilterCluster] = useState<number | "">("");
@@ -165,7 +167,6 @@ export default function VisitDetailPage() {
   }
 
   async function handleDelete() {
-    if (!confirm("Delete this visit record?")) return;
     setDeleting(true);
     try {
       await deleteVisit(Number(id));
@@ -173,6 +174,7 @@ export default function VisitDetailPage() {
       navigate(-1);
     } finally {
       setDeleting(false);
+      setConfirmDeleteOpen(false);
     }
   }
 
@@ -210,7 +212,7 @@ export default function VisitDetailPage() {
               <div style={{ fontSize: "0.85rem", color: NAVY_ACCENT, marginTop: 2 }}>{kutirName}</div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {canManageVisits && <button onClick={handleDelete} disabled={deleting} style={grs.btnDanger}>{deleting ? "Deleting…" : "Delete"}</button>}
+            {canManageVisits && <button onClick={() => setConfirmDeleteOpen(true)} disabled={deleting} style={grs.btnDanger}>{deleting ? "Deleting…" : "Delete"}</button>}
             {canManageVisits && <button onClick={() => setEditing(true)} style={grs.btnPrimary}>Edit</button>}
             <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", color: NAVY_ACCENT, borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: "0.85rem" }}>← Back</button>
           </div>
@@ -343,6 +345,14 @@ export default function VisitDetailPage() {
             </>
           )}
         </div>
+        {confirmDeleteOpen && (
+          <ConfirmDialog
+            message="Delete this visit record?"
+            busy={deleting}
+            onConfirm={() => { void handleDelete(); }}
+            onCancel={() => !deleting && setConfirmDeleteOpen(false)}
+          />
+        )}
       </div>
     );
   }
