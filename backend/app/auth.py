@@ -182,6 +182,20 @@ async def get_scope(
     return await get_user_kutir_scope(user, db)
 
 
+def require_kutir_in_scope(
+    kutir_id: Optional[int],
+    scope: Optional[set[int]],
+    *,
+    detail: str = "Not found",
+) -> None:
+    """404 if the caller is scoped and kutir_id is missing or outside scope.
+
+    scope is None for unrestricted (admin). Prefer 404 over 403 so IDs are not leaked.
+    """
+    if scope is not None and (kutir_id is None or kutir_id not in scope):
+        raise HTTPException(status_code=404, detail=detail)
+
+
 # ── Geo hierarchy scope ───────────────────────────────────────────────────────
 
 @dataclass
@@ -190,6 +204,20 @@ class GeoScope:
     area_ids:     Optional[set[int]] = None
     district_ids: Optional[set[int]] = None
     zone_ids:     Optional[set[int]] = None
+
+
+def require_cluster_in_geo_scope(
+    cluster_id: Optional[int],
+    gs: GeoScope,
+    *,
+    detail: str = "Not found",
+) -> None:
+    """404 if the caller is geo-scoped and cluster_id is missing or outside scope.
+
+    Used when creating/moving a kutir (no kutir_id in scope yet).
+    """
+    if gs.cluster_ids is not None and (cluster_id is None or cluster_id not in gs.cluster_ids):
+        raise HTTPException(status_code=404, detail=detail)
 
 
 async def get_user_geo_scope(user, db: AsyncSession) -> GeoScope:
