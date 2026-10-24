@@ -65,7 +65,7 @@ export default function DashboardPage() {
 
 const navItems: { to?: string; label: string; divider?: boolean; sub?: boolean; adminOnly?: boolean }[] = [
   { divider: true, label: "GRS TRACKING" },
-  { to: "/", label: "Dashboard" },
+  { to: "/", label: "GRS Dashboard" },
   { to: "/students", label: "Students" },
   { to: "/kutirs", label: "Kutirs" },
   { to: "/admissions", label: "Admissions" },
