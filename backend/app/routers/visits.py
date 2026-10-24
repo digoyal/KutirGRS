@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import os, uuid, shutil
 
 from app.database import get_db
-from app.auth import get_scope, require_kutir_in_scope
+from app.auth import get_scope, require_admin, require_kutir_in_scope
 from app.models.visits import KutirVisit
 from app.schemas.visits import KutirVisitCreate, KutirVisitUpdate, KutirVisitOut
 from app.config import settings
@@ -90,6 +90,7 @@ async def update_visit(
 async def delete_visit(
     id: int,
     db: AsyncSession = Depends(get_db),
+    _admin=Depends(require_admin),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
     obj = await db.get(KutirVisit, id)

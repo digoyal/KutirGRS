@@ -232,7 +232,7 @@ async def list_exam_centers(
     return result.scalars().all()
 
 @router.post("/exam-centers", response_model=ExamCenterOut, status_code=201)
-async def create_exam_center(body: ExamCenterCreate, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def create_exam_center(body: ExamCenterCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     obj = ExamCenter(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -247,7 +247,7 @@ async def get_exam_center(ec_id: int, db: AsyncSession = Depends(get_db), _=Depe
     return obj
 
 @router.put("/exam-centers/{ec_id}", response_model=ExamCenterOut)
-async def update_exam_center(ec_id: int, body: ExamCenterUpdate, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def update_exam_center(ec_id: int, body: ExamCenterUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     obj = await db.get(ExamCenter, ec_id)
     if not obj:
         raise HTTPException(404, "ExamCenter not found")
@@ -258,7 +258,7 @@ async def update_exam_center(ec_id: int, body: ExamCenterUpdate, db: AsyncSessio
     return obj
 
 @router.delete("/exam-centers/{ec_id}", status_code=204)
-async def delete_exam_center(ec_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def delete_exam_center(ec_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     obj = await db.get(ExamCenter, ec_id)
     if not obj:
         raise HTTPException(404, "ExamCenter not found")
