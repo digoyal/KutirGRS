@@ -31,6 +31,7 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 
 ## Frontend & shared UI
 
+- **Shareable UI lives in `parivaar-ui`.** Generic components and tokens go in the sibling package `@parivaar/ui` (`file:../parivaar-ui` or `file:../../parivaar-ui` from `frontend/`; source-only — no package build). Product-specific forms, pages, and domain UI stay in this app. Do not re-implement Table / shared tokens in-app when they belong in `@parivaar/ui`.
 - Prefer the project **design tokens / shared styles** (CSS variables, shared button/input/table primitives) over one-off hex and ad-hoc chrome.
 - **Add and Detail stay in sync.** Any field or section added on create must land on view/edit in the same change. Prefer a shared form component when they diverge.
 - Use the shared table shell for searchable/exportable lists; pass loading and empty states. Match that tone on hand-rolled tables when you touch them.
@@ -63,7 +64,8 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 
 ## Testing
 
-- After schema work: smoke the affected list/detail once (e.g. admissions, visits, progress as relevant).
+- After **any substantial change** (auth, roles, deploy, dependencies, shared UI, big API/UI): run [`docs/smoke-test.md`](docs/smoke-test.md). Skip for tiny typo / docs-only edits.
+- After schema work: also smoke the affected list/detail once (e.g. admissions, visits, progress as relevant).
 - After schema or API changes: typecheck FE; hit the affected endpoint or page once locally when practical.
 - Prefer focused checks over large new suites unless asked. Cover auth/scope regressions when touching permissions.
 - For UI: verify loading, empty, and error paths — not only the happy path.
@@ -81,4 +83,4 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 
 ### This repo
 
-Checkout: `/Users/dineshgoyal/projects/KutirGRS` · Product detail: [`docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`](docs/KUTIRGRS_FEATURE_REQUIREMENTS.md) · Role & access: [`docs/role-and-access.md`](docs/role-and-access.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md)
+Checkout: `/Users/dineshgoyal/projects/KutirGRS` · Product detail: [`docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`](docs/KUTIRGRS_FEATURE_REQUIREMENTS.md) · Role & access: [`docs/role-and-access.md`](docs/role-and-access.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md) · Smoke test: [`docs/smoke-test.md`](docs/smoke-test.md)
