@@ -10,6 +10,7 @@ import { listKutirs } from "../api/kutirs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
+import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { ADMISSIONS_FIELDS } from "../constants/admissionsFields";
 import { listDistricts, listAreas, listClusters, listExamCenters, listExamCategories } from "../api/geo";
 import { STAGES, StageBadge, pipelineStage } from "../components/admissions-pipeline";
@@ -23,16 +24,7 @@ export default function AdmissionsPage() {
   const navigate = useNavigate();
   const isAdmin = user?.title === "Admin";
 
-  useEffect(() => {
-    if (window.location.search.includes("_=")) {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    function onPageShow(e: PageTransitionEvent) {
-      if (e.persisted) window.location.reload();
-    }
-    window.addEventListener("pageshow", onPageShow);
-    return () => window.removeEventListener("pageshow", onPageShow);
-  }, []);
+  useBfcacheReload();
 
   // Restore filter state saved before navigating to a detail/add page
   const _savedFilters = (() => {

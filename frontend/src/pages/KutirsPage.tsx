@@ -8,6 +8,7 @@ import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
+import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { KUTIRS_FIELDS } from "../constants/kutirsFields";
 
 // Restore filter state saved before navigating to edit/view
@@ -26,6 +27,8 @@ export default function KutirsPage() {
   const isAdmin = user?.title === "Admin";
   const MANAGER_ROLES_K = ["Admin", "Regional Head", "District Anchor", "Education Coordinator", "Cluster Coordinator"];
   const canManageKutirs = MANAGER_ROLES_K.includes(user?.title ?? "");
+
+  useBfcacheReload();
 
   const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? "");
   const [filterCluster, setFilterCluster] = useState<number | "">(_savedFilters?.cluster ?? "");

@@ -7,6 +7,7 @@ import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
+import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { EXAM_CENTERS_FIELDS } from "../constants/examCentersFields";
 
 const _savedFilters = (() => {
@@ -23,6 +24,8 @@ export default function ExamCentersPage() {
   const { user } = useAuth();
   const isAdmin = user?.title === "Admin";
   const canManage = user?.title !== "Teacher";
+
+  useBfcacheReload();
 
   const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? "");
 

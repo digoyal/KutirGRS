@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { listSchools, deleteSchool, type School } from "../api/schools";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
+import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { SCHOOLS_FIELDS } from "../constants/schoolsFields";
 import { grs } from "../styles/grs";
 
@@ -41,6 +42,8 @@ export default function SchoolsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const canManage = user?.title !== "Teacher";
+
+  useBfcacheReload();
 
   const [filterType, setFilterType] = useState(_savedFilters?.type ?? "");
 

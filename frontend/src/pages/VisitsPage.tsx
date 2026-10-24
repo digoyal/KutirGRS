@@ -10,6 +10,7 @@ import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
+import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { VISITS_FIELDS } from "../constants/visitsFields";
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
@@ -51,16 +52,7 @@ export default function VisitsPage() {
   const MANAGER_ROLES_V = ["Admin", "Regional Head", "District Anchor", "Education Coordinator", "Cluster Coordinator"];
   const canManageVisits = MANAGER_ROLES_V.includes(user?.title ?? "");
 
-  useEffect(() => {
-    if (window.location.search.includes("_=")) {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    function onPageShow(e: PageTransitionEvent) {
-      if (e.persisted) window.location.reload();
-    }
-    window.addEventListener("pageshow", onPageShow);
-    return () => window.removeEventListener("pageshow", onPageShow);
-  }, []);
+  useBfcacheReload();
   const qc = useQueryClient();
 
   const [filterKutir, setFilterKutir]   = useState<number | "">(_savedFilters?.kutir ?? "");
