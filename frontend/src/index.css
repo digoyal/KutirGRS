@@ -136,7 +136,8 @@ code {
   }
 }
 
-/* ── GRS table header row ─────────────────────────────────────────────── */
+/* ── Table header row (@parivaar/ui Table + legacy Lookups) ───────────── */
+.ui-thead-th,
 .grs-thead-th {
   background-color: var(--bg-thead) !important;
 }
