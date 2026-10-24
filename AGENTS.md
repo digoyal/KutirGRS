@@ -81,4 +81,4 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 
 ### This repo
 
-Checkout: `/Users/dineshgoyal/projects/KutirGRS` · Product detail: [`docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`](docs/KUTIRGRS_FEATURE_REQUIREMENTS.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md)
+Checkout: `/Users/dineshgoyal/projects/KutirGRS` · Product detail: [`docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`](docs/KUTIRGRS_FEATURE_REQUIREMENTS.md) · Role & access: [`docs/role-and-access.md`](docs/role-and-access.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md)
