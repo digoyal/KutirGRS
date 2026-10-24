@@ -27,6 +27,7 @@ class UserCreate(BaseModel):
     cluster_ids: List[int] = []
     kutir_ids: List[int] = []  # Teacher only, max 1
     is_active: bool = True
+    # Enforced in users router: only Admin/superuser may set True; stripped otherwise
     is_superuser: bool = False
 
 
@@ -43,6 +44,7 @@ class UserUpdate(BaseModel):
     cluster_ids: Optional[List[int]] = None
     kutir_ids: Optional[List[int]] = None
     is_active: Optional[bool] = None
+    # Enforced in users router: only Admin/superuser may set; non-admins stripped/rejected
     is_superuser: Optional[bool] = None
     password: Optional[str] = None
 
