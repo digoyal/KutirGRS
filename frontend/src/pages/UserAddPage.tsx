@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createUser, type UserCreate } from "../api/users";
 import { useAuth } from "../context/AuthContext";
-import { UserForm, EMPTY_USER_FORM, TITLES, type UserFormState } from "../components/UserForm";
+import { UserForm, EMPTY_USER_FORM, type UserFormState } from "../components/UserForm";
+import { assignableTitles as titlesAssignableTo } from "../constants/roles";
 import { grs } from "../styles/grs";
 
 export default function UserAddPage() {
@@ -11,8 +12,7 @@ export default function UserAddPage() {
   const qc = useQueryClient();
   const { user: authUser } = useAuth();
 
-  const myRoleIndex = TITLES.indexOf(authUser?.title ?? "");
-  const assignableTitles = authUser?.title === "Admin" ? TITLES : (myRoleIndex === -1 ? [] : TITLES.slice(0, myRoleIndex));
+  const assignableTitles = titlesAssignableTo(authUser?.title);
 
   const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM);
   const [saveError, setSaveError] = useState("");

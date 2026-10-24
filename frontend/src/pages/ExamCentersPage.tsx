@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listExamCenters, listDistricts, deleteExamCenter } from "../api/geo";
@@ -9,6 +9,7 @@ import type { Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { EXAM_CENTERS_FIELDS } from "../constants/examCentersFields";
+import { canManageExamCenters } from "../constants/roles";
 
 const _savedFilters = (() => {
   try {
@@ -22,8 +23,7 @@ export default function ExamCentersPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.title === "Admin";
-  const canManage = user?.title !== "Teacher";
+  const canManage = canManageExamCenters(user?.title);
 
   useBfcacheReload();
 
@@ -33,14 +33,7 @@ export default function ExamCentersPage() {
   const { data: districts = [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
 
   const districtMap = Object.fromEntries(districts.map(d => [d.id, d.name]));
-
-  const scopedDistricts = isAdmin || !user
-    ? districts
-    : districts.filter(d => user.district_ids.includes(d.id));
-
-  useEffect(() => {
-    if (scopedDistricts.length === 1 && filterDistrict === "") setFilterDistrict(scopedDistricts[0].id);
-  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Data sheet: Exam Centers are global — filter dropdown shows all districts
 
   const deleteMut = useMutation({
     mutationFn: deleteExamCenter,
@@ -94,7 +87,7 @@ export default function ExamCentersPage() {
             onChange={e => setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value))}
             style={grs.filterSelect}>
             <option value="">All Districts</option>
-            {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         }
         exportFilename="exam-centers"

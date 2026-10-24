@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { canManageLookups } from "../constants/roles";
 import { grs } from "../styles/grs";
 
 interface LookupItem { id: number; name?: string; reason?: string; category_id?: number }
@@ -594,7 +595,7 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
 
 export default function LookupsPage() {
   const { user } = useAuth();
-  const isAdmin = user?.title === "Admin";
+  const isAdmin = canManageLookups(user?.title);
   const [activeTab, setActiveTab] = useState<Tab>("categories");
   const current = TABS.find(t => t.key === activeTab)!;
 

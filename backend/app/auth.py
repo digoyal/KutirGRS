@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -70,11 +71,18 @@ async def require_any_role(user=Depends(get_current_user)):
     return user
 
 
-def require_roles(allowed: list[str]):
+def require_roles(allowed: Collection[str]):
+    """Allow callers whose title is in `allowed`, or Admin / superuser.
+
+    Prefer sets from app.roles (MANAGE_*, VIEW_*) so gates match docs/role-and-access.md.
+    """
+    from app.roles import role_allowed
+
     async def _guard(user=Depends(get_current_user)):
-        if user.title not in allowed and user.title != "Admin" and not user.is_superuser:
+        if not role_allowed(user.title, allowed, is_superuser=bool(user.is_superuser)):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user
+
     return _guard
 
 

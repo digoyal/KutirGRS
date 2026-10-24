@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getExamCenter, updateExamCenter, type ExamCenter } from "../api/geo";
 import { listDistricts } from "../api/geo";
 import { grs } from "../styles/grs";
+import { useAuth } from "../context/AuthContext";
+import { canManageExamCenters } from "../constants/roles";
 
 const STATES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"];
 const viewVal: React.CSSProperties = { fontSize: 14, color: "var(--text-primary)", padding: "7px 0" };
@@ -17,9 +19,11 @@ export default function ExamCenterDetailPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canManage = canManageExamCenters(user?.title);
 
   const enteredViaEdit = searchParams.get("edit") === "1";
-  const [editing, setEditing] = useState(enteredViaEdit);
+  const [editing, setEditing] = useState(enteredViaEdit && canManage);
   const [form, setForm] = useState<FormState>({ name: "", district_id: null, street: "", city: "", state: "Madhya Pradesh", pincode: "" });
   const [saveError, setSaveError] = useState("");
 
@@ -70,7 +74,7 @@ export default function ExamCenterDetailPage() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <button style={{ background: "none", border: "none", color: "var(--link-color)", cursor: "pointer", fontSize: 14, padding: 0 }} onClick={() => navigate("/exam-centers")}>← Back</button>
         <h2 style={{ margin: 0, fontSize: 20 }}>{center.name}</h2>
-        {!editing && (
+        {!editing && canManage && (
           <button style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }} onClick={() => setEditing(true)}>Edit</button>
         )}
       </div>

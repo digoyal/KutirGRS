@@ -10,6 +10,7 @@ import type { Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { KUTIRS_FIELDS } from "../constants/kutirsFields";
+import { canManageKutirs as roleCanManageKutirs, isAdmin as roleIsAdmin } from "../constants/roles";
 
 // Restore filter state saved before navigating to edit/view
 const _savedFilters = (() => {
@@ -24,9 +25,8 @@ export default function KutirsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.title === "Admin";
-  const MANAGER_ROLES_K = ["Admin", "Regional Head", "District Anchor", "Education Coordinator", "Cluster Coordinator"];
-  const canManageKutirs = MANAGER_ROLES_K.includes(user?.title ?? "");
+  const isAdmin = roleIsAdmin(user?.title);
+  const canManageKutirs = roleCanManageKutirs(user?.title);
 
   useBfcacheReload();
 

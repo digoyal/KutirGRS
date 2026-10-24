@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getSchool, updateSchool, type SchoolCreate } from "../api/schools";
 import { listDistricts } from "../api/geo";
 import { grs } from "../styles/grs";
+import { useAuth } from "../context/AuthContext";
+import { canManageSchools } from "../constants/roles";
 
 const SCHOOL_TYPES = ["EMRS", "JNV", "KSP", "MRS", "GNV", "KGBV", "SportsBoys", "SportsGirls", "Other"];
 const STATES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"];
@@ -17,9 +19,11 @@ export default function SchoolDetailPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canManage = canManageSchools(user?.title);
 
   const enteredViaEdit = searchParams.get("edit") === "1";
-  const [editing, setEditing] = useState(enteredViaEdit);
+  const [editing, setEditing] = useState(enteredViaEdit && canManage);
   const [form, setForm] = useState<SchoolCreate>({ name: "", school_type: "EMRS", state: "Madhya Pradesh", city: null, street: null, district_id: null, pincode: null });
   const [saveError, setSaveError] = useState("");
 
@@ -68,7 +72,7 @@ export default function SchoolDetailPage() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <button style={{ background: "none", border: "none", color: "var(--link-color)", cursor: "pointer", fontSize: 14, padding: 0 }} onClick={() => navigate("/schools")}>← Back</button>
         <h2 style={{ margin: 0, fontSize: 20 }}>{school.name}</h2>
-        {!editing && (
+        {!editing && canManage && (
           <button style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }} onClick={() => setEditing(true)}>Edit</button>
         )}
       </div>

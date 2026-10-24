@@ -4,7 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import get_current_user, require_admin, get_geo_scope, GeoScope
+from app.auth import get_current_user, require_roles, get_geo_scope, GeoScope
+from app.roles import MANAGE_GEOGRAPHY, MANAGE_EXAM_CENTERS
 from app.models.geo import Zone, District, Area, Cluster, ExamCenter
 from app.schemas.geo import (
     ZoneCreate, ZoneUpdate, ZoneOut,
@@ -28,7 +29,7 @@ async def list_zones(db: AsyncSession = Depends(get_db), gs: GeoScope = Depends(
     return result.scalars().all()
 
 @router.post("/zones", response_model=ZoneOut, status_code=201)
-async def create_zone(body: ZoneCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def create_zone(body: ZoneCreate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = Zone(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -43,7 +44,7 @@ async def get_zone(zone_id: int, db: AsyncSession = Depends(get_db), _=Depends(g
     return obj
 
 @router.put("/zones/{zone_id}", response_model=ZoneOut)
-async def update_zone(zone_id: int, body: ZoneUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def update_zone(zone_id: int, body: ZoneUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = await db.get(Zone, zone_id)
     if not obj:
         raise HTTPException(404, "Zone not found")
@@ -54,7 +55,7 @@ async def update_zone(zone_id: int, body: ZoneUpdate, db: AsyncSession = Depends
     return obj
 
 @router.delete("/zones/{zone_id}", status_code=204)
-async def delete_zone(zone_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_zone(zone_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = await db.get(Zone, zone_id)
     if not obj:
         raise HTTPException(404, "Zone not found")
@@ -79,7 +80,7 @@ async def list_districts(
     return result.scalars().all()
 
 @router.post("/districts", response_model=DistrictOut, status_code=201)
-async def create_district(body: DistrictCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def create_district(body: DistrictCreate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = District(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -94,7 +95,7 @@ async def get_district(district_id: int, db: AsyncSession = Depends(get_db), _=D
     return obj
 
 @router.put("/districts/{district_id}", response_model=DistrictOut)
-async def update_district(district_id: int, body: DistrictUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def update_district(district_id: int, body: DistrictUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = await db.get(District, district_id)
     if not obj:
         raise HTTPException(404, "District not found")
@@ -105,7 +106,7 @@ async def update_district(district_id: int, body: DistrictUpdate, db: AsyncSessi
     return obj
 
 @router.delete("/districts/{district_id}", status_code=204)
-async def delete_district(district_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_district(district_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = await db.get(District, district_id)
     if not obj:
         raise HTTPException(404, "District not found")
@@ -130,7 +131,7 @@ async def list_areas(
     return result.scalars().all()
 
 @router.post("/areas", response_model=AreaOut, status_code=201)
-async def create_area(body: AreaCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def create_area(body: AreaCreate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = Area(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -145,7 +146,7 @@ async def get_area(area_id: int, db: AsyncSession = Depends(get_db), _=Depends(g
     return obj
 
 @router.put("/areas/{area_id}", response_model=AreaOut)
-async def update_area(area_id: int, body: AreaUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def update_area(area_id: int, body: AreaUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = await db.get(Area, area_id)
     if not obj:
         raise HTTPException(404, "Area not found")
@@ -156,7 +157,7 @@ async def update_area(area_id: int, body: AreaUpdate, db: AsyncSession = Depends
     return obj
 
 @router.delete("/areas/{area_id}", status_code=204)
-async def delete_area(area_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_area(area_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = await db.get(Area, area_id)
     if not obj:
         raise HTTPException(404, "Area not found")
@@ -181,7 +182,7 @@ async def list_clusters(
     return result.scalars().all()
 
 @router.post("/clusters", response_model=ClusterOut, status_code=201)
-async def create_cluster(body: ClusterCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def create_cluster(body: ClusterCreate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = Cluster(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -196,7 +197,7 @@ async def get_cluster(cluster_id: int, db: AsyncSession = Depends(get_db), _=Dep
     return obj
 
 @router.put("/clusters/{cluster_id}", response_model=ClusterOut)
-async def update_cluster(cluster_id: int, body: ClusterUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def update_cluster(cluster_id: int, body: ClusterUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = await db.get(Cluster, cluster_id)
     if not obj:
         raise HTTPException(404, "Cluster not found")
@@ -207,7 +208,7 @@ async def update_cluster(cluster_id: int, body: ClusterUpdate, db: AsyncSession 
     return obj
 
 @router.delete("/clusters/{cluster_id}", status_code=204)
-async def delete_cluster(cluster_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_cluster(cluster_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
     obj = await db.get(Cluster, cluster_id)
     if not obj:
         raise HTTPException(404, "Cluster not found")
@@ -221,18 +222,17 @@ async def delete_cluster(cluster_id: int, db: AsyncSession = Depends(get_db), _=
 async def list_exam_centers(
     district_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    gs: GeoScope = Depends(get_geo_scope),
+    _=Depends(get_current_user),
 ):
+    # Data sheet: Exam Centers are a global catalog (all roles see all rows)
     q = select(ExamCenter).order_by(ExamCenter.name)
-    if gs.district_ids is not None:
-        q = q.where(ExamCenter.district_id.in_(gs.district_ids))
     if district_id:
         q = q.where(ExamCenter.district_id == district_id)
     result = await db.execute(q)
     return result.scalars().all()
 
 @router.post("/exam-centers", response_model=ExamCenterOut, status_code=201)
-async def create_exam_center(body: ExamCenterCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def create_exam_center(body: ExamCenterCreate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_EXAM_CENTERS))):
     obj = ExamCenter(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -247,7 +247,7 @@ async def get_exam_center(ec_id: int, db: AsyncSession = Depends(get_db), _=Depe
     return obj
 
 @router.put("/exam-centers/{ec_id}", response_model=ExamCenterOut)
-async def update_exam_center(ec_id: int, body: ExamCenterUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def update_exam_center(ec_id: int, body: ExamCenterUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_EXAM_CENTERS))):
     obj = await db.get(ExamCenter, ec_id)
     if not obj:
         raise HTTPException(404, "ExamCenter not found")
@@ -258,7 +258,7 @@ async def update_exam_center(ec_id: int, body: ExamCenterUpdate, db: AsyncSessio
     return obj
 
 @router.delete("/exam-centers/{ec_id}", status_code=204)
-async def delete_exam_center(ec_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_exam_center(ec_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_EXAM_CENTERS))):
     obj = await db.get(ExamCenter, ec_id)
     if not obj:
         raise HTTPException(404, "ExamCenter not found")

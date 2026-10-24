@@ -7,11 +7,9 @@ import { useQuery } from "@tanstack/react-query";
 import { listZones, listDistricts, listAreas, listClusters, type Zone, type District, type Area, type Cluster } from "../api/geo";
 import { listKutirs, type Kutir } from "../api/kutirs";
 import { grs } from "../styles/grs";
+import { TITLES as ROLE_TITLES } from "../constants/roles";
 
-export const TITLES = [
-  "Teacher", "Cluster Coordinator", "Education Coordinator",
-  "District Anchor", "Regional Head", "Admin",
-];
+export const TITLES = [...ROLE_TITLES];
 
 const ROLE_LEAF: Record<string, "zone" | "district" | "area" | "cluster" | "kutir" | null> = {
   "Admin":                 null,

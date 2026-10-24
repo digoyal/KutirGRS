@@ -5,7 +5,8 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, require_roles
+from app.roles import MANAGE_SCHOOLS
 from app.models.schools import GovtResidentialSchool
 from app.schemas.schools import SchoolCreate, SchoolUpdate, SchoolOut
 
@@ -29,7 +30,7 @@ async def list_schools(
 
 
 @router.post("", response_model=SchoolOut, status_code=201)
-async def create_school(body: SchoolCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def create_school(body: SchoolCreate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_SCHOOLS))):
     obj = GovtResidentialSchool(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -46,7 +47,7 @@ async def get_school(school_id: int, db: AsyncSession = Depends(get_db), _=Depen
 
 
 @router.put("/{school_id}", response_model=SchoolOut)
-async def update_school(school_id: int, body: SchoolUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def update_school(school_id: int, body: SchoolUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_SCHOOLS))):
     obj = await db.get(GovtResidentialSchool, school_id)
     if not obj:
         raise HTTPException(404, "School not found")
@@ -58,7 +59,7 @@ async def update_school(school_id: int, body: SchoolUpdate, db: AsyncSession = D
 
 
 @router.delete("/{school_id}", status_code=204)
-async def delete_school(school_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+async def delete_school(school_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_SCHOOLS))):
     obj = await db.get(GovtResidentialSchool, school_id)
     if not obj:
         raise HTTPException(404, "School not found")

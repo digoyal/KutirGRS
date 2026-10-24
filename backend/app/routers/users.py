@@ -4,11 +4,8 @@ from sqlalchemy import select, delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import get_current_user, require_admin, hash_password
-
-# Role hierarchy lowest->highest; a user may only manage roles strictly below theirs
-TITLES = ["Teacher", "Cluster Coordinator", "Education Coordinator", "District Anchor", "Regional Head", "Admin"]
-MANAGER_ROLES = ["Admin", "Regional Head", "District Anchor", "Education Coordinator"]  # can access Users page
+from app.auth import get_current_user, hash_password
+from app.roles import TITLES, MANAGE_USERS, VIEW_USERS, role_allowed, title_index
 from app.models.users import User, user_zones, user_districts, user_areas, user_clusters, user_kutirs
 from app.schemas.users import UserCreate, UserUpdate, UserOut
 
@@ -19,17 +16,11 @@ def _is_admin_or_super(user: User) -> bool:
     return user.title == "Admin" or bool(user.is_superuser)
 
 
-def _title_index(title: Optional[str]) -> int:
-    if title and title in TITLES:
-        return TITLES.index(title)
-    return -1
-
-
 def _assert_can_assign_title(actor: User, title: Optional[str]) -> None:
     """Managers may only assign titles strictly below their own (Admin/superuser unrestricted)."""
     if _is_admin_or_super(actor):
         return
-    my_index = _title_index(actor.title)
+    my_index = title_index(actor.title)
     if my_index < 0 or title is None or title not in TITLES:
         return
     if TITLES.index(title) >= my_index:
@@ -42,10 +33,20 @@ def _assert_can_manage_target(actor: User, target: User) -> None:
         return
     if target.id == actor.id:
         return
-    my_index = _title_index(actor.title)
-    their_index = _title_index(target.title)
+    my_index = title_index(actor.title)
+    their_index = title_index(target.title)
     if my_index < 0 or their_index >= my_index:
         raise HTTPException(status_code=403, detail="Cannot edit a user at or above your own level")
+
+
+def _assert_can_view_users(actor: User) -> None:
+    if not role_allowed(actor.title, VIEW_USERS, is_superuser=bool(actor.is_superuser)):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+
+def _assert_can_manage_users(actor: User) -> None:
+    if not role_allowed(actor.title, MANAGE_USERS, is_superuser=bool(actor.is_superuser)):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
 def _apply_is_superuser_policy(actor: User, data: dict, *, creating: bool) -> None:
@@ -162,11 +163,12 @@ async def list_users(
         q = q.where(User.is_active == is_active)
     if title:
         q = q.where(User.title == title)
+    _assert_can_view_users(current_user)
     result = await db.execute(q)
     users = result.scalars().all()
     # Non-admins only see users with roles strictly below their own level (plus themselves)
-    if current_user.title != "Admin":
-        my_index = TITLES.index(current_user.title) if current_user.title in TITLES else -1
+    if current_user.title != "Admin" and not current_user.is_superuser:
+        my_index = title_index(current_user.title)
         assignable = set(TITLES[:my_index]) if my_index > 0 else set()
         users = [u for u in users if u.title in assignable or u.id == current_user.id]
     return [await _attach_geo(db, u) for u in users]
@@ -174,8 +176,7 @@ async def list_users(
 
 @router.post("", response_model=UserOut, status_code=201)
 async def create_user(body: UserCreate, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
-    if current_user.title not in MANAGER_ROLES:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _assert_can_manage_users(current_user)
     _assert_can_assign_title(current_user, body.title)
     existing = await db.execute(select(User).where(User.username == body.username))
     if existing.scalar_one_or_none():
@@ -205,8 +206,7 @@ async def get_me(current_user=Depends(get_current_user), db: AsyncSession = Depe
 
 @router.get("/{user_id}", response_model=UserOut)
 async def get_user(user_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
-    if current_user.title not in MANAGER_ROLES:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _assert_can_view_users(current_user)
     obj = await db.get(User, user_id)
     if not obj:
         raise HTTPException(404, "User not found")
@@ -220,9 +220,8 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    _assert_can_manage_users(current_user)
     obj = await db.get(User, user_id)
-    if current_user.title not in MANAGER_ROLES:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
     if not obj:
         raise HTTPException(404, "User not found")
 
@@ -284,12 +283,12 @@ async def update_user(
 
 @router.delete("/{user_id}", status_code=204)
 async def delete_user(user_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
-    if current_user.title not in MANAGER_ROLES:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _assert_can_manage_users(current_user)
     if user_id == current_user.id:
         raise HTTPException(400, "Cannot delete your own account")
     obj = await db.get(User, user_id)
     if not obj:
         raise HTTPException(404, "User not found")
+    _assert_can_manage_target(current_user, obj)
     await db.delete(obj)
     await db.commit()

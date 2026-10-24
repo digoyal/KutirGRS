@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_admin
 from app.database import get_db
+from app.roles import TITLES as _ROLE_TITLES
 
 router = APIRouter(prefix="/import", tags=["Import"])
 
@@ -82,8 +83,7 @@ STATE_MAP = {
 def _state(val: Any) -> str:
     return STATE_MAP.get(_str(val).lower(), "Madhya Pradesh")
 
-VALID_TITLES = {"Teacher","Cluster Coordinator","Education Coordinator",
-                "District Anchor","Regional Head","Admin"}
+VALID_TITLES = set(_ROLE_TITLES)
 KUTIR_TYPE_MAP = {
     "seva kutir": "Seva Kutir", "seva": "Seva Kutir",
     "shiksha kutir": "Shiksha Kutir", "shiksha": "Shiksha Kutir",
