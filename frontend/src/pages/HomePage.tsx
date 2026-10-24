@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "../api/client";
+import { getAdmissionFunnel } from "../api/admissions";
 import { useAuth } from "../context/AuthContext";
 
 interface StatCard {
@@ -133,20 +134,19 @@ export default function HomePage() {
     queryFn: async () => (await api.get("/kutir-visits", { params: { limit: 10 } })).data as any[],
   });
 
-  const { data: exams = [] } = useQuery({
-    queryKey: ["exams-current"],
-    queryFn: async () =>
-      (await api.get("/student-exams", { params: { school_start_year: currentYear, limit: 2000 } })).data as any[],
+  const { data: funnel } = useQuery({
+    queryKey: ["admission-funnel", currentYear],
+    queryFn: () => getAdmissionFunnel({ school_start_year: currentYear }),
   });
 
-  // Funnel counts
+  // Pipeline §5.2: Eligible → Applied → Admit Card → Appeared → Selected → Admitted
   const funnelStages: FunnelStage[] = [
-    { label: "Eligible", count: exams.filter((e) => e.eligible).length, color: "var(--badge-sky-fg)" },
-    { label: "Form Received", count: exams.filter((e) => e.form_received).length, color: "var(--badge-sky-fg)" },
-    { label: "Applied", count: exams.filter((e) => e.applied).length, color: "var(--link-color)" },
-    { label: "Appeared", count: exams.filter((e) => e.appeared).length, color: "var(--link-color)" },
-    { label: "Selected", count: exams.filter((e) => e.selected).length, color: "var(--status-success-fg)" },
-    { label: "Admitted", count: exams.filter((e) => e.admitted).length, color: "var(--status-success-fg)" },
+    { label: "Eligible", count: funnel?.eligible ?? 0, color: "var(--badge-sky-fg)" },
+    { label: "Applied", count: funnel?.applied ?? 0, color: "var(--link-color)" },
+    { label: "Admit Card", count: funnel?.admit_card ?? 0, color: "var(--badge-amber-fg)" },
+    { label: "Appeared", count: funnel?.appeared ?? 0, color: "var(--link-color)" },
+    { label: "Selected", count: funnel?.selected ?? 0, color: "var(--status-success-fg)" },
+    { label: "Admitted", count: funnel?.admitted ?? 0, color: "var(--status-success-fg)" },
   ];
 
   const statCards: StatCard[] = [
@@ -168,8 +168,8 @@ export default function HomePage() {
     },
     {
       label: `Admissions ${currentYear}`,
-      value: exams.length,
-      sub: `${exams.filter((e) => e.admitted).length} admitted`,
+      value: funnel?.total ?? 0,
+      sub: `${funnel?.admitted ?? 0} admitted`,
       color: "var(--badge-amber-fg)",
       bg: "var(--badge-amber-bg)",
       icon: "📋",
@@ -212,7 +212,7 @@ export default function HomePage() {
         }}
       >
         <SectionTitle>Admission Funnel — {currentYear}</SectionTitle>
-        {exams.length === 0 ? (
+        {!funnel || funnel.total === 0 ? (
           <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>No exam records for {currentYear} yet.</p>
         ) : (
           <FunnelBar stages={funnelStages} />

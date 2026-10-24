@@ -133,6 +133,18 @@ class StudentExamOut(StudentExamBase):
     model_config = {"from_attributes": True}
 
 
+class AdmissionFunnelOut(BaseModel):
+    """Scoped SQL aggregates for the home admission funnel (§5.2 stages)."""
+    school_start_year: int
+    total: int
+    eligible: int
+    applied: int
+    admit_card: int
+    appeared: int
+    selected: int
+    admitted: int
+
+
 # ── StudentProgress ──────────────────────────────────────────────────────────
 class StudentProgressBase(BaseModel):
     student_id: int

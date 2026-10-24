@@ -3,7 +3,7 @@ Students, StudentExams, StudentExamScores, StudentProgress
 """
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, Integer, cast
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ from app.models.geo import Cluster, Area
 from app.models.lookups import Subject
 from app.schemas.students import (
     StudentCreate, StudentUpdate, StudentOut,
-    StudentExamCreate, StudentExamUpdate, StudentExamOut,
+    StudentExamCreate, StudentExamUpdate, StudentExamOut, AdmissionFunnelOut,
     StudentProgressCreate, StudentProgressUpdate, StudentProgressOut,
     ExamScoreCreate,
 )
@@ -259,6 +259,67 @@ async def list_exams(
         data_q = data_q.limit(limit).offset(offset)
     result = await db.execute(data_q)
     return result.scalars().all()
+
+
+@router.get(
+    "/student-exams/funnel",
+    response_model=AdmissionFunnelOut,
+    tags=["Student Exams"],
+)
+async def admission_funnel(
+    school_start_year: int = Query(..., description="School start year to aggregate"),
+    kutir_id: Optional[int] = Query(None),
+    cluster_id: Optional[int] = Query(None),
+    district_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
+    """Return pipeline stage counts in SQL (Eligible→…→Admitted). Respects get_scope."""
+    q = select(
+        func.count().label("total"),
+        func.coalesce(func.sum(cast(StudentExam.eligible, Integer)), 0).label("eligible"),
+        func.coalesce(func.sum(cast(StudentExam.applied, Integer)), 0).label("applied"),
+        func.coalesce(func.sum(cast(StudentExam.admit_card, Integer)), 0).label("admit_card"),
+        func.coalesce(func.sum(cast(StudentExam.appeared, Integer)), 0).label("appeared"),
+        func.coalesce(func.sum(cast(StudentExam.selected, Integer)), 0).label("selected"),
+        func.coalesce(func.sum(cast(StudentExam.admitted, Integer)), 0).label("admitted"),
+    ).select_from(StudentExam)
+
+    needs_student = (
+        scope is not None
+        or kutir_id is not None
+        or cluster_id is not None
+        or district_id is not None
+    )
+    if needs_student:
+        q = q.join(Student, StudentExam.student_id == Student.id)
+    if scope is not None:
+        q = q.where(Student.kutir_id.in_(scope))
+    if kutir_id:
+        q = q.where(Student.kutir_id == kutir_id)
+    if cluster_id is not None or district_id is not None:
+        q = (
+            q.join(Kutir, Student.kutir_id == Kutir.id)
+            .join(Cluster, Kutir.cluster_id == Cluster.id)
+            .join(Area, Cluster.area_id == Area.id)
+        )
+        if cluster_id:
+            q = q.where(Kutir.cluster_id == cluster_id)
+        elif district_id:
+            q = q.where(Area.district_id == district_id)
+
+    q = q.where(StudentExam.school_start_year == school_start_year)
+    row = (await db.execute(q)).one()
+    return AdmissionFunnelOut(
+        school_start_year=school_start_year,
+        total=int(row.total),
+        eligible=int(row.eligible),
+        applied=int(row.applied),
+        admit_card=int(row.admit_card),
+        appeared=int(row.appeared),
+        selected=int(row.selected),
+        admitted=int(row.admitted),
+    )
 
 
 @router.post("/student-exams", response_model=StudentExamOut, status_code=201, tags=["Student Exams"])
