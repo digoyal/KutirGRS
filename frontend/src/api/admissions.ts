@@ -100,6 +100,28 @@ export interface StudentProgressCreate {
   remarks?: string | null;
 }
 
+// ── Admission funnel aggregates (home dashboard) ─────────────────────────────
+export interface AdmissionFunnel {
+  school_start_year: number;
+  total: number;
+  eligible: number;
+  applied: number;
+  admit_card: number;
+  appeared: number;
+  selected: number;
+  admitted: number;
+}
+
+export async function getAdmissionFunnel(params: {
+  school_start_year: number;
+  kutir_id?: number;
+  cluster_id?: number;
+  district_id?: number;
+}): Promise<AdmissionFunnel> {
+  const { data } = await api.get("/student-exams/funnel", { params });
+  return data;
+}
+
 // ── API calls ────────────────────────────────────────────────────────────────
 export async function listExams(params: {
   student_id?: number;
