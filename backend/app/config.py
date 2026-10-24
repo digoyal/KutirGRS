@@ -3,7 +3,12 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    # ignore extra keys in .env (e.g. ADMIN_PASSWORD used only by scripts)
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/kutirgrs_v2"
     SECRET_KEY: str = "dev-secret-key-change-in-production"

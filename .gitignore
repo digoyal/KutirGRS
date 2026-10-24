@@ -33,3 +33,8 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+
+# DB dumps / exports (may contain PII) — keep backend/scripts/*.sql migrations tracked
+*_export.sql
+*dump*.sql
+kutirgrs_v2_export.sql
