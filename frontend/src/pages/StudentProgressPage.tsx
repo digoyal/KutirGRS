@@ -17,6 +17,7 @@ import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { grs } from "../styles/grs";
 import { useFieldConfig } from "../hooks/useFieldConfig";
+import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { PROGRESS_FIELDS } from "../constants/progressFields";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -58,17 +59,7 @@ export default function StudentProgressPage() {
   const isAdmin = user?.title === "Admin";
   const qc = useQueryClient();
 
-  // Handle bfcache restoration when user navigates back from Columns page
-  useEffect(() => {
-    if (window.location.search.includes("_=")) {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    function onPageShow(e: PageTransitionEvent) {
-      if (e.persisted) window.location.reload();
-    }
-    window.addEventListener("pageshow", onPageShow);
-    return () => window.removeEventListener("pageshow", onPageShow);
-  }, []);
+  useBfcacheReload();
 
   const defaultDistrict: number | "" = (() => {
     if (!user) return "";

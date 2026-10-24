@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listUsers, deleteUser, type User } from "../api/users";
 import { useAuth } from "../context/AuthContext";
 import { useFieldConfig } from "../hooks/useFieldConfig";
+import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { USERS_FIELDS } from "../constants/usersFields";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { grs } from "../styles/grs";
@@ -28,6 +29,8 @@ export default function UsersPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  useBfcacheReload();
 
   const MANAGER_ROLES_UI = ["Admin", "Regional Head", "District Anchor", "Education Coordinator", "Cluster Coordinator"];
   const canManage = MANAGER_ROLES_UI.includes(user?.title ?? "");

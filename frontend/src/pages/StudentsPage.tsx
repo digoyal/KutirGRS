@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
+import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { STUDENTS_FIELDS } from "../constants/studentsFields";
 
 type EnrichedStudent = Student & { docsCount: number; addedDate: string };
@@ -22,6 +23,8 @@ export default function StudentsPage() {
   const isAdmin = user?.title === "Admin";
   const navigate = useNavigate();
 
+  useBfcacheReload();
+
   // Restore filter state saved before navigating to an edit/add page
   const _savedFilters = (() => {
     try {
@@ -30,17 +33,6 @@ export default function StudentsPage() {
     } catch {}
     return null;
   })();
-
-  useEffect(() => {
-    if (window.location.search.includes("_=")) {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    function onPageShow(e: PageTransitionEvent) {
-      if (e.persisted) window.location.reload();
-    }
-    window.addEventListener("pageshow", onPageShow);
-    return () => window.removeEventListener("pageshow", onPageShow);
-  }, []);
 
   // Initialise geo filters from the logged-in user's role assignments
   const defaultDistrict: number | "" = (() => {
