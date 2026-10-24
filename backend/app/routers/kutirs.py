@@ -5,7 +5,13 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import get_current_user, require_admin, get_scope
+from app.auth import (
+    get_scope,
+    get_geo_scope,
+    GeoScope,
+    require_kutir_in_scope,
+    require_cluster_in_geo_scope,
+)
 from app.models.kutirs import Kutir
 from app.models.geo import Cluster, Area, District, Zone
 from app.models.users import User, user_kutirs
@@ -65,7 +71,13 @@ async def list_kutirs(
 
 
 @router.post("", response_model=KutirDetail, status_code=201)
-async def create_kutir(body: KutirCreate, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def create_kutir(
+    body: KutirCreate,
+    db: AsyncSession = Depends(get_db),
+    gs: GeoScope = Depends(get_geo_scope),
+):
+    # New kutir has no id yet — authorize via destination cluster in geo scope.
+    require_cluster_in_geo_scope(body.cluster_id, gs, detail="Kutir not found")
     obj = Kutir(**body.model_dump())
     db.add(obj)
     await db.flush()
@@ -79,24 +91,38 @@ async def get_kutir(
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
-    if scope is not None and kutir_id not in scope:
-        raise HTTPException(404, "Kutir not found")
+    require_kutir_in_scope(kutir_id, scope, detail="Kutir not found")
     return await _get_kutir_detail(db, kutir_id)
 
 
 @router.put("/{kutir_id}", response_model=KutirDetail)
-async def update_kutir(kutir_id: int, body: KutirUpdate, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def update_kutir(
+    kutir_id: int,
+    body: KutirUpdate,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+    gs: GeoScope = Depends(get_geo_scope),
+):
+    require_kutir_in_scope(kutir_id, scope, detail="Kutir not found")
     obj = await db.get(Kutir, kutir_id)
     if not obj:
         raise HTTPException(404, "Kutir not found")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    if "cluster_id" in data:
+        require_cluster_in_geo_scope(data["cluster_id"], gs, detail="Kutir not found")
+    for k, v in data.items():
         setattr(obj, k, v)
     await db.commit()
     return await _get_kutir_detail(db, kutir_id)
 
 
 @router.delete("/{kutir_id}", status_code=204)
-async def delete_kutir(kutir_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def delete_kutir(
+    kutir_id: int,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
+    require_kutir_in_scope(kutir_id, scope, detail="Kutir not found")
     obj = await db.get(Kutir, kutir_id)
     if not obj:
         raise HTTPException(404, "Kutir not found")

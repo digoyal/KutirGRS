@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import get_current_user, require_admin, get_scope
+from app.auth import get_scope, require_kutir_in_scope
 from app.models.students import (
     Student, StudentExam, StudentExamScore, StudentProgress,
 )
@@ -33,6 +33,21 @@ def _media(sub: str) -> str:
     path = os.path.join(settings.MEDIA_DIR, sub)
     os.makedirs(path, exist_ok=True)
     return path
+
+
+async def _require_student_in_scope(
+    db: AsyncSession,
+    student_id: int,
+    scope: Optional[set[int]],
+    *,
+    detail: str,
+) -> Student:
+    """Load student; 404 if missing or student's kutir is out of scope."""
+    student = await db.get(Student, student_id)
+    if not student:
+        raise HTTPException(404, detail)
+    require_kutir_in_scope(student.kutir_id, scope, detail=detail)
+    return student
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -105,8 +120,9 @@ async def list_students(
 async def create_student(
     data: StudentCreate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
+    require_kutir_in_scope(data.kutir_id, scope, detail="Student not found")
     student = Student(**data.model_dump())
     db.add(student)
     await db.commit()
@@ -123,8 +139,7 @@ async def get_student(
     obj = await db.get(Student, id)
     if not obj:
         raise HTTPException(404, "Student not found")
-    if scope is not None and obj.kutir_id not in scope:
-        raise HTTPException(404, "Student not found")
+    require_kutir_in_scope(obj.kutir_id, scope, detail="Student not found")
     return obj
 
 
@@ -132,12 +147,16 @@ async def get_student(
 async def update_student(
     id: int, data: StudentUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
     obj = await db.get(Student, id)
     if not obj:
         raise HTTPException(404, "Student not found")
-    for k, v in data.model_dump(exclude_unset=True).items():
+    require_kutir_in_scope(obj.kutir_id, scope, detail="Student not found")
+    update = data.model_dump(exclude_unset=True)
+    if "kutir_id" in update:
+        require_kutir_in_scope(update["kutir_id"], scope, detail="Student not found")
+    for k, v in update.items():
         setattr(obj, k, v)
     await db.commit()
     await db.refresh(obj)
@@ -145,10 +164,15 @@ async def update_student(
 
 
 @router.delete("/students/{id}", status_code=204, tags=["Students"])
-async def delete_student(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def delete_student(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
     obj = await db.get(Student, id)
     if not obj:
         raise HTTPException(404, "Student not found")
+    require_kutir_in_scope(obj.kutir_id, scope, detail="Student not found")
     await db.delete(obj)
     await db.commit()
 
@@ -158,11 +182,12 @@ async def upload_student_photo(
     id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
     obj = await db.get(Student, id)
     if not obj:
         raise HTTPException(404, "Student not found")
+    require_kutir_in_scope(obj.kutir_id, scope, detail="Student not found")
     ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
     filename = f"{uuid.uuid4()}{ext}"
     dest = os.path.join(_media("student_photos"), filename)
@@ -240,8 +265,9 @@ async def list_exams(
 async def create_exam(
     data: StudentExamCreate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
+    await _require_student_in_scope(db, data.student_id, scope, detail="StudentExam not found")
     scores = data.scores
     exam_data = data.model_dump(exclude={"scores"})
     # Prevent double-admission: student can only be admitted to one school
@@ -284,10 +310,7 @@ async def get_exam(
     obj = await db.get(StudentExam, id)
     if not obj:
         raise HTTPException(404, "StudentExam not found")
-    if scope is not None:
-        student = await db.get(Student, obj.student_id)
-        if not student or student.kutir_id not in scope:
-            raise HTTPException(404, "StudentExam not found")
+    await _require_student_in_scope(db, obj.student_id, scope, detail="StudentExam not found")
     return obj
 
 
@@ -295,11 +318,12 @@ async def get_exam(
 async def update_exam(
     id: int, data: StudentExamUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
     obj = await db.get(StudentExam, id)
     if not obj:
         raise HTTPException(404, "StudentExam not found")
+    await _require_student_in_scope(db, obj.student_id, scope, detail="StudentExam not found")
     update = data.model_dump(exclude_unset=True)
     scores = update.pop("scores", None)
 
@@ -330,10 +354,15 @@ async def update_exam(
 
 
 @router.delete("/student-exams/{id}", status_code=204, tags=["Student Exams"])
-async def delete_exam(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def delete_exam(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
     obj = await db.get(StudentExam, id)
     if not obj:
         raise HTTPException(404, "StudentExam not found")
+    await _require_student_in_scope(db, obj.student_id, scope, detail="StudentExam not found")
     await db.delete(obj)
     await db.commit()
 
@@ -400,8 +429,9 @@ async def list_progress(
 async def create_progress(
     data: StudentProgressCreate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
+    await _require_student_in_scope(db, data.student_id, scope, detail="StudentProgress not found")
     obj = StudentProgress(**data.model_dump())
     db.add(obj)
     await db.commit()
@@ -418,10 +448,7 @@ async def get_progress(
     obj = await db.get(StudentProgress, id)
     if not obj:
         raise HTTPException(404, "StudentProgress not found")
-    if scope is not None:
-        student = await db.get(Student, obj.student_id)
-        if not student or student.kutir_id not in scope:
-            raise HTTPException(404, "StudentProgress not found")
+    await _require_student_in_scope(db, obj.student_id, scope, detail="StudentProgress not found")
     return obj
 
 
@@ -429,11 +456,12 @@ async def get_progress(
 async def update_progress(
     id: int, data: StudentProgressUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
     obj = await db.get(StudentProgress, id)
     if not obj:
         raise HTTPException(404, "StudentProgress not found")
+    await _require_student_in_scope(db, obj.student_id, scope, detail="StudentProgress not found")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.commit()
@@ -442,10 +470,15 @@ async def update_progress(
 
 
 @router.delete("/student-progress/{id}", status_code=204, tags=["Student Progress"])
-async def delete_progress(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def delete_progress(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
     obj = await db.get(StudentProgress, id)
     if not obj:
         raise HTTPException(404, "StudentProgress not found")
+    await _require_student_in_scope(db, obj.student_id, scope, detail="StudentProgress not found")
     await db.delete(obj)
     await db.commit()
 

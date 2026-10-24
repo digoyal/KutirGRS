@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import os, uuid, shutil
 
 from app.database import get_db
-from app.auth import get_current_user, require_admin, get_scope
+from app.auth import get_scope, require_kutir_in_scope
 from app.models.visits import KutirVisit
 from app.schemas.visits import KutirVisitCreate, KutirVisitUpdate, KutirVisitOut
 from app.config import settings
@@ -43,8 +43,9 @@ async def list_visits(
 async def create_visit(
     data: KutirVisitCreate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
+    require_kutir_in_scope(data.kutir_id, scope, detail="KutirVisit not found")
     obj = KutirVisit(**data.model_dump())
     db.add(obj)
     await db.commit()
@@ -62,8 +63,7 @@ async def get_visit(
     obj = await db.get(KutirVisit, id)
     if not obj:
         raise HTTPException(404, "KutirVisit not found")
-    if scope is not None and obj.kutir_id not in scope:
-        raise HTTPException(404, "KutirVisit not found")
+    require_kutir_in_scope(obj.kutir_id, scope, detail="KutirVisit not found")
     return obj
 
 
@@ -72,11 +72,12 @@ async def get_visit(
 async def update_visit(
     id: int, data: KutirVisitUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
     obj = await db.get(KutirVisit, id)
     if not obj:
         raise HTTPException(404, "KutirVisit not found")
+    require_kutir_in_scope(obj.kutir_id, scope, detail="KutirVisit not found")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.commit()
@@ -86,10 +87,15 @@ async def update_visit(
 
 # ── Delete ───────────────────────────────────────────────────────────────────
 @router.delete("/kutir-visits/{id}", status_code=204, tags=["Kutir Visits"])
-async def delete_visit(id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def delete_visit(
+    id: int,
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
     obj = await db.get(KutirVisit, id)
     if not obj:
         raise HTTPException(404, "KutirVisit not found")
+    require_kutir_in_scope(obj.kutir_id, scope, detail="KutirVisit not found")
     await db.delete(obj)
     await db.commit()
 
@@ -100,11 +106,12 @@ async def upload_visit_photo(
     id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    scope: Optional[set[int]] = Depends(get_scope),
 ):
     obj = await db.get(KutirVisit, id)
     if not obj:
         raise HTTPException(404, "KutirVisit not found")
+    require_kutir_in_scope(obj.kutir_id, scope, detail="KutirVisit not found")
     ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
     filename = f"{uuid.uuid4()}{ext}"
     dest = os.path.join(_media("visit_photos"), filename)
