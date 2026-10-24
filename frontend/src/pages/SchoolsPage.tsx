@@ -7,6 +7,7 @@ import { GrsTable, type Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { SCHOOLS_FIELDS } from "../constants/schoolsFields";
+import { canManageSchools } from "../constants/roles";
 import { grs } from "../styles/grs";
 
 const SCHOOL_TYPES = ["EMRS", "JNV", "KSP", "MRS", "GNV", "KGBV", "SportsBoys", "SportsGirls", "Other"];
@@ -41,7 +42,7 @@ export default function SchoolsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canManage = user?.title !== "Teacher";
+  const canManage = canManageSchools(user?.title);
 
   useBfcacheReload();
 

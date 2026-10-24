@@ -3,7 +3,8 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getUser, updateUser, type UserUpdate } from "../api/users";
 import { useAuth } from "../context/AuthContext";
-import { UserForm, EMPTY_USER_FORM, TITLES, type UserFormState } from "../components/UserForm";
+import { UserForm, EMPTY_USER_FORM, type UserFormState } from "../components/UserForm";
+import { canManageUsers, assignableTitles as titlesAssignableTo } from "../constants/roles";
 import { grs } from "../styles/grs";
 
 const sec: React.CSSProperties = { background: "var(--bg-card)", borderRadius: 8, padding: "10px 14px", marginBottom: 8 };
@@ -26,9 +27,8 @@ export default function UserDetailPage() {
   const [filterArea, setFilterArea]         = useState<number | null>(null);
   const [filterCluster, setFilterCluster]   = useState<number | null>(null);
 
-  const myRoleIndex = TITLES.indexOf(authUser?.title ?? "");
-  const canManage = ["Admin", "Regional Head", "District Anchor", "Education Coordinator"].includes(authUser?.title ?? "");
-  const assignableTitles = authUser?.title === "Admin" ? TITLES : (myRoleIndex === -1 ? [] : TITLES.slice(0, myRoleIndex));
+  const canManage = canManageUsers(authUser?.title);
+  const assignableTitles = titlesAssignableTo(authUser?.title);
 
   const { data: u, isLoading } = useQuery({
     queryKey: ["user", Number(id)],

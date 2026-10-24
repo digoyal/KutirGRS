@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import os, uuid, shutil
 
 from app.database import get_db
-from app.auth import get_scope, require_admin, require_kutir_in_scope
+from app.auth import get_scope, require_roles, require_kutir_in_scope
+from app.roles import MANAGE_VISITS
 from app.models.visits import KutirVisit
 from app.schemas.visits import KutirVisitCreate, KutirVisitUpdate, KutirVisitOut
 from app.config import settings
@@ -44,6 +45,7 @@ async def create_visit(
     data: KutirVisitCreate,
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
+    _=Depends(require_roles(MANAGE_VISITS)),
 ):
     require_kutir_in_scope(data.kutir_id, scope, detail="KutirVisit not found")
     obj = KutirVisit(**data.model_dump())
@@ -73,6 +75,7 @@ async def update_visit(
     id: int, data: KutirVisitUpdate,
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
+    _=Depends(require_roles(MANAGE_VISITS)),
 ):
     obj = await db.get(KutirVisit, id)
     if not obj:
@@ -90,7 +93,7 @@ async def update_visit(
 async def delete_visit(
     id: int,
     db: AsyncSession = Depends(get_db),
-    _admin=Depends(require_admin),
+    _=Depends(require_roles(MANAGE_VISITS)),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
     obj = await db.get(KutirVisit, id)
@@ -108,6 +111,7 @@ async def upload_visit_photo(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
+    _=Depends(require_roles(MANAGE_VISITS)),
 ):
     obj = await db.get(KutirVisit, id)
     if not obj:

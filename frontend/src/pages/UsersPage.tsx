@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { USERS_FIELDS } from "../constants/usersFields";
+import { canManageUsers } from "../constants/roles";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { grs } from "../styles/grs";
 
@@ -32,8 +33,7 @@ export default function UsersPage() {
 
   useBfcacheReload();
 
-  const MANAGER_ROLES_UI = ["Admin", "Regional Head", "District Anchor", "Education Coordinator", "Cluster Coordinator"];
-  const canManage = MANAGER_ROLES_UI.includes(user?.title ?? "");
+  const canManage = canManageUsers(user?.title);
 
   const { data: users = [], isLoading } = useQuery({ queryKey: ["users"], queryFn: listUsers });
 

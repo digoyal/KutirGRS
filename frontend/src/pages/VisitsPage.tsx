@@ -12,6 +12,7 @@ import type { Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { VISITS_FIELDS } from "../constants/visitsFields";
+import { canManageVisits as roleCanManageVisits, isAdmin as roleIsAdmin } from "../constants/roles";
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
 
@@ -48,9 +49,8 @@ const _savedFilters = (() => {
 export default function VisitsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = user?.title === "Admin";
-  const MANAGER_ROLES_V = ["Admin", "Regional Head", "District Anchor", "Education Coordinator", "Cluster Coordinator"];
-  const canManageVisits = MANAGER_ROLES_V.includes(user?.title ?? "");
+  const isAdmin = roleIsAdmin(user?.title);
+  const canManageVisits = roleCanManageVisits(user?.title);
 
   useBfcacheReload();
   const qc = useQueryClient();

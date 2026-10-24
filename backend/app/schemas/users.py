@@ -1,15 +1,7 @@
 from typing import Optional, List
 from pydantic import BaseModel
 
-
-VALID_TITLES = [
-    "Teacher",
-    "Cluster Coordinator",
-    "Education Coordinator",
-    "District Anchor",
-    "Regional Head",
-    "Admin",
-]
+from app.roles import TITLES as VALID_TITLES
 
 
 class UserCreate(BaseModel):

@@ -9,9 +9,11 @@ from app.auth import (
     get_scope,
     get_geo_scope,
     GeoScope,
+    require_roles,
     require_kutir_in_scope,
     require_cluster_in_geo_scope,
 )
+from app.roles import MANAGE_KUTIRS
 from app.models.kutirs import Kutir
 from app.models.geo import Cluster, Area, District, Zone
 from app.models.users import User, user_kutirs
@@ -75,6 +77,7 @@ async def create_kutir(
     body: KutirCreate,
     db: AsyncSession = Depends(get_db),
     gs: GeoScope = Depends(get_geo_scope),
+    _=Depends(require_roles(MANAGE_KUTIRS)),
 ):
     # New kutir has no id yet — authorize via destination cluster in geo scope.
     require_cluster_in_geo_scope(body.cluster_id, gs, detail="Kutir not found")
@@ -102,6 +105,7 @@ async def update_kutir(
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
     gs: GeoScope = Depends(get_geo_scope),
+    _=Depends(require_roles(MANAGE_KUTIRS)),
 ):
     require_kutir_in_scope(kutir_id, scope, detail="Kutir not found")
     obj = await db.get(Kutir, kutir_id)
@@ -121,6 +125,7 @@ async def delete_kutir(
     kutir_id: int,
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
+    _=Depends(require_roles(MANAGE_KUTIRS)),
 ):
     require_kutir_in_scope(kutir_id, scope, detail="Kutir not found")
     obj = await db.get(Kutir, kutir_id)

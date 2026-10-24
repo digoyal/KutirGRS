@@ -7,6 +7,7 @@ import type { KutirVisit, KutirVisitCreate } from "../api/visits";
 import { useAuth } from "../context/AuthContext";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { grs } from "../styles/grs";
+import { canManageVisits as roleCanManageVisits } from "../constants/roles";
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
 
@@ -71,9 +72,7 @@ export default function VisitDetailPage() {
   const qc = useQueryClient();
 
   const enteredViaEdit = searchParams.get("edit") === "1";
-  const MANAGER_ROLES_V = ["Admin", "Regional Head", "District Anchor", "Education Coordinator"];
-  const canManageVisits = MANAGER_ROLES_V.includes(user?.title ?? "");
-  const isAdmin = user?.title === "Admin";
+  const canManageVisits = roleCanManageVisits(user?.title);
 
   const [editing, setEditing] = useState(enteredViaEdit);
   const [form, setForm] = useState<KutirVisitCreate | null>(null);
@@ -211,7 +210,7 @@ export default function VisitDetailPage() {
               <div style={{ fontSize: "0.85rem", color: NAVY_ACCENT, marginTop: 2 }}>{kutirName}</div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {isAdmin && <button onClick={handleDelete} disabled={deleting} style={grs.btnDanger}>{deleting ? "Deleting…" : "Delete"}</button>}
+            {canManageVisits && <button onClick={handleDelete} disabled={deleting} style={grs.btnDanger}>{deleting ? "Deleting…" : "Delete"}</button>}
             {canManageVisits && <button onClick={() => setEditing(true)} style={grs.btnPrimary}>Edit</button>}
             <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", color: NAVY_ACCENT, borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: "0.85rem" }}>← Back</button>
           </div>

@@ -5,6 +5,7 @@ import { listZones, listDistricts, listAreas, listClusters, createZone, createDi
 import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
+import { canManageGeography, isAdmin as roleIsAdmin } from "../constants/roles";
 
 type Tab = "zones" | "districts" | "areas" | "clusters";
 
@@ -26,14 +27,14 @@ export default function GeoPage() {
 
   const { user } = useAuth();
   const role = user?.title ?? "";
-  // canWrite[tab] = true if the current role may add/edit/delete that geo level
-  // Hierarchy: Zone(0) > District(1) > Area(2) > Cluster(3)
-  // A role can only mutate levels BELOW its assignment level
+  // Matrix: Geography mutate = Education Coordinator+. Within that, keep the
+  // existing hierarchy rule: a role may only mutate levels BELOW its assignment.
+  const geoOk = canManageGeography(role);
   const canWrite: Record<Tab, boolean> = {
-    zones:     role === "Admin",
-    districts: role === "Admin",
-    areas:     ["Admin", "Regional Head", "District Anchor"].includes(role),
-    clusters:  ["Admin", "Regional Head", "District Anchor", "Education Coordinator"].includes(role),
+    zones:     geoOk && roleIsAdmin(role),
+    districts: geoOk && roleIsAdmin(role),
+    areas:     geoOk && ["Admin", "Regional Head", "District Anchor"].includes(role),
+    clusters:  geoOk && ["Admin", "Regional Head", "District Anchor", "Education Coordinator"].includes(role),
   };
 
   const { data: zones = [] }     = useQuery({ queryKey: ["zones"],           queryFn: listZones });

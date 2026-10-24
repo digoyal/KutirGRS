@@ -2,16 +2,28 @@ import { grs } from "../styles/grs";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import {
+  canViewUsers,
+  canViewColumnConfig,
+  isAdmin as roleIsAdmin,
+} from "../constants/roles";
 import HomePage from "./HomePage";
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
-  const isAdmin = user?.title === "Admin";
+  const title = user?.title;
   const location = useLocation();
   const isHome = location.pathname === "/";
   const [navOpen, setNavOpen] = useState(false);
 
   const closeNav = () => setNavOpen(false);
+
+  function navVisible(item: (typeof navItems)[number]): boolean {
+    if (item.adminOnly && !roleIsAdmin(title)) return false;
+    if (item.usersOnly && !canViewUsers(title)) return false;
+    if (item.columnConfigOnly && !canViewColumnConfig(title)) return false;
+    return true;
+  }
 
   return (
     <div style={styles.layout}>
@@ -28,7 +40,7 @@ export default function DashboardPage() {
       <aside style={styles.sidebar} className={`grs-sidebar${navOpen ? " grs-sidebar--open" : ""}`}>
         <div style={grs.navLogo}>Parivaar Kutirs</div>
         <nav style={styles.nav}>
-          {navItems.filter(item => !item.adminOnly || isAdmin).map(({ to, label, divider, sub }) => (
+          {navItems.filter(navVisible).map(({ to, label, divider, sub }) => (
             divider
               ? <div key={label} style={grs.navSectionLabel}>{label}</div>
               : (
@@ -63,7 +75,15 @@ export default function DashboardPage() {
   );
 }
 
-const navItems: { to?: string; label: string; divider?: boolean; sub?: boolean; adminOnly?: boolean }[] = [
+const navItems: {
+  to?: string;
+  label: string;
+  divider?: boolean;
+  sub?: boolean;
+  adminOnly?: boolean;
+  usersOnly?: boolean;
+  columnConfigOnly?: boolean;
+}[] = [
   { divider: true, label: "GRS TRACKING" },
   { to: "/", label: "GRS Dashboard" },
   { to: "/students", label: "Students" },
@@ -81,9 +101,9 @@ const navItems: { to?: string; label: string; divider?: boolean; sub?: boolean; 
   { to: "/schools", label: "Govt. Res. Schools" },
   { to: "/exam-centers", label: "Exam Centers" },
   { to: "/geo", label: "Geography" },
-  { to: "/lookups", label: "Lookups", adminOnly: true },
-  { to: "/users", label: "Users" },
-  { to: "/admin/field-config", label: "Column Settings", adminOnly: true },
+  { to: "/lookups", label: "Lookups" }, // all roles may view; mutate Admin-only on page
+  { to: "/users", label: "Users", usersOnly: true },
+  { to: "/admin/field-config", label: "Column Settings", columnConfigOnly: true },
   { to: "/admin/deploy", label: "🚀 Deploy", adminOnly: true },
   { to: "/import", label: "Import Data", adminOnly: true },
 ];

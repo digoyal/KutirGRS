@@ -5,6 +5,7 @@ import { getKutir, updateKutir, type KutirCreate } from "../api/kutirs";
 import { listZones, listDistricts, listAreas, listClusters } from "../api/geo";
 import { grs } from "../styles/grs";
 import { useAuth } from "../context/AuthContext";
+import { canManageKutirs } from "../constants/roles";
 
 const KUTIR_TYPES = ["Seva Kutir", "Shiksha Kutir", "Non-Kutir"];
 const STATES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"];
@@ -29,8 +30,7 @@ export default function KutirDetailPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
 
-  const MANAGER_ROLES = ["Admin", "Regional Head", "District Anchor", "Education Coordinator", "Cluster Coordinator"];
-  const canManage = MANAGER_ROLES.includes(user?.title ?? "");
+  const canManage = canManageKutirs(user?.title);
 
   const enteredViaEdit = searchParams.get("edit") === "1";
   const [editing, setEditing] = useState(enteredViaEdit);
