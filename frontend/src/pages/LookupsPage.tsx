@@ -4,6 +4,9 @@ import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { canManageLookups } from "../constants/roles";
 import { grs } from "../styles/grs";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { GrsModal } from "../components/GrsModal";
+import { GrsTabs } from "../components/GrsTabs";
 
 interface LookupItem { id: number; name?: string; reason?: string; category_id?: number }
 
@@ -207,27 +210,17 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
       )}
 
       {confirmDelete && (
-        <div style={grs.overlay}>
-          <div style={{ ...grs.modal, width: 340 }}>
-            <p style={{ margin: "0 0 16px", color: "var(--text-primary)", fontSize: "0.9rem" }}>
-              Delete <strong>"{confirmDelete[tab.nameField] ?? ""}"</strong>?
-              {tab.key === "categories" && (
-                <span style={{ display: "block", marginTop: 6, color: "var(--status-danger-fg)", fontSize: "0.8rem" }}>
-                  ⚠️ This will also permanently delete all Sub-Categories under this category.
-                </span>
-              )}
-              {tab.key !== "categories" && (
-                <span style={{ display: "block", marginTop: 6, color: "var(--text-secondary)", fontSize: "0.8rem" }}>
-                  This may affect existing records.
-                </span>
-              )}
-            </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button onClick={() => setConfirmDelete(null)} style={grs.btnSecondary}>Cancel</button>
-              <button onClick={() => handleDelete(confirmDelete.id)} style={{ ...grs.btnPrimary, background: "var(--status-danger-fg)" }}>Delete</button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          message={<>Delete <strong>"{confirmDelete[tab.nameField] ?? ""}"</strong>?</>}
+          detail={
+            tab.key === "categories"
+              ? "⚠️ This will also permanently delete all Sub-Categories under this category."
+              : "This may affect existing records."
+          }
+          detailDanger={tab.key === "categories"}
+          onConfirm={() => { void handleDelete(confirmDelete.id); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );
@@ -542,52 +535,41 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
       )}
 
       {editing && (
-        <div style={grs.overlay}>
-          <div style={{ ...grs.modal, width: 440 }}>
-            <h3 style={{ margin: "0 0 14px", fontSize: "1rem", color: "var(--text-primary)" }}>Edit Exam Type</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <GrsModal title="Edit Exam Type" onClose={() => setEditing(null)} width={440}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label style={grs.fieldLabel}>Name</label>
+              <input style={grs.input} value={editName} onChange={e => setEditName(e.target.value)} autoFocus />
+            </div>
+            {schoolTypes.length > 0 && (
               <div>
-                <label style={grs.fieldLabel}>Name</label>
-                <input style={grs.input} value={editName} onChange={e => setEditName(e.target.value)} autoFocus />
-              </div>
-              {schoolTypes.length > 0 && (
-                <div>
-                  <label style={grs.fieldLabel}>School Types</label>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
-                    {schoolTypes.map(st => (
-                      <label key={st.id} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: "0.85rem" }}>
-                        <input type="checkbox" checked={editSchoolTypeIds.includes(st.id)} onChange={() => toggleEdit(st.id)} />
-                        {st.name}
-                      </label>
-                    ))}
-                  </div>
+                <label style={grs.fieldLabel}>School Types</label>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+                  {schoolTypes.map(st => (
+                    <label key={st.id} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: "0.85rem" }}>
+                      <input type="checkbox" checked={editSchoolTypeIds.includes(st.id)} onChange={() => toggleEdit(st.id)} />
+                      {st.name}
+                    </label>
+                  ))}
                 </div>
-              )}
-              {error && <div style={grs.errorBox}>{error}</div>}
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <button onClick={() => setEditing(null)} style={grs.btnSecondary}>Cancel</button>
-                <button onClick={handleEdit} style={grs.btnPrimary} disabled={!editName.trim()}>Save</button>
               </div>
+            )}
+            {error && <div style={grs.errorBox}>{error}</div>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setEditing(null)} style={grs.btnSecondary}>Cancel</button>
+              <button onClick={handleEdit} style={grs.btnPrimary} disabled={!editName.trim()}>Save</button>
             </div>
           </div>
-        </div>
+        </GrsModal>
       )}
 
       {confirmDelete && (
-        <div style={grs.overlay}>
-          <div style={{ ...grs.modal, width: 340 }}>
-            <p style={{ margin: "0 0 16px", color: "var(--text-primary)", fontSize: "0.9rem" }}>
-              Delete <strong>"{confirmDelete.name}"</strong>?
-              <span style={{ display: "block", marginTop: 6, color: "var(--text-secondary)", fontSize: "0.8rem" }}>
-                This may affect existing records.
-              </span>
-            </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button onClick={() => setConfirmDelete(null)} style={grs.btnSecondary}>Cancel</button>
-              <button onClick={() => handleDelete(confirmDelete.id)} style={{ ...grs.btnPrimary, background: "var(--status-danger-fg)" }}>Delete</button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          message={<>Delete <strong>"{confirmDelete.name}"</strong>?</>}
+          detail="This may affect existing records."
+          onConfirm={() => { void handleDelete(confirmDelete.id); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );
@@ -609,24 +591,12 @@ export default function LookupsPage() {
         </p>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 0, borderBottom: "2px solid var(--border)", marginBottom: 20 }}>
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
-            style={{
-              background: "transparent", border: "none", cursor: "pointer",
-              padding: "8px 16px", fontSize: "0.85rem",
-              fontWeight: activeTab === t.key ? 700 : 400,
-              color: activeTab === t.key ? "var(--badge-blue-fg)" : "var(--text-secondary)",
-              borderBottom: activeTab === t.key ? "2px solid var(--badge-blue-fg)" : "2px solid transparent",
-              marginBottom: -2,
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <GrsTabs
+        value={activeTab}
+        onChange={setActiveTab}
+        style={{ marginBottom: 20 }}
+        tabs={TABS.map(t => ({ key: t.key, label: t.label }))}
+      />
 
       <LookupErrorBoundary key={activeTab}>
         {activeTab === "exam-type-subjects"

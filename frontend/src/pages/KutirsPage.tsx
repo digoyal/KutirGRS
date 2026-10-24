@@ -11,6 +11,7 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { KUTIRS_FIELDS } from "../constants/kutirsFields";
 import { canManageKutirs as roleCanManageKutirs, isAdmin as roleIsAdmin } from "../constants/roles";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 // Restore filter state saved before navigating to edit/view
 const _savedFilters = (() => {
@@ -32,6 +33,7 @@ export default function KutirsPage() {
 
   const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? "");
   const [filterCluster, setFilterCluster] = useState<number | "">(_savedFilters?.cluster ?? "");
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
 
   const { data: kutirs = [], isLoading } = useQuery({ queryKey: ["kutirs"], queryFn: () => listKutirs() });
   const { data: allDistricts = [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
@@ -145,10 +147,17 @@ export default function KutirsPage() {
           onView: () => { saveFilters(); navigate(`/kutirs/${r.id}`); },
           ...(canManageKutirs ? {
             onEdit: () => { saveFilters(); navigate(`/kutirs/${r.id}?edit=1`); },
-            onDelete: () => { if (confirm(`Delete kutir "${r.name}"?`)) deleteMut.mutate(r.id); },
+            onDelete: () => setPendingDelete({ id: r.id, name: r.name }),
           } : {}),
         })}
       />
+      {pendingDelete && (
+        <ConfirmDialog
+          message={<>Delete kutir <strong>"{pendingDelete.name}"</strong>?</>}
+          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

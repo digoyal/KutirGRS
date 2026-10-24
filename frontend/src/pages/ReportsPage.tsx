@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import api from "../api/client";
 import { listExams, type StudentExam } from "../api/admissions";
 import { listVisits, type KutirVisit } from "../api/visits";
+import { GrsTabs } from "../components/GrsTabs";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -352,18 +353,12 @@ export default function ReportsPage() {
             ))}
           </select>
         </div>
-        <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--border)", marginBottom: 20 }}>
-          {tabs.map((t) => (
-            <button key={t.key} style={{
-              background: "transparent", border: "none", cursor: "pointer",
-              padding: "9px 20px", fontSize: "0.875rem",
-              fontWeight: tab === t.key ? 700 : 400,
-              color: tab === t.key ? "var(--badge-blue-fg)" : "var(--text-secondary)",
-              borderBottom: tab === t.key ? "2px solid #2c5282" : "2px solid transparent",
-              marginBottom: -2, transition: "color 0.15s",
-            }}>{t.label}</button>
-          ))}
-        </div>
+        <GrsTabs
+          value={tab}
+          onChange={_setDetailedTab}
+          style={{ marginBottom: 20 }}
+          tabs={tabs}
+        />
         {tab === "admitted" && <AdmittedReport year={year} />}
       </div>
     );
@@ -386,24 +381,12 @@ export default function ReportsPage() {
           </select>
         )}
       </div>
-      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--border)", marginBottom: 20 }}>
-        {summaryTabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setSummaryTab(t.key)}
-            style={{
-              background: "transparent", border: "none", cursor: "pointer",
-              padding: "9px 20px", fontSize: "0.875rem",
-              fontWeight: summaryTab === t.key ? 700 : 400,
-              color: summaryTab === t.key ? "var(--badge-blue-fg)" : "var(--text-secondary)",
-              borderBottom: summaryTab === t.key ? "2px solid #2c5282" : "2px solid transparent",
-              marginBottom: -2, transition: "color 0.15s",
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <GrsTabs
+        value={summaryTab}
+        onChange={setSummaryTab}
+        style={{ marginBottom: 20 }}
+        tabs={summaryTabs}
+      />
       {summaryTab === "funnel" && <FunnelReport year={year} />}
       {summaryTab === "visits" && <VisitSummaryReport />}
     </div>

@@ -10,6 +10,7 @@ import { GrsTable, type Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { STUDENTS_FIELDS } from "../constants/studentsFields";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type EnrichedStudent = Student & { docsCount: number; addedDate: string };
 
@@ -58,6 +59,7 @@ export default function StudentsPage() {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(_savedFilters?.page ?? 1);
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
   const handleSearch = (q: string) => {
     setSearchQuery(q);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -288,7 +290,7 @@ export default function StudentsPage() {
             saveFilters();
             navigate(`/students/${s.id}?edit=1`);
           },
-          onDelete: () => { if (confirm(`Delete ${s.first_name} ${s.last_name}?`)) deleteMut.mutate(s.id); },
+          onDelete: () => setPendingDelete({ id: s.id, name: `${s.first_name} ${s.last_name}` }),
         })}
         searchable
         searchPlaceholder="Search by name, phone…"
@@ -299,6 +301,13 @@ export default function StudentsPage() {
         printTitle="Students"
         onAdd={() => { saveFilters(); navigate("new"); }}
       />
+      {pendingDelete && (
+        <ConfirmDialog
+          message={<>Delete <strong>{pendingDelete.name}</strong>?</>}
+          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }
