@@ -63,7 +63,8 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 
 ## Testing
 
-- After schema work: smoke the affected list/detail once (e.g. admissions, visits, progress as relevant).
+- After **any substantial change** (auth, roles, deploy, dependencies, shared UI, big API/UI): run [`docs/smoke-test.md`](docs/smoke-test.md). Skip for tiny typo / docs-only edits.
+- After schema work: also smoke the affected list/detail once (e.g. admissions, visits, progress as relevant).
 - After schema or API changes: typecheck FE; hit the affected endpoint or page once locally when practical.
 - Prefer focused checks over large new suites unless asked. Cover auth/scope regressions when touching permissions.
 - For UI: verify loading, empty, and error paths — not only the happy path.
