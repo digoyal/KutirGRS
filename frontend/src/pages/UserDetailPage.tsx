@@ -2,12 +2,25 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getUser, updateUser, type UserUpdate } from "../api/users";
+import { listZones, listDistricts, listAreas, listClusters } from "../api/geo";
+import { listKutirs } from "../api/kutirs";
 import { useAuth } from "../context/AuthContext";
 import { ViewField, ViewSection } from "@parivaar/ui";
 import { UserForm, EMPTY_USER_FORM, type UserFormState } from "../components/UserForm";
 import { canManageUsers, assignableTitles as titlesAssignableTo } from "../constants/roles";
 import { grs } from "../styles/grs";
 
+<<<<<<< HEAD
+=======
+const sec: React.CSSProperties = { background: "var(--bg-card)", borderRadius: 8, padding: "10px 14px", marginBottom: 8 };
+const secTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--badge-blue-fg, #2563eb)", marginBottom: 8 };
+const viewVal: React.CSSProperties = { fontSize: 14, color: "var(--text-primary)", padding: "7px 0" };
+
+function namesFor(ids: number[], items: { id: number; name: string }[] | undefined): string {
+  return ids.map(id => items?.find(x => x.id === id)?.name ?? String(id)).join(", ");
+}
+
+>>>>>>> 65702c5 (Show geo assignment names on user detail view)
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -32,6 +45,17 @@ export default function UserDetailPage() {
     queryFn: () => getUser(Number(id)),
     enabled: !!id,
   });
+
+  // Resolve assignment IDs → names in view mode (same lists UserForm uses when editing)
+  const needGeoNames = !editing && !!u && (
+    u.zone_ids.length > 0 || u.district_ids.length > 0 || u.area_ids.length > 0 ||
+    u.cluster_ids.length > 0 || u.kutir_ids.length > 0
+  );
+  const { data: allZones } = useQuery({ queryKey: ["zones"], queryFn: listZones, enabled: needGeoNames });
+  const { data: allDistricts } = useQuery({ queryKey: ["districts"], queryFn: listDistricts, enabled: needGeoNames });
+  const { data: allAreas } = useQuery({ queryKey: ["areas"], queryFn: listAreas, enabled: needGeoNames });
+  const { data: allClusters } = useQuery({ queryKey: ["clusters"], queryFn: listClusters, enabled: needGeoNames });
+  const { data: allKutirs } = useQuery({ queryKey: ["kutirs"], queryFn: listKutirs, enabled: needGeoNames });
 
   useEffect(() => {
     if (!u) return;
@@ -143,6 +167,7 @@ export default function UserDetailPage() {
             </div>
           </ViewSection>
 
+<<<<<<< HEAD
           {(u.zone_ids.length > 0 ||
             u.district_ids.length > 0 ||
             u.area_ids.length > 0 ||
@@ -165,6 +190,17 @@ export default function UserDetailPage() {
                 {u.kutir_ids.length > 0 && (
                   <ViewField label="Kutirs">{u.kutir_ids.join(", ")}</ViewField>
                 )}
+=======
+          {(u.zone_ids.length > 0 || u.district_ids.length > 0 || u.area_ids.length > 0 || u.cluster_ids.length > 0 || u.kutir_ids.length > 0) && (
+            <section style={sec}>
+              <div style={secTitle}>Assignment</div>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                {u.zone_ids.length > 0     && <div style={{ marginBottom: 4 }}><strong>Zones:</strong> {namesFor(u.zone_ids, allZones)}</div>}
+                {u.district_ids.length > 0 && <div style={{ marginBottom: 4 }}><strong>Districts:</strong> {namesFor(u.district_ids, allDistricts)}</div>}
+                {u.area_ids.length > 0     && <div style={{ marginBottom: 4 }}><strong>Areas:</strong> {namesFor(u.area_ids, allAreas)}</div>}
+                {u.cluster_ids.length > 0  && <div style={{ marginBottom: 4 }}><strong>Clusters:</strong> {namesFor(u.cluster_ids, allClusters)}</div>}
+                {u.kutir_ids.length > 0    && <div><strong>Kutirs:</strong> {namesFor(u.kutir_ids, allKutirs)}</div>}
+>>>>>>> 65702c5 (Show geo assignment names on user detail view)
               </div>
             </ViewSection>
           )}
