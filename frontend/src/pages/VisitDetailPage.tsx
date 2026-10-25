@@ -1,22 +1,17 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getVisit, updateVisit, deleteVisit, uploadVisitPhoto } from "../api/visits";
+import { getVisit, updateVisit, uploadVisitPhoto } from "../api/visits";
 import { listKutirs } from "../api/kutirs";
 import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 import { canManageVisits as roleCanManageVisits } from "../constants/roles";
-import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
   VisitForm,
   emptyVisitForm,
   visitFormFromVisit,
   type VisitFormState,
 } from "../components/VisitForm";
-
-const NAVY_BG = "#1a365d";
-const NAVY_TEXT = "#ffffff";
-const NAVY_ACCENT = "#90cdf4";
 
 export default function VisitDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -32,8 +27,6 @@ export default function VisitDetailPage() {
   const [form, setForm] = useState<VisitFormState>(emptyVisitForm);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data: visit, isLoading } = useQuery({
@@ -87,18 +80,6 @@ export default function VisitDetailPage() {
     }
   }
 
-  async function handleDelete() {
-    setDeleting(true);
-    try {
-      await deleteVisit(Number(id));
-      qc.invalidateQueries({ queryKey: ["visits"] });
-      navigate(-1);
-    } finally {
-      setDeleting(false);
-      setConfirmDeleteOpen(false);
-    }
-  }
-
   if (isLoading || !visit) {
     return <div style={{ padding: 32, color: "var(--text-secondary)" }}>Loading…</div>;
   }
@@ -109,87 +90,46 @@ export default function VisitDetailPage() {
   // ── VIEW MODE ─────────────────────────────────────────────────────────────
   if (!editing) {
     return (
-      <div className="grs-page" style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px" }}>
-        <div style={{ borderRadius: 8, marginBottom: 20, overflow: "hidden" }}>
-          <div
-            style={{
-              background: NAVY_BG,
-              padding: "16px 20px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 700, color: NAVY_TEXT, fontSize: "1.05rem" }}>
-                Visit:{" "}
-                {new Date(visit.visit_date).toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </div>
-              <div style={{ fontSize: "0.85rem", color: NAVY_ACCENT, marginTop: 2 }}>{kutirName}</div>
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {canManageVisits && (
-                <button
-                  onClick={() => setConfirmDeleteOpen(true)}
-                  disabled={deleting}
-                  style={grs.btnDanger}
-                >
-                  {deleting ? "Deleting…" : "Delete"}
-                </button>
-              )}
-              {canManageVisits && (
-                <button onClick={() => setEditing(true)} style={grs.btnPrimary}>
-                  Edit
-                </button>
-              )}
-              <button
-                onClick={() => navigate(-1)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.3)",
-                  color: NAVY_ACCENT,
-                  borderRadius: 6,
-                  padding: "6px 14px",
-                  cursor: "pointer",
-                  fontSize: "0.85rem",
-                }}
-              >
-                ← Back
-              </button>
-            </div>
-          </div>
-        </div>
-
+      <div style={{ maxWidth: 720, padding: "16px 20px" }}>
         <div
           style={{
-            background: "var(--bg-card)",
-            borderRadius: 8,
-            padding: "16px 20px",
-            border: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: "wrap",
           }}
         >
-          <VisitForm
-            form={form}
-            setForm={setForm}
-            mode="view"
-            existingPhoto={visit.visit_photo}
-            kutirName={kutirName}
-          />
-        </div>
-        {confirmDeleteOpen && (
-          <ConfirmDialog
-            message="Delete this visit record?"
-            busy={deleting}
-            onConfirm={() => {
-              void handleDelete();
+          <button
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--link-color)",
+              cursor: "pointer",
+              fontSize: 14,
+              padding: 0,
             }}
-            onCancel={() => !deleting && setConfirmDeleteOpen(false)}
-          />
-        )}
+            onClick={() => navigate("/visits")}
+          >
+            ← Back
+          </button>
+          {canManageVisits && (
+            <button
+              style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }}
+              onClick={() => setEditing(true)}
+            >
+              Edit
+            </button>
+          )}
+        </div>
+
+        <VisitForm
+          form={form}
+          setForm={setForm}
+          mode="view"
+          existingPhoto={visit.visit_photo}
+          kutirName={kutirName}
+        />
       </div>
     );
   }

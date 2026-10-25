@@ -12,6 +12,7 @@ import {
 } from "../api/visits";
 import { listKutirs } from "../api/kutirs";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
+import { ViewField, viewStyles } from "@parivaar/ui";
 import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 
@@ -87,6 +88,11 @@ function SectionHead({ label }: { label: string }) {
       {label}
     </div>
   );
+}
+
+/** View-mode section title — shared chip/label size blue title. */
+function ViewSectionHead({ label }: { label: string }) {
+  return <div style={{ ...viewStyles.sectionTitle, marginTop: 16 }}>{label}</div>;
 }
 
 function StarRating({
@@ -193,7 +199,8 @@ const detailGrid: React.CSSProperties = {
   fontSize: "0.875rem",
   color: "var(--text-primary)",
 };
-const detailLabel: React.CSSProperties = { color: "var(--text-secondary)", fontWeight: 600 };
+const detailLabel: React.CSSProperties = viewStyles.label;
+const detailValue: React.CSSProperties = viewStyles.value;
 
 interface VisitFormProps {
   form: VisitFormState;
@@ -357,12 +364,12 @@ export function VisitForm({
           </div>
         )}
 
-        <SectionHead label="Visit Info" />
+        <ViewSectionHead label="Visit Info" />
         <div style={detailGrid}>
           <span style={detailLabel}>Kutir</span>
-          <span>{resolvedKutirName}</span>
+          <span style={detailValue}>{resolvedKutirName}</span>
           <span style={detailLabel}>Visit Date</span>
-          <span>
+          <span style={detailValue}>
             {form.visit_date
               ? new Date(form.visit_date).toLocaleDateString("en-IN", {
                   day: "numeric",
@@ -372,10 +379,10 @@ export function VisitForm({
               : "—"}
           </span>
           <span style={detailLabel}>Status</span>
-          <span>{form.kutir_closed ? "Closed" : "Open"}</span>
+          <span style={detailValue}>{form.kutir_closed ? "Closed" : "Open"}</span>
         </div>
 
-        <SectionHead label="Attendance" />
+        <ViewSectionHead label="Attendance" />
         <div
           style={{
             display: "grid",
@@ -386,22 +393,22 @@ export function VisitForm({
           }}
         >
           <div />
-          <div style={{ ...detailLabel, textAlign: "center" as const, fontWeight: 600 }}>
+          <div style={{ ...detailLabel, textAlign: "center" as const }}>
             Avg Last Week Attendance
           </div>
-          <div style={{ ...detailLabel, textAlign: "center" as const, fontWeight: 600 }}>
+          <div style={{ ...detailLabel, textAlign: "center" as const }}>
             Regular (&gt;8 days) Students
           </div>
           <span style={detailLabel}>Morning Shift</span>
-          <span style={{ textAlign: "center" as const }}>{form.avg_attendance_morning ?? "—"}</span>
-          <span style={{ textAlign: "center" as const }}>{form.regular_students_morning ?? "—"}</span>
+          <span style={{ ...detailValue, textAlign: "center" as const }}>{form.avg_attendance_morning ?? "—"}</span>
+          <span style={{ ...detailValue, textAlign: "center" as const }}>{form.regular_students_morning ?? "—"}</span>
           <span style={detailLabel}>Evening Shift</span>
-          <span style={{ textAlign: "center" as const }}>{form.avg_attendance_evening ?? "—"}</span>
-          <span style={{ textAlign: "center" as const }}>{form.regular_students_evening ?? "—"}</span>
+          <span style={{ ...detailValue, textAlign: "center" as const }}>{form.avg_attendance_evening ?? "—"}</span>
+          <span style={{ ...detailValue, textAlign: "center" as const }}>{form.regular_students_evening ?? "—"}</span>
         </div>
         <div style={detailGrid}>
           <span style={detailLabel}>App vs. Registered Students</span>
-          <span>
+          <span style={detailValue}>
             <span
               style={{
                 background:
@@ -422,12 +429,12 @@ export function VisitForm({
           </span>
         </div>
 
-        <SectionHead label="Implementation" />
+        <ViewSectionHead label="Implementation" />
         <div style={detailGrid}>
           <span style={detailLabel}>Follows Timetable</span>
-          <span>{form.follow_timetable ? "✓ Yes" : "✗ No"}</span>
+          <span style={detailValue}>{form.follow_timetable ? "✓ Yes" : "✗ No"}</span>
           <span style={detailLabel}>Monthly Teaching Plan</span>
-          <span style={{ display: "flex", gap: 10, flexWrap: "wrap" as const }}>
+          <span style={{ ...detailValue, display: "flex", gap: 10, flexWrap: "wrap" as const }}>
             {(
               [
                 ["plan_hindi", "Hindi"],
@@ -449,40 +456,40 @@ export function VisitForm({
           {form.timetable_plan_reason && (
             <>
               <span style={detailLabel}>Reason</span>
-              <span>{form.timetable_plan_reason}</span>
+              <span style={detailValue}>{form.timetable_plan_reason}</span>
             </>
           )}
         </div>
 
-        <SectionHead label="Topics" />
+        <ViewSectionHead label="Topics" />
         <div style={detailGrid}>
           {form.math_topics_pre && (
             <>
               <span style={detailLabel}>Math (Pre)</span>
-              <span>{form.math_topics_pre}</span>
+              <span style={detailValue}>{form.math_topics_pre}</span>
             </>
           )}
           {form.math_topics_upper && (
             <>
               <span style={detailLabel}>Math (Upper)</span>
-              <span>{form.math_topics_upper}</span>
+              <span style={detailValue}>{form.math_topics_upper}</span>
             </>
           )}
           {form.english_topics_pre && (
             <>
               <span style={detailLabel}>English (Pre)</span>
-              <span>{form.english_topics_pre}</span>
+              <span style={detailValue}>{form.english_topics_pre}</span>
             </>
           )}
           {form.english_topics_upper && (
             <>
               <span style={detailLabel}>English (Upper)</span>
-              <span>{form.english_topics_upper}</span>
+              <span style={detailValue}>{form.english_topics_upper}</span>
             </>
           )}
         </div>
 
-        <SectionHead label="Time Slots" />
+        <ViewSectionHead label="Time Slots" />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {(
             [
@@ -514,19 +521,19 @@ export function VisitForm({
           </div>
         )}
 
-        <SectionHead label="Workbook & Books" />
+        <ViewSectionHead label="Workbook & Books" />
         <div style={detailGrid}>
           <span style={detailLabel}>Workbook %</span>
-          <span>{form.workbook_percentage}%</span>
+          <span style={detailValue}>{form.workbook_percentage}%</span>
           <span style={detailLabel}>Workbook Status</span>
-          <span style={{ color: workbookColor(form.workbook_completion) }}>
+          <span style={{ ...detailValue, color: workbookColor(form.workbook_completion) }}>
             {form.workbook_completion}
           </span>
           <span style={detailLabel}>Book Availability</span>
-          <span>{form.book_availability}</span>
+          <span style={detailValue}>{form.book_availability}</span>
         </div>
 
-        <SectionHead label="Registers" />
+        <ViewSectionHead label="Registers" />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {(
             [
@@ -555,7 +562,7 @@ export function VisitForm({
           ))}
         </div>
 
-        <SectionHead label="Ratings (1 = Poor, 5 = Excellent)" />
+        <ViewSectionHead label="Ratings (1 = Poor, 5 = Excellent)" />
         <div>
           {RATING_FIELDS.map(([key, label]) => (
             <div
@@ -567,7 +574,7 @@ export function VisitForm({
                 borderBottom: "1px solid var(--border)",
               }}
             >
-              <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>{label}</span>
+              <span style={detailLabel}>{label}</span>
               <StarRating value={(form[key] as number) ?? 0} readOnly />
             </div>
           ))}
@@ -575,26 +582,14 @@ export function VisitForm({
 
         {(form.grs_prep_remarks || form.final_remarks) && (
           <>
-            <SectionHead label="Remarks" />
+            <ViewSectionHead label="Remarks" />
             {form.grs_prep_remarks && (
               <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: 3 }}>
-                  GRS Preparation
-                </div>
-                <div style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>
-                  {form.grs_prep_remarks}
-                </div>
+                <ViewField label="GRS Preparation">{form.grs_prep_remarks}</ViewField>
               </div>
             )}
             {form.final_remarks && (
-              <div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: 3 }}>
-                  Final Remarks
-                </div>
-                <div style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>
-                  {form.final_remarks}
-                </div>
-              </div>
+              <ViewField label="Final Remarks">{form.final_remarks}</ViewField>
             )}
           </>
         )}

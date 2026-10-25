@@ -3,13 +3,10 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getUser, updateUser, type UserUpdate } from "../api/users";
 import { useAuth } from "../context/AuthContext";
+import { ViewField, ViewSection } from "@parivaar/ui";
 import { UserForm, EMPTY_USER_FORM, type UserFormState } from "../components/UserForm";
 import { canManageUsers, assignableTitles as titlesAssignableTo } from "../constants/roles";
 import { grs } from "../styles/grs";
-
-const sec: React.CSSProperties = { background: "var(--bg-card)", borderRadius: 8, padding: "10px 14px", marginBottom: 8 };
-const secTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--badge-blue-fg, #2563eb)", marginBottom: 8 };
-const viewVal: React.CSSProperties = { fontSize: 14, color: "var(--text-primary)", padding: "7px 0" };
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -116,42 +113,60 @@ export default function UserDetailPage() {
         </>
       ) : (
         <>
-          <section style={sec}>
-            <div style={secTitle}>Account</div>
+          <ViewSection title="Account">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-              <div><label style={grs.fieldLabel}>Username</label><div style={viewVal}>{u.username}</div></div>
-              <div><label style={grs.fieldLabel}>Role</label><div style={viewVal}>{u.title ?? "—"}</div></div>
+              <ViewField label="Username">{u.username}</ViewField>
+              <ViewField label="Role">{u.title}</ViewField>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ ...grs.badge, background: u.is_active ? "var(--badge-active-bg)" : "var(--badge-inactive-bg)", color: u.is_active ? "var(--badge-active-fg)" : "var(--badge-inactive-fg)" }}>
+            <ViewField label="Status">
+              <span
+                style={{
+                  ...grs.badge,
+                  background: u.is_active ? "var(--badge-active-bg)" : "var(--badge-inactive-bg)",
+                  color: u.is_active ? "var(--badge-active-fg)" : "var(--badge-inactive-fg)",
+                  fontWeight: 400,
+                }}
+              >
                 {u.is_active ? "Active" : "Inactive"}
               </span>
-            </div>
-          </section>
+            </ViewField>
+          </ViewSection>
 
-          <section style={sec}>
-            <div style={secTitle}>Contact</div>
+          <ViewSection title="Contact">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-              <div><label style={grs.fieldLabel}>First Name</label><div style={viewVal}>{u.first_name ?? "—"}</div></div>
-              <div><label style={grs.fieldLabel}>Last Name</label><div style={viewVal}>{u.last_name ?? "—"}</div></div>
+              <ViewField label="First Name">{u.first_name}</ViewField>
+              <ViewField label="Last Name">{u.last_name}</ViewField>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <div><label style={grs.fieldLabel}>Phone</label><div style={viewVal}>{u.phone ?? "—"}</div></div>
-              <div><label style={grs.fieldLabel}>Email</label><div style={viewVal}>{u.email ?? "—"}</div></div>
+              <ViewField label="Phone">{u.phone}</ViewField>
+              <ViewField label="Email">{u.email}</ViewField>
             </div>
-          </section>
+          </ViewSection>
 
-          {(u.zone_ids.length > 0 || u.district_ids.length > 0 || u.area_ids.length > 0 || u.cluster_ids.length > 0 || u.kutir_ids.length > 0) && (
-            <section style={sec}>
-              <div style={secTitle}>Assignment</div>
-              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                {u.zone_ids.length > 0     && <div style={{ marginBottom: 4 }}><strong>Zones:</strong> {u.zone_ids.join(", ")}</div>}
-                {u.district_ids.length > 0 && <div style={{ marginBottom: 4 }}><strong>Districts:</strong> {u.district_ids.join(", ")}</div>}
-                {u.area_ids.length > 0     && <div style={{ marginBottom: 4 }}><strong>Areas:</strong> {u.area_ids.join(", ")}</div>}
-                {u.cluster_ids.length > 0  && <div style={{ marginBottom: 4 }}><strong>Clusters:</strong> {u.cluster_ids.join(", ")}</div>}
-                {u.kutir_ids.length > 0    && <div><strong>Kutirs:</strong> {u.kutir_ids.join(", ")}</div>}
+          {(u.zone_ids.length > 0 ||
+            u.district_ids.length > 0 ||
+            u.area_ids.length > 0 ||
+            u.cluster_ids.length > 0 ||
+            u.kutir_ids.length > 0) && (
+            <ViewSection title="Assignment">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {u.zone_ids.length > 0 && (
+                  <ViewField label="Zones">{u.zone_ids.join(", ")}</ViewField>
+                )}
+                {u.district_ids.length > 0 && (
+                  <ViewField label="Districts">{u.district_ids.join(", ")}</ViewField>
+                )}
+                {u.area_ids.length > 0 && (
+                  <ViewField label="Areas">{u.area_ids.join(", ")}</ViewField>
+                )}
+                {u.cluster_ids.length > 0 && (
+                  <ViewField label="Clusters">{u.cluster_ids.join(", ")}</ViewField>
+                )}
+                {u.kutir_ids.length > 0 && (
+                  <ViewField label="Kutirs">{u.kutir_ids.join(", ")}</ViewField>
+                )}
               </div>
-            </section>
+            </ViewSection>
           )}
         </>
       )}

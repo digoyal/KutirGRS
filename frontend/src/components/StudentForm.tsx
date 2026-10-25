@@ -5,6 +5,7 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ViewField, viewStyles } from "@parivaar/ui";
 import { type StudentCreate } from "../api/students";
 import { listKutirs } from "../api/kutirs";
 import {
@@ -98,26 +99,8 @@ export function studentFormFromDetail(s: {
   };
 }
 
-const sec: React.CSSProperties = {
-  background: "var(--bg-card)",
-  borderRadius: 8,
-  padding: "10px 14px",
-  marginBottom: 8,
-};
-const secTitle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.07em",
-  color: "var(--badge-blue-fg, #2563eb)",
-  marginBottom: 8,
-};
-const viewVal: React.CSSProperties = {
-  fontSize: 14,
-  color: "var(--text-primary)",
-  padding: "7px 0",
-  borderBottom: "1px solid transparent",
-};
+const sec: React.CSSProperties = viewStyles.section;
+const secTitle: React.CSSProperties = viewStyles.sectionTitle;
 
 function tag(bg: string, color: string): React.CSSProperties {
   return {
@@ -269,25 +252,22 @@ export function StudentForm({
   ) {
     const raw = form[key];
     const display =
-      typeof raw === "boolean" ? String(raw) : ((raw as string | null | undefined) ?? "—");
+      typeof raw === "boolean" ? String(raw) : ((raw as string | null | undefined) ?? null);
+    const fieldLabel = `${label}${opts?.required ? " *" : ""}`;
+    if (readOnly) {
+      return <ViewField label={fieldLabel}>{display || null}</ViewField>;
+    }
     return (
       <div>
-        <label style={grs.fieldLabel}>
-          {label}
-          {opts?.required ? " *" : ""}
-        </label>
-        {readOnly ? (
-          <div style={viewVal}>{display || "—"}</div>
-        ) : (
-          <input
-            style={grs.input}
-            type={opts?.type ?? "text"}
-            value={(form[key] as string | null | undefined) ?? ""}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, [key]: e.target.value || (opts?.required ? "" : null) }))
-            }
-          />
-        )}
+        <label style={grs.fieldLabel}>{fieldLabel}</label>
+        <input
+          style={grs.input}
+          type={opts?.type ?? "text"}
+          value={(form[key] as string | null | undefined) ?? ""}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, [key]: e.target.value || (opts?.required ? "" : null) }))
+          }
+        />
       </div>
     );
   }
@@ -298,18 +278,9 @@ export function StudentForm({
         <div style={secTitle}>Location</div>
         {readOnly ? (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-            <div>
-              <label style={grs.fieldLabel}>District</label>
-              <div style={viewVal}>{locationLabels?.district ?? "—"}</div>
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Cluster</label>
-              <div style={viewVal}>{locationLabels?.cluster ?? "—"}</div>
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Kutir</label>
-              <div style={viewVal}>{locationLabels?.kutir ?? "—"}</div>
-            </div>
+            <ViewField label="District">{locationLabels?.district}</ViewField>
+            <ViewField label="Cluster">{locationLabels?.cluster}</ViewField>
+            <ViewField label="Kutir">{locationLabels?.kutir}</ViewField>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
@@ -382,11 +353,11 @@ export function StudentForm({
           {textField("Last Name", "last_name", { required: true })}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-          <div>
-            <label style={grs.fieldLabel}>Gender</label>
-            {readOnly ? (
-              <div style={viewVal}>{form.gender || "—"}</div>
-            ) : (
+          {readOnly ? (
+            <ViewField label="Gender">{form.gender || null}</ViewField>
+          ) : (
+            <div>
+              <label style={grs.fieldLabel}>Gender</label>
               <select
                 style={grs.select}
                 value={form.gender}
@@ -395,16 +366,16 @@ export function StudentForm({
                 <option>Boy</option>
                 <option>Girl</option>
               </select>
-            )}
-          </div>
+            </div>
+          )}
           {textField("Date of Birth", "dob", { type: "date" })}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-          <div>
-            <label style={grs.fieldLabel}>Category</label>
-            {readOnly ? (
-              <div style={viewVal}>{categoryName ?? "—"}</div>
-            ) : (
+          {readOnly ? (
+            <ViewField label="Category">{categoryName}</ViewField>
+          ) : (
+            <div>
+              <label style={grs.fieldLabel}>Category</label>
               <select
                 style={grs.select}
                 value={form.category_id ?? ""}
@@ -420,13 +391,13 @@ export function StudentForm({
                   </option>
                 ))}
               </select>
-            )}
-          </div>
-          <div>
-            <label style={grs.fieldLabel}>Sub-Category</label>
-            {readOnly ? (
-              <div style={viewVal}>{subCategoryName ?? "—"}</div>
-            ) : (
+            </div>
+          )}
+          {readOnly ? (
+            <ViewField label="Sub-Category">{subCategoryName}</ViewField>
+          ) : (
+            <div>
+              <label style={grs.fieldLabel}>Sub-Category</label>
               <select
                 style={grs.select}
                 value={form.sub_category_id ?? ""}
@@ -445,8 +416,8 @@ export function StudentForm({
                   </option>
                 ))}
               </select>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {textField("Phone", "phone")}

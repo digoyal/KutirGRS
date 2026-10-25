@@ -16,6 +16,7 @@ import { listSchools, type School } from "../api/schools";
 import { listKutirs } from "../api/kutirs";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
+import { ViewField, viewStyles } from "@parivaar/ui";
 import {
   STATUS_LABELS,
   STATUS_OPTIONS,
@@ -308,35 +309,46 @@ export function ProgressForm({
       )}
 
       {!isAdd && (
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Student</label>
-          {readOnly && form.student_id ? (
-            <Link
-              to={`/students/${form.student_id}`}
-              style={{
-                color: "var(--badge-purple-fg)",
-                textDecoration: "none",
-                fontWeight: 600,
-              }}
-            >
-              {studentName ?? `Student #${form.student_id}`}
-            </Link>
-          ) : (
+        readOnly ? (
+          <div style={{ marginBottom: 14 }}>
+            <ViewField label="Student">
+              {form.student_id ? (
+                <Link
+                  to={`/students/${form.student_id}`}
+                  style={{
+                    color: "var(--badge-purple-fg)",
+                    textDecoration: "none",
+                    fontWeight: 400,
+                  }}
+                >
+                  {studentName ?? `Student #${form.student_id}`}
+                </Link>
+              ) : null}
+            </ViewField>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Student</label>
             <div style={{ ...inp, color: "var(--text-secondary)", background: "var(--bg-input)" }}>
               {studentName ?? `Student #${form.student_id}`}
             </div>
-          )}
-        </div>
+          </div>
+        )
       )}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        <div style={{ flex: 1 }}>
-          <label style={labelStyle}>{yearLabel}</label>
-          {readOnly ? (
-            <div style={inp}>
-              {form.academic_year}-{String(form.academic_year + 1).slice(2)}
-            </div>
-          ) : (
+      {readOnly ? (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <ViewField label={yearLabel} style={{ flex: 1 }}>
+            {form.academic_year}-{String(form.academic_year + 1).slice(2)}
+          </ViewField>
+          <ViewField label="Class" style={{ flex: 1 }}>
+            {form.class_in_year != null ? `Class ${form.class_in_year}` : null}
+          </ViewField>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>{yearLabel}</label>
             <select
               style={inp}
               value={form.academic_year}
@@ -348,15 +360,9 @@ export function ProgressForm({
                 </option>
               ))}
             </select>
-          )}
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={labelStyle}>{isAdd ? "Class *" : "Class"}</label>
-          {readOnly ? (
-            <div style={inp}>
-              {form.class_in_year != null ? `Class ${form.class_in_year}` : "—"}
-            </div>
-          ) : (
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>{isAdd ? "Class *" : "Class"}</label>
             <select
               style={inp}
               value={form.class_in_year ?? ""}
@@ -371,16 +377,25 @@ export function ProgressForm({
                 </option>
               ))}
             </select>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        <div style={{ flex: 2 }}>
-          <label style={labelStyle}>School *</label>
-          {readOnly ? (
-            <div style={inp}>{schoolName ?? "—"}</div>
-          ) : (
+      {readOnly ? (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <ViewField label="School *" style={{ flex: 2 }}>
+            {schoolName}
+          </ViewField>
+          <ViewField label="Marks %" style={{ flex: 1 }}>
+            {form.previous_year_percentage != null
+              ? `${parseFloat(String(form.previous_year_percentage)).toFixed(1)}%`
+              : null}
+          </ViewField>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <div style={{ flex: 2 }}>
+            <label style={labelStyle}>School *</label>
             <select
               style={inp}
               value={form.school_id || ""}
@@ -393,17 +408,9 @@ export function ProgressForm({
                 </option>
               ))}
             </select>
-          )}
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={labelStyle}>Marks %</label>
-          {readOnly ? (
-            <div style={inp}>
-              {form.previous_year_percentage != null
-                ? `${parseFloat(String(form.previous_year_percentage)).toFixed(1)}%`
-                : "—"}
-            </div>
-          ) : (
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Marks %</label>
             <input
               type="number"
               min={0}
@@ -418,14 +425,13 @@ export function ProgressForm({
                 )
               }
             />
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div style={{ marginBottom: 14 }}>
-        <label style={labelStyle}>Status</label>
         {readOnly ? (
-          <div>
+          <ViewField label="Status">
             <span
               style={{
                 background: badge.bg,
@@ -433,7 +439,7 @@ export function ProgressForm({
                 borderRadius: 4,
                 padding: "2px 8px",
                 fontSize: "0.85rem",
-                fontWeight: 600,
+                fontWeight: 400,
               }}
             >
               {badge.prefix}
@@ -449,19 +455,22 @@ export function ProgressForm({
                 {form.exit_reason}
               </div>
             )}
-          </div>
+          </ViewField>
         ) : (
-          <select
-            style={inp}
-            value={currentStatus}
-            onChange={(e) => set("status", e.target.value as ProgressStatus)}
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          <>
+            <label style={labelStyle}>Status</label>
+            <select
+              style={inp}
+              value={currentStatus}
+              onChange={(e) => set("status", e.target.value as ProgressStatus)}
+            >
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </>
         )}
       </div>
 
@@ -490,18 +499,20 @@ export function ProgressForm({
       )}
 
       <div style={{ marginBottom: 14 }}>
-        <label style={labelStyle}>Remarks</label>
         {readOnly ? (
-          <div style={{ ...inp, minHeight: 48, whiteSpace: "pre-wrap" }}>
-            {form.remarks ?? "—"}
-          </div>
+          <ViewField label="Remarks" valueStyle={{ ...viewVal, whiteSpace: "pre-wrap" }}>
+            {form.remarks}
+          </ViewField>
         ) : (
-          <textarea
-            style={{ ...inp, resize: "vertical" }}
-            rows={2}
-            value={form.remarks ?? ""}
-            onChange={(e) => set("remarks", e.target.value || null)}
-          />
+          <>
+            <label style={labelStyle}>Remarks</label>
+            <textarea
+              style={{ ...inp, resize: "vertical" }}
+              rows={2}
+              value={form.remarks ?? ""}
+              onChange={(e) => set("remarks", e.target.value || null)}
+            />
+          </>
         )}
       </div>
     </div>
@@ -526,3 +537,5 @@ const inp: React.CSSProperties = {
   background: "var(--bg-input)",
   color: "var(--text-primary)",
 };
+
+const viewVal: React.CSSProperties = viewStyles.value;
