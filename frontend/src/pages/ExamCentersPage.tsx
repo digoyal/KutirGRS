@@ -29,7 +29,10 @@ export default function ExamCentersPage() {
   const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
 
   const { data: centers = [], isLoading } = useQuery({ queryKey: ["exam-centers"], queryFn: () => listExamCenters() });
-  const { data: districts = [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
+  const { data: districts = [] } = useQuery({
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
+  });
 
   const districtMap = Object.fromEntries(districts.map(d => [d.id, d.name]));
   // Data sheet: Exam Centers are global — filter dropdown shows all districts
