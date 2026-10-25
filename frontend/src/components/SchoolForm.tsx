@@ -58,7 +58,7 @@ const viewLabel: React.CSSProperties = {
 };
 const viewVal: React.CSSProperties = {
   fontSize: 14,
-  fontWeight: 600,
+  fontWeight: 400,
   color: "var(--text-primary)",
   padding: "7px 0",
 };
