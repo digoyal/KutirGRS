@@ -1,5 +1,5 @@
 import React from "react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,9 +15,12 @@ import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
+import { GeoFilterBar } from "../components/GeoFilterBar";
 import { grs } from "../styles/grs";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
+import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
+import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { PROGRESS_FIELDS } from "../constants/progressFields";
 import {
   PROGRESS_STATUSES,
@@ -26,25 +29,16 @@ import {
   STATUS_TILES,
 } from "../constants/progressStatus";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import {
+  defaultsFromUser,
+  scopeClusters,
+  scopeDistricts,
+  scopeKutirs,
+  type FilterId,
+} from "../utils/geoFilters";
 
 const CURRENT_YEAR = new Date().getFullYear();
-
-// ── Filter state persistence ──────────────────────────────────────────────────
 const STORAGE_KEY = "progress_filter_state";
-const _savedFilters = (() => {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    sessionStorage.removeItem(STORAGE_KEY);
-    return JSON.parse(raw) as {
-      district?: number | "";
-      cluster?: number | "";
-      kutir?: number | "";
-      year?: number;
-      page?: number;
-    };
-  } catch { return null; }
-})();
 
 export default function StudentProgressPage() {
   const { user } = useAuth();
@@ -54,44 +48,36 @@ export default function StudentProgressPage() {
 
   useBfcacheReload();
 
-  const defaultDistrict: number | "" = (() => {
-    if (!user) return "";
-    if (user.title === "District Anchor" && user.district_ids.length > 0) return user.district_ids[0];
-    return "";
-  })();
-  const defaultCluster: number | "" = (() => {
-    if (!user) return "";
-    if (user.title === "Cluster Coordinator" && user.cluster_ids.length > 0) return user.cluster_ids[0];
-    return "";
-  })();
-  const defaultKutir: number | "" = (() => {
-    if (!user) return "";
-    if (user.title === "Teacher" && user.kutir_ids.length > 0) return user.kutir_ids[0];
-    return "";
-  })();
+  const saved = usePersistedFilterRestore<{
+    district?: FilterId;
+    cluster?: FilterId;
+    kutir?: FilterId;
+    year?: number;
+    page?: number;
+  }>(STORAGE_KEY);
 
-  const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? defaultDistrict);
-  const [filterCluster, setFilterCluster] = useState<number | "">(_savedFilters?.cluster ?? defaultCluster);
-  const [filterKutir, setFilterKutir] = useState<number | "">(_savedFilters?.kutir ?? defaultKutir);
-  const [filterYear, setFilterYear] = useState(_savedFilters?.year ?? CURRENT_YEAR);
+  const defaults = defaultsFromUser(user);
+
+  const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? defaults.district);
+  const [filterCluster, setFilterCluster] = useState<FilterId>(saved?.cluster ?? defaults.cluster);
+  const [filterKutir, setFilterKutir] = useState<FilterId>(saved?.kutir ?? defaults.kutir);
+  const [filterYear, setFilterYear] = useState(saved?.year ?? CURRENT_YEAR);
 
   const PAGE_SIZE = 25;
-  const [page, setPage] = useState(_savedFilters?.page ?? 1);
+  const [page, setPage] = useState(saved?.page ?? 1);
   const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
   const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "";
 
   const { isVisible, orderedMetas } = useFieldConfig("progress", PROGRESS_FIELDS);
 
   function saveFilters() {
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-        district: filterDistrict,
-        cluster: filterCluster,
-        kutir: filterKutir,
-        year: filterYear,
-        page,
-      }));
-    } catch { /* ignore */ }
+    persistFilters(STORAGE_KEY, {
+      district: filterDistrict,
+      cluster: filterCluster,
+      kutir: filterKutir,
+      year: filterYear,
+      page,
+    });
   }
 
   const { data: progressPage = { items: [], total: 0 }, isLoading } = useQuery({
@@ -121,44 +107,22 @@ export default function StudentProgressPage() {
 
   // Stable map references so columns useMemo deps stay clean
   const studentMap2  = useMemo(() => new Map(allStudents.map((s: any) => [s.id, s])),  [allStudents]);
-  const areaMap      = useMemo(() => new Map(allAreas.map((a: any) => [a.id, a])),     [allAreas]);
   const schoolMap    = useMemo(() => new Map(schools.map((s: any) => [s.id, s])),      [schools]);
 
-  const scopedDistricts = isAdmin || !user
-    ? allDistricts
-    : allDistricts.filter((d: any) => user.district_ids.includes(d.id));
-  const scopedClusters = isAdmin || !user
-    ? allClusters
-    : user.cluster_ids.length > 0
-      ? allClusters.filter((c: any) => user.cluster_ids.includes(c.id))
-      : allClusters;
-  const scopedKutirs = isAdmin || !user
-    ? allKutirs
-    : user.kutir_ids.length > 0
-      ? allKutirs.filter((k: any) => user.kutir_ids.includes(k.id))
-      : allKutirs;
+  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
+  const scopedClusters = scopeClusters(allClusters, user, isAdmin);
+  const scopedKutirs = scopeKutirs(allKutirs, user, isAdmin);
 
-  // Auto-select when scoped to a single district / cluster
-  useEffect(() => {
-    if (scopedDistricts.length === 1 && filterDistrict === "") {
-      setFilterDistrict(scopedDistricts[0].id);
-    }
-  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (scopedClusters.length === 1 && filterCluster === "" && !isAdmin) {
-      setFilterCluster(scopedClusters[0].id);
-    }
-  }, [scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const filterClusters = useMemo(
-    () => scopedClusters.filter((c: any) => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict),
-    [scopedClusters, filterDistrict, areaMap],
-  );
-  const filterKutirs = useMemo(
-    () => scopedKutirs.filter((k: any) => filterCluster !== "" ? k.cluster_id === filterCluster : filterKutir !== "" ? k.id === filterKutir : false),
-    [scopedKutirs, filterCluster, filterKutir],
-  );
+  useGeoFilterAutoSelect({
+    scopedDistricts,
+    scopedClusters,
+    filterDistrict,
+    filterCluster,
+    setFilterDistrict,
+    setFilterCluster,
+    isAdmin,
+    clusterMode: "scoped-non-admin",
+  });
 
   const deleteMut = useMutation({
     mutationFn: deleteProgress,
@@ -286,27 +250,32 @@ export default function StudentProgressPage() {
         }}
         emptyMessage={hasFilter ? `No progress records for ${filterYear}-${String(filterYear + 1).slice(2)}.` : "Select a district, cluster, or kutir to view progress."}
         filters={
-          <>
-            <select style={grs.filterSelect} value={filterYear} onChange={e => { setFilterYear(Number(e.target.value)); setPage(1); }}>
-              {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map(y => (
-                <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
-              ))}
-            </select>
-            <select style={grs.filterSelect} value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); setFilterKutir(""); setPage(1); }}>
-              <option value="">All Districts</option>
-              {scopedDistricts.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-            <select style={grs.filterSelect} value={filterCluster} onChange={e => { setFilterCluster(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); setPage(1); }} disabled={filterDistrict === "" && filterKutir === ""}>
-              <option value="">All Clusters</option>
-              {filterClusters.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            {filterCluster !== "" && (
-              <select style={grs.filterSelect} value={filterKutir} onChange={e => { setFilterKutir(e.target.value === "" ? "" : Number(e.target.value)); setPage(1); }}>
-                <option value="">All Kutirs</option>
-                {filterKutirs.map((k: any) => <option key={k.id} value={k.id}>{k.name}</option>)}
+          <GeoFilterBar
+            leading={
+              <select style={grs.filterSelect} value={filterYear} onChange={e => { setFilterYear(Number(e.target.value)); setPage(1); }}>
+                {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map(y => (
+                  <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
+                ))}
               </select>
-            )}
-          </>
+            }
+            district={filterDistrict}
+            cluster={filterCluster}
+            kutir={filterKutir}
+            onChange={({ district, cluster, kutir }) => {
+              setFilterDistrict(district);
+              setFilterCluster(cluster);
+              setFilterKutir(kutir);
+              setPage(1);
+            }}
+            districts={scopedDistricts}
+            clusters={scopedClusters}
+            areas={allAreas}
+            kutirs={scopedKutirs}
+            kutirMode="by-cluster-or-selected"
+            clusterDisable="no-district-unless-kutir"
+            kutirDisable="never"
+            kutirVisibility="when-cluster"
+          />
         }
         exportFilename="progress"
         printTitle="Student Progress"

@@ -3,22 +3,18 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listExamCenters, listDistricts, deleteExamCenter } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
-import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
+import { GeoFilterBar } from "../components/GeoFilterBar";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
+import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { EXAM_CENTERS_FIELDS } from "../constants/examCentersFields";
 import { canManageExamCenters } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import type { FilterId } from "../utils/geoFilters";
 
-const _savedFilters = (() => {
-  try {
-    const s = sessionStorage.getItem("exam_centers_filter_state");
-    if (s) { sessionStorage.removeItem("exam_centers_filter_state"); return JSON.parse(s); }
-  } catch {}
-  return null;
-})();
+const STORAGE_KEY = "exam_centers_filter_state";
 
 export default function ExamCentersPage() {
   const qc = useQueryClient();
@@ -28,7 +24,8 @@ export default function ExamCentersPage() {
 
   useBfcacheReload();
 
-  const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? "");
+  const saved = usePersistedFilterRestore<{ district?: FilterId }>(STORAGE_KEY);
+  const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? "");
   const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
 
   const { data: centers = [], isLoading } = useQuery({ queryKey: ["exam-centers"], queryFn: () => listExamCenters() });
@@ -43,7 +40,7 @@ export default function ExamCentersPage() {
   });
 
   function saveFilters() {
-    sessionStorage.setItem("exam_centers_filter_state", JSON.stringify({ district: filterDistrict }));
+    persistFilters(STORAGE_KEY, { district: filterDistrict });
   }
 
   const enriched = centers
@@ -85,12 +82,13 @@ export default function ExamCentersPage() {
         searchable
         searchPlaceholder="Search centers…"
         filters={
-          <select value={filterDistrict}
-            onChange={e => setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value))}
-            style={grs.filterSelect}>
-            <option value="">All Districts</option>
-            {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
+          <GeoFilterBar
+            district={filterDistrict}
+            onChange={({ district }) => setFilterDistrict(district)}
+            districts={districts}
+            showCluster={false}
+            showKutir={false}
+          />
         }
         exportFilename="exam-centers"
         printTitle="Exam Centers"

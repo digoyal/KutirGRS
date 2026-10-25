@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listStudentsPaged, deleteStudent, type Student } from "../api/students";
 import { listKutirs } from "../api/kutirs";
@@ -7,10 +7,22 @@ import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 import { GrsTable, type Col } from "../components/GrsTable";
+import { GeoFilterBar } from "../components/GeoFilterBar";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
+import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
+import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { STUDENTS_FIELDS } from "../constants/studentsFields";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import {
+  defaultsFromUser,
+  scopeClusters,
+  scopeDistricts,
+  scopeKutirs,
+  type FilterId,
+} from "../utils/geoFilters";
+
+const STORAGE_KEY = "students_filter_state";
 
 type EnrichedStudent = Student & { docsCount: number; addedDate: string };
 
@@ -26,39 +38,27 @@ export default function StudentsPage() {
 
   useBfcacheReload();
 
-  // Restore filter state saved before navigating to an edit/add page
-  const _savedFilters = (() => {
-    try {
-      const s = sessionStorage.getItem("students_filter_state");
-      if (s) { sessionStorage.removeItem("students_filter_state"); return JSON.parse(s); }
-    } catch {}
-    return null;
-  })();
+  const saved = usePersistedFilterRestore<{
+    district?: FilterId;
+    cluster?: FilterId;
+    kutir?: FilterId;
+    search?: string;
+    page?: number;
+  }>(STORAGE_KEY);
 
-  // Initialise geo filters from the logged-in user's role assignments
-  const defaultDistrict: number | "" = (() => {
-    if (!user) return "";
-    if (user.title === "District Anchor" && user.district_ids.length > 0) return user.district_ids[0];
-    return "";
-  })();
-  const defaultCluster: number | "" = (() => {
-    if (!user) return "";
-    if (user.title === "Cluster Coordinator" && user.cluster_ids.length > 0) return user.cluster_ids[0];
-    return "";
-  })();
-  const defaultKutir: number | "" = (() => {
-    if (!user) return "";
-    if (user.title === "Teacher" && user.kutir_ids.length > 0) return user.kutir_ids[0];
-    return "";
-  })();
-  const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? defaultDistrict);
-  const [filterCluster, setFilterCluster] = useState<number | "">(_savedFilters?.cluster ?? defaultCluster);
-  const [filterKutir, setFilterKutir] = useState<number | "">(_savedFilters?.kutir ?? defaultKutir);
-  const [searchQuery, setSearchQuery] = useState(_savedFilters?.search ?? "");
-  const [debouncedSearch, setDebouncedSearch] = useState(_savedFilters?.search ?? "");
+  const defaults = defaultsFromUser(user);
+  const defaultDistrict = defaults.district;
+  const defaultCluster = defaults.cluster;
+  const defaultKutir = defaults.kutir;
+
+  const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? defaultDistrict);
+  const [filterCluster, setFilterCluster] = useState<FilterId>(saved?.cluster ?? defaultCluster);
+  const [filterKutir, setFilterKutir] = useState<FilterId>(saved?.kutir ?? defaultKutir);
+  const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const PAGE_SIZE = 25;
-  const [page, setPage] = useState(_savedFilters?.page ?? 1);
+  const [page, setPage] = useState(saved?.page ?? 1);
   const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
   const handleSearch = (q: string) => {
     setSearchQuery(q);
@@ -88,40 +88,20 @@ export default function StudentsPage() {
   const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
 
   const kutirMap = new Map(allKutirs.map(k => [k.id, k]));
-  const areaMap = new Map(allAreas.map(a => [a.id, a]));
-  const scopedDistricts = isAdmin || !user
-    ? allDistricts
-    : allDistricts.filter(d => user.district_ids.includes(d.id));
-  const scopedClusters = isAdmin || !user
-    ? allClusters
-    : user.cluster_ids.length > 0
-      ? allClusters.filter(c => user.cluster_ids.includes(c.id))
-      : allClusters;
-  const scopedKutirs = isAdmin || !user
-    ? allKutirs
-    : user.kutir_ids.length > 0
-      ? allKutirs.filter(k => user.kutir_ids.includes(k.id))
-      : allKutirs;
+  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
+  const scopedClusters = scopeClusters(allClusters, user, isAdmin);
+  const scopedKutirs = scopeKutirs(allKutirs, user, isAdmin);
 
-  // Auto-select when scoped to a single district / cluster
-  useEffect(() => {
-    if (scopedDistricts.length === 1 && filterDistrict === "") {
-      setFilterDistrict(scopedDistricts[0].id);
-    }
-  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (scopedClusters.length === 1 && filterCluster === "" && !isAdmin) {
-      setFilterCluster(scopedClusters[0].id);
-    }
-  }, [scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const filterClusters = scopedClusters.filter(c =>
-    filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict
-  );
-  const filterKutirs = scopedKutirs.filter(k =>
-    filterCluster !== "" ? k.cluster_id === filterCluster : true
-  );
+  useGeoFilterAutoSelect({
+    scopedDistricts,
+    scopedClusters,
+    filterDistrict,
+    filterCluster,
+    setFilterDistrict,
+    setFilterCluster,
+    isAdmin,
+    clusterMode: "scoped-non-admin",
+  });
 
   const enriched: EnrichedStudent[] = students.map(s => ({
     ...s,
@@ -135,10 +115,10 @@ export default function StudentsPage() {
   });
 
   function saveFilters() {
-    sessionStorage.setItem("students_filter_state", JSON.stringify({
+    persistFilters(STORAGE_KEY, {
       district: filterDistrict, cluster: filterCluster,
       kutir: filterKutir, search: searchQuery, page,
-    }));
+    });
   }
 
   const allColumns: Col<EnrichedStudent>[] = [
@@ -244,34 +224,26 @@ export default function StudentsPage() {
   }, [allColumns, orderedMetas, isVisible]);
 
   const geoFilters = (
-    <>
-      <select
-        style={grs.filterSelect}
-        value={filterDistrict}
-        onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); setFilterKutir(""); setPage(1); }}
-      >
-        <option value="">All Districts</option>
-        {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-      </select>
-      <select
-        style={grs.filterSelect}
-        value={filterCluster}
-        onChange={e => { setFilterCluster(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); setPage(1); }}
-        disabled={filterDistrict === "" && defaultCluster === ""}
-      >
-        <option value="">All Clusters</option>
-        {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-      </select>
-      <select
-        style={grs.filterSelect}
-        value={filterKutir}
-        onChange={e => { setFilterKutir(e.target.value === "" ? "" : Number(e.target.value)); setPage(1); }}
-        disabled={filterCluster === "" && defaultKutir === ""}
-      >
-        <option value="">All Kutirs</option>
-        {filterKutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-      </select>
-    </>
+    <GeoFilterBar
+      district={filterDistrict}
+      cluster={filterCluster}
+      kutir={filterKutir}
+      onChange={({ district, cluster, kutir }) => {
+        setFilterDistrict(district);
+        setFilterCluster(cluster);
+        setFilterKutir(kutir);
+        setPage(1);
+      }}
+      districts={scopedDistricts}
+      clusters={scopedClusters}
+      areas={allAreas}
+      kutirs={scopedKutirs}
+      kutirMode="by-cluster"
+      clusterDisable="no-district-unless-default-cluster"
+      kutirDisable="no-cluster-unless-default-kutir"
+      defaultCluster={defaultCluster}
+      defaultKutir={defaultKutir}
+    />
   );
 
   return (
