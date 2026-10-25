@@ -206,6 +206,7 @@ export interface ExamsListParams {
   kutir_id?: number;
   cluster_id?: number;
   district_id?: number;
+  search?: string;
   limit?: number;
   offset?: number;
 }

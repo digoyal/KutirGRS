@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { listExamsPaged, deleteExam } from "../api/admissions";
@@ -43,6 +43,7 @@ export default function AdmissionsPage() {
     district?: FilterId;
     cluster?: FilterId;
     kutir?: FilterId;
+    search?: string;
     page?: number;
   }>(STORAGE_KEY);
 
@@ -53,19 +54,29 @@ export default function AdmissionsPage() {
   const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? defaults.district);
   const [filterCluster, setFilterCluster]   = useState<FilterId>(saved?.cluster  ?? defaults.cluster);
   const [filterKutir, setFilterKutir]       = useState<FilterId>(saved?.kutir    ?? defaults.kutir);
+  const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [page, setPage] = useState<number>(saved?.page ?? 1);
   const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
 
   const PAGE_SIZE = 25;
-  const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "";
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
+  };
+  const hasFilter =
+    filterDistrict !== "" || filterCluster !== "" || filterKutir !== "" || debouncedSearch !== "";
 
   const { data: examPage = { items: [], total: 0 }, isLoading } = useQuery({
-    queryKey: ["student-exams", year, filterDistrict, filterCluster, filterKutir, page],
+    queryKey: ["student-exams", year, filterDistrict, filterCluster, filterKutir, debouncedSearch, page],
     queryFn: () => listExamsPaged({
       school_start_year: year,
       district_id: filterDistrict !== "" ? filterDistrict : undefined,
       cluster_id:  filterCluster  !== "" ? filterCluster  : undefined,
       kutir_id:    filterKutir    !== "" ? filterKutir    : undefined,
+      search: debouncedSearch || undefined,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     }),
@@ -124,7 +135,8 @@ export default function AdmissionsPage() {
 
   function saveFilters() {
     persistFilters(STORAGE_KEY, {
-      year, district: filterDistrict, cluster: filterCluster, kutir: filterKutir, page,
+      year, district: filterDistrict, cluster: filterCluster, kutir: filterKutir,
+      search: searchQuery, page,
     });
   }
 
@@ -300,13 +312,11 @@ export default function AdmissionsPage() {
         pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: examTotal, onPageChange: setPage } : undefined}
         rowKey={exam => exam.id}
         isLoading={isLoading}
-        emptyMessage={hasFilter ? `No admissions for ${year}.` : "Select a district, cluster, or kutir to view admissions."}
+        emptyMessage={hasFilter ? `No admissions for ${year}.` : "Select a district or search by student name to view admissions."}
         searchable
         searchPlaceholder="Search student..."
-        searchFn={(exam, q) => {
-          const s = studentMap[exam.student_id];
-          return s ? `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) : false;
-        }}
+        externalSearch={searchQuery}
+        onExternalSearch={handleSearch}
         filters={
           <GeoFilterBar
             leading={
