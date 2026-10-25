@@ -102,12 +102,6 @@ export default function VisitDetailPage() {
   const kutirName =
     kutirs.find((k) => k.id === visit.kutir_id)?.name ?? `Kutir #${visit.kutir_id}`;
 
-  const visitTitle = `Visit: ${new Date(visit.visit_date).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  })}`;
-
   // ── VIEW MODE ─────────────────────────────────────────────────────────────
   if (!editing) {
     return (
@@ -134,28 +128,13 @@ export default function VisitDetailPage() {
           >
             ← Back
           </button>
-          <div style={{ minWidth: 0 }}>
-            <h2 style={{ margin: 0, fontSize: 20 }}>{visitTitle}</h2>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>
-              {kutirName}
-            </div>
-          </div>
           {canManageVisits && (
-            <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-              <button
-                onClick={() => setConfirmDeleteOpen(true)}
-                disabled={deleting}
-                style={{ ...grs.btnDanger, fontSize: 13 }}
-              >
-                {deleting ? "Deleting…" : "Delete"}
-              </button>
-              <button
-                style={{ ...grs.btnSecondary, fontSize: 13 }}
-                onClick={() => setEditing(true)}
-              >
-                Edit
-              </button>
-            </div>
+            <button
+              style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }}
+              onClick={() => setEditing(true)}
+            >
+              Edit
+            </button>
           )}
         </div>
 
@@ -166,16 +145,6 @@ export default function VisitDetailPage() {
           existingPhoto={visit.visit_photo}
           kutirName={kutirName}
         />
-        {confirmDeleteOpen && (
-          <ConfirmDialog
-            message="Delete this visit record?"
-            busy={deleting}
-            onConfirm={() => {
-              void handleDelete();
-            }}
-            onCancel={() => !deleting && setConfirmDeleteOpen(false)}
-          />
-        )}
       </div>
     );
   }
