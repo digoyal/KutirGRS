@@ -19,23 +19,15 @@ import { grs } from "../styles/grs";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { PROGRESS_FIELDS } from "../constants/progressFields";
+import {
+  PROGRESS_STATUSES,
+  STATUS_LABELS,
+  STATUS_BADGES,
+  STATUS_TILES,
+} from "../constants/progressStatus";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const CURRENT_YEAR = new Date().getFullYear();
-
-const STATUS_LABELS: Record<ProgressStatus, string> = {
-  enrolled:    "Enrolled",
-  transferred: "Transferred",
-  dropped_out: "Dropped out",
-  graduated:   "Graduated",
-};
-
-const STATUS_BADGES: Record<ProgressStatus, { bg: string; fg: string; prefix: string }> = {
-  enrolled:    { bg: "var(--status-success-bg)", fg: "var(--status-success-fg)", prefix: "✓ " },
-  transferred: { bg: "var(--badge-blue-bg)",     fg: "var(--badge-blue-fg)",     prefix: "→ " },
-  dropped_out: { bg: "var(--status-danger-bg)",  fg: "var(--status-danger-fg)",  prefix: "" },
-  graduated:   { bg: "var(--badge-green-bg, #d1fae5)", fg: "var(--badge-green-fg, #065f46)", prefix: "🎓 " },
-};
 
 // ── Filter state persistence ──────────────────────────────────────────────────
 const STORAGE_KEY = "progress_filter_state";
@@ -260,22 +252,15 @@ export default function StudentProgressPage() {
       }),
   [orderedMetas, isVisible, studentMap2, schoolMap]);
 
-  const statusPalette: Record<ProgressStatus, { bg: string; border: string; fg: string }> = {
-    enrolled:    { bg: "var(--status-success-bg)", border: "var(--status-success-fg)", fg: "var(--status-success-fg)" },
-    transferred: { bg: "var(--badge-blue-bg)",     border: "var(--badge-blue-fg)",     fg: "var(--badge-blue-fg)" },
-    dropped_out: { bg: "var(--status-danger-bg)",  border: "var(--badge-red-fg)",      fg: "var(--status-danger-fg)" },
-    graduated:   { bg: "var(--badge-green-bg, #d1fae5)", border: "var(--badge-green-fg, #065f46)", fg: "var(--badge-green-fg, #065f46)" },
-  };
-
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
       {/* Status summary tiles */}
       {progressList.length > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          {(["enrolled", "transferred", "dropped_out", "graduated"] as ProgressStatus[]).map((st) => {
+          {PROGRESS_STATUSES.map((st) => {
             const count = progressList.filter(p => p.status === st).length;
             if (count === 0) return null;
-            const pal = statusPalette[st];
+            const pal = STATUS_TILES[st];
             return (
               <div key={st} style={{ background: pal.bg, border: `1px solid ${pal.border}`, borderRadius: 8, padding: "10px 18px", fontSize: "0.85rem" }}>
                 <span style={{ fontWeight: 700, color: pal.fg, fontSize: "1.2rem" }}>{count}</span>
