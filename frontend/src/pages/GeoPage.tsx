@@ -201,30 +201,41 @@ export default function GeoPage() {
         >
             {formError && <div style={grs.errorBox}>{formError}</div>}
             <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: 10 }}>
-                <label style={grs.fieldLabel}>Name *</label>
-                <input style={grs.input} value={form.name ?? ""} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <div style={{
+                marginBottom: 10,
+                display: tab === "districts" ? "flex" : "block",
+                alignItems: "flex-end",
+                gap: 16,
+                flexWrap: "wrap",
+              }}>
+                <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+                  <label style={grs.fieldLabel}>Name *</label>
+                  <input style={grs.input} value={form.name ?? ""} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                </div>
+                {tab === "districts" && (
+                  <label style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    color: "var(--text-primary)",
+                    paddingBottom: 8,
+                    flex: "0 0 auto",
+                    whiteSpace: "nowrap",
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form.parivaar_presence)}
+                      onChange={e => setForm(f => ({ ...f, parivaar_presence: e.target.checked }))}
+                      style={{ width: 15, height: 15 }}
+                    />
+                    Parivaar Presence
+                  </label>
+                )}
               </div>
               {tab === "districts" && (
                 <>
-                  <div style={{ marginBottom: 10 }}>
-                    <label style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                      color: "var(--text-primary)",
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(form.parivaar_presence)}
-                        onChange={e => setForm(f => ({ ...f, parivaar_presence: e.target.checked }))}
-                        style={{ width: 15, height: 15 }}
-                      />
-                      Parivaar Presence
-                    </label>
-                  </div>
                   <div style={{ marginBottom: 10 }}>
                     <label style={grs.fieldLabel}>Zone *</label>
                     <select style={grs.select} value={form.zone_id ?? ""} onChange={e => setForm(f => ({ ...f, zone_id: Number(e.target.value) }))}>
