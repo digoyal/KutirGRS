@@ -7,6 +7,8 @@ import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { createProgress, listProgress, listExams, type StudentProgress, type StudentExam } from "../api/admissions";
 import { grs } from "../styles/grs";
 import { useAuth } from "../context/AuthContext";
+import { GeoFilterBar } from "../components/GeoFilterBar";
+import { scopeDistricts, scopeKutirs, type FilterId } from "../utils/geoFilters";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -37,8 +39,8 @@ export default function NewYearSetupPage() {
   const { user } = useAuth();
   const isAdmin = user?.title === "Admin";
   const [year, setYear] = useState(CURRENT_YEAR);
-  const [filterDistrict, setFilterDistrict] = useState<number | "">("");
-  const [filterKutir, setFilterKutir] = useState<number | "">("");
+  const [filterDistrict, setFilterDistrict] = useState<FilterId>("");
+  const [filterKutir, setFilterKutir] = useState<FilterId>("");
   const [rows, setRows] = useState<RowState[]>([]);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ created: number; skipped: number } | null>(null);
@@ -96,28 +98,13 @@ export default function NewYearSetupPage() {
             .map(e => [e.student_id, e.admitted_school_id as number])
   );
 
-  const scopedDistricts = isAdmin || !user
-    ? allDistricts
-    : allDistricts.filter(d => user.district_ids.includes(d.id));
-  const scopedKutirs = isAdmin || !user
-    ? allKutirs
-    : user.kutir_ids.length > 0
-      ? allKutirs.filter(k => user.kutir_ids.includes(k.id))
-      : allKutirs;
+  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
+  const scopedKutirs = scopeKutirs(allKutirs, user, isAdmin);
 
   // Auto-select single assigned district for non-admin users
   useEffect(() => {
     if (scopedDistricts.length === 1) setFilterDistrict(scopedDistricts[0].id);
   }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Kutirs filtered by selected district
-  const filteredKutirs = scopedKutirs.filter(k => {
-    if (filterDistrict === "") return true;
-    const cl = clusterMap.get(k.cluster_id);
-    if (!cl) return false;
-    const ar = areaMap.get(cl.area_id);
-    return ar?.district_id === filterDistrict;
-  });
 
   // Rebuild rows whenever filters or students change
   useEffect(() => {
@@ -202,41 +189,39 @@ export default function NewYearSetupPage() {
 
       {/* Filters */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div>
-          <label style={{ ...grs.fieldLabel, display: "block", marginBottom: 4 }}>Academic Year</label>
-          <select style={grs.filterSelect} value={year} onChange={e => setYear(Number(e.target.value))}>
-            {[CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1].map(y => (
-              <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={{ ...grs.fieldLabel, display: "block", marginBottom: 4 }}>District</label>
-          <select
-            style={grs.filterSelect}
-            value={filterDistrict}
-            onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); }}
-          >
-            <option value="">All Districts</option>
-            {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ ...grs.fieldLabel, display: "block", marginBottom: 4 }}>Kutir</label>
-          <select
-            style={grs.filterSelect}
-            value={filterKutir}
-            onChange={e => setFilterKutir(e.target.value === "" ? "" : Number(e.target.value))}
-          >
-            <option value="">All Kutirs</option>
-            {filteredKutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-          </select>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "flex-end" }}>
-          <button onClick={handleSave} style={btnPrimary} disabled={saving || readyCount === 0}>
-            {saving ? "Saving…" : `Save ${readyCount} Records`}
-          </button>
-        </div>
+        <GeoFilterBar
+          labeled
+          leading={
+            <div>
+              <label style={{ ...grs.fieldLabel, display: "block", marginBottom: 4 }}>Academic Year</label>
+              <select style={grs.filterSelect} value={year} onChange={e => setYear(Number(e.target.value))}>
+                {[CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1].map(y => (
+                  <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
+                ))}
+              </select>
+            </div>
+          }
+          district={filterDistrict}
+          kutir={filterKutir}
+          onChange={({ district, kutir }) => {
+            setFilterDistrict(district);
+            setFilterKutir(kutir);
+          }}
+          districts={scopedDistricts}
+          clusters={allClusters}
+          areas={allAreas}
+          kutirs={scopedKutirs}
+          showCluster={false}
+          kutirMode="by-district"
+          kutirDisable="never"
+          trailing={
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "flex-end" }}>
+              <button onClick={handleSave} style={btnPrimary} disabled={saving || readyCount === 0}>
+                {saving ? "Saving…" : `Save ${readyCount} Records`}
+              </button>
+            </div>
+          }
+        />
       </div>
 
       {/* Status bar */}

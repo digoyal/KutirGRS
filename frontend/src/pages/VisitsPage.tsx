@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import api from "../api/client";
@@ -6,16 +6,20 @@ import { listVisits, deleteVisit } from "../api/visits";
 import type { KutirVisit } from "../api/visits";
 import { useAuth } from "../context/AuthContext";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
-import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
+import { GeoFilterBar } from "../components/GeoFilterBar";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
+import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
+import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { VISITS_FIELDS } from "../constants/visitsFields";
 import { canManageVisits as roleCanManageVisits, isAdmin as roleIsAdmin } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { scopeClusters, scopeDistricts, type FilterId } from "../utils/geoFilters";
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
+const STORAGE_KEY = "visits_filter_state";
 
 interface Kutir { id: number; name: string; code: string; cluster_id: number; }
 
@@ -35,17 +39,6 @@ function workbookColor(wc: string | null) {
   return "var(--status-danger-fg)";
 }
 
-// ── sessionStorage filter persistence ─────────────────────────────────────────
-const STORAGE_KEY = "visits_filter_state";
-const _savedFilters = (() => {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    sessionStorage.removeItem(STORAGE_KEY);
-    return JSON.parse(raw) as { district?: number | ""; cluster?: number | ""; kutir?: number | ""; };
-  } catch { return null; }
-})();
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function VisitsPage() {
   const { user } = useAuth();
@@ -56,15 +49,18 @@ export default function VisitsPage() {
   useBfcacheReload();
   const qc = useQueryClient();
 
-  const [filterKutir, setFilterKutir]   = useState<number | "">(_savedFilters?.kutir ?? "");
-  const [filterDistrict, setFilterDistrict] = useState<number | "">(_savedFilters?.district ?? "");
-  const [filterCluster, setFilterCluster]   = useState<number | "">(_savedFilters?.cluster ?? "");
+  const saved = usePersistedFilterRestore<{
+    district?: FilterId;
+    cluster?: FilterId;
+    kutir?: FilterId;
+  }>(STORAGE_KEY);
+  const [filterKutir, setFilterKutir]   = useState<FilterId>(saved?.kutir ?? "");
+  const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? "");
+  const [filterCluster, setFilterCluster]   = useState<FilterId>(saved?.cluster ?? "");
   const [pendingDelete, setPendingDelete] = useState<{ id: number; label: string } | null>(null);
 
   function saveFilters() {
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ district: filterDistrict, cluster: filterCluster, kutir: filterKutir }));
-    } catch { /* ignore */ }
+    persistFilters(STORAGE_KEY, { district: filterDistrict, cluster: filterCluster, kutir: filterKutir });
   }
 
   const { data: kutirs = [] } = useQuery<Kutir[]>({
@@ -87,28 +83,21 @@ export default function VisitsPage() {
     return new Set(user.kutir_ids ?? []);
   }, [isTeacher, user]);
 
-  const scopedDistricts = isAdmin || !user ? allDistricts : allDistricts.filter(d => user.district_ids.includes(d.id));
-  const scopedClusters  = isAdmin || !user ? allClusters  : user.cluster_ids.length > 0 ? allClusters.filter(c => user.cluster_ids.includes(c.id)) : allClusters;
+  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
+  const scopedClusters = scopeClusters(allClusters, user, isAdmin);
 
-  // Auto-select when scoped to a single district / cluster (only when not restored from storage)
-  useEffect(() => {
-    if (_savedFilters?.district != null) return;
-    if (scopedDistricts.length === 1 && filterDistrict === "") {
-      setFilterDistrict(scopedDistricts[0].id);
-    }
-  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (_savedFilters?.cluster != null) return;
-    if (scopedClusters.length === 1 && filterCluster === "" && !isAdmin) {
-      setFilterCluster(scopedClusters[0].id);
-    }
-  }, [scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const filterClusters = useMemo(
-    () => scopedClusters.filter(c => filterDistrict === "" || areaMap.get(c.area_id)?.district_id === filterDistrict),
-    [scopedClusters, filterDistrict, areaMap]
-  );
+  useGeoFilterAutoSelect({
+    scopedDistricts,
+    scopedClusters,
+    filterDistrict,
+    filterCluster,
+    setFilterDistrict,
+    setFilterCluster,
+    isAdmin,
+    clusterMode: "scoped-non-admin",
+    skipDistrictAuto: saved?.district != null,
+    skipClusterAuto: saved?.cluster != null,
+  });
 
   const { data: visits = [], isLoading } = useQuery<KutirVisit[]>({
     queryKey: ["visits", filterKutir],
@@ -312,20 +301,26 @@ export default function VisitsPage() {
         searchable
         searchPlaceholder="Search by kutir name…"
         searchFn={(v, q) => (kutirMap.get(v.kutir_id)?.name ?? "").toLowerCase().includes(q)}
-        filters={<>
-          <select value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value === "" ? "" : Number(e.target.value)); setFilterCluster(""); setFilterKutir(""); }} style={grs.filterSelect}>
-            <option value="">All Districts</option>
-            {scopedDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          <select value={filterCluster} onChange={e => { setFilterCluster(e.target.value === "" ? "" : Number(e.target.value)); setFilterKutir(""); }} disabled={filterDistrict === ""} style={grs.filterSelect}>
-            <option value="">All Clusters</option>
-            {filterClusters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <select value={filterKutir} onChange={e => setFilterKutir(e.target.value === "" ? "" : Number(e.target.value))} disabled={filterCluster === ""} style={filterCluster === "" ? { ...grs.filterSelect, opacity: 0.5 } : grs.filterSelect}>
-            <option value="">All Kutirs</option>
-            {kutirs.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-          </select>
-        </>}
+        filters={
+          <GeoFilterBar
+            district={filterDistrict}
+            cluster={filterCluster}
+            kutir={filterKutir}
+            onChange={({ district, cluster, kutir }) => {
+              setFilterDistrict(district);
+              setFilterCluster(cluster);
+              setFilterKutir(kutir);
+            }}
+            districts={scopedDistricts}
+            clusters={scopedClusters}
+            areas={allAreas}
+            kutirs={kutirs}
+            kutirMode="all"
+            clusterDisable="no-district"
+            kutirDisable="no-cluster"
+            kutirVisibility="always"
+          />
+        }
         exportFilename="visits"
         printTitle="Kutir Visits"
         onAdd={canManageVisits ? () => { saveFilters(); navigate("new"); } : undefined}
