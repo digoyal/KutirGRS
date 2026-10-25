@@ -25,6 +25,19 @@ export function pipelineStage(exam: Pick<StudentExam, StageKey>): number {
   return -1;
 }
 
+/** Contiguous prefix: fill every stage up to the furthest true one; clear the rest. */
+export function normalizePipelineStages<T extends Pick<StudentExam, StageKey>>(exam: T): T {
+  let max = -1;
+  for (let i = 0; i < STAGES.length; i++) {
+    if (exam[STAGES[i].key as StageKey]) max = i;
+  }
+  const next = { ...exam };
+  for (let i = 0; i < STAGES.length; i++) {
+    (next as Record<StageKey, boolean>)[STAGES[i].key as StageKey] = i <= max;
+  }
+  return next;
+}
+
 /** Spreadsheet "Admin Card Downloaded" ↔ stage key `admit_card`. */
 export type PipelineField =
   | "year"
@@ -115,17 +128,35 @@ export function PipelineStepper({ exam, onChange }: {
     <div style={{ display: "flex", gap: 0, alignItems: "center", flexWrap: "wrap" }}>
       {STAGES.map((stage, i) => {
         const done = exam[stage.key as StageKey] as boolean;
+        const priorsDone = STAGES.slice(0, i).every((s) => exam[s.key as StageKey]);
+        // May only check a stage when every prior is already checked; uncheck always allowed.
+        const canCheck = priorsDone;
+        const disabled = !done && !canCheck;
         return (
-          <label key={stage.key} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 13 }}>
+          <label
+            key={stage.key}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              cursor: disabled ? "not-allowed" : "pointer",
+              fontSize: 13,
+              opacity: disabled ? 0.55 : 1,
+            }}
+          >
             {i > 0 && <span style={{ color: "var(--border)", margin: "0 4px" }}>›</span>}
             <input
               type="checkbox"
               checked={done}
+              disabled={disabled}
               onChange={e => {
                 const updates: Partial<Record<StageKey, boolean>> = {};
                 if (e.target.checked) {
+                  if (!priorsDone) return;
+                  // Contiguous: turn on this stage and every prior.
                   STAGES.slice(0, i + 1).forEach(s => { updates[s.key as StageKey] = true; });
                 } else {
+                  // Uncheck clears this stage and all later ones (no gaps).
                   STAGES.slice(i).forEach(s => { updates[s.key as StageKey] = false; });
                 }
                 onChange(updates);

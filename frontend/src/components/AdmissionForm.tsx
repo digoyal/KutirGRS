@@ -33,6 +33,7 @@ import {
   subjectsForExamType,
   pipelineFieldVisible,
   pipelineStage,
+  normalizePipelineStages,
 } from "./admissions-pipeline";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -91,6 +92,14 @@ export function emptyAdmissionForm(year = CURRENT_YEAR): AdmissionFormState {
 }
 
 export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
+  const stages = normalizePipelineStages({
+    eligible: exam.eligible,
+    applied: exam.applied,
+    admit_card: exam.admit_card,
+    appeared: exam.appeared,
+    selected: exam.selected,
+    admitted: exam.admitted,
+  });
   return {
     student_id: exam.student_id,
     school_start_year: exam.school_start_year,
@@ -100,13 +109,13 @@ export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
     exam_center_id: exam.exam_center_id,
     application_number: exam.application_number,
     roll_number: exam.roll_number,
-    eligible: exam.eligible,
+    eligible: stages.eligible,
     form_received: exam.form_received,
-    applied: exam.applied,
-    admit_card: exam.admit_card,
-    appeared: exam.appeared,
-    selected: exam.selected,
-    admitted: exam.admitted,
+    applied: stages.applied,
+    admit_card: stages.admit_card,
+    appeared: stages.appeared,
+    selected: stages.selected,
+    admitted: stages.admitted,
     admitted_school_id: exam.admitted_school_id,
     no_exam_reason_id: exam.no_exam_reason_id,
     no_admit_reason_id: exam.no_admit_reason_id,
@@ -126,14 +135,14 @@ export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
 export function admissionPayloadFromForm(
   form: AdmissionFormState,
 ): Omit<StudentExamCreate, "student_id"> & { student_id: number } {
-  const stageFlags = {
+  const stageFlags = normalizePipelineStages({
     eligible: form.eligible,
     applied: form.applied,
     admit_card: form.admit_card,
     appeared: form.appeared,
     selected: form.selected,
     admitted: form.admitted,
-  };
+  });
   const show = (field: Parameters<typeof pipelineFieldVisible>[1]) =>
     pipelineFieldVisible(stageFlags, field);
   const showScores = show("scores");
@@ -144,13 +153,13 @@ export function admissionPayloadFromForm(
     school_type: showSchool ? form.school_type || null : null,
     exam_type_id: form.exam_type_id,
     school_start_year: form.school_start_year,
-    eligible: form.eligible,
+    eligible: stageFlags.eligible,
     form_received: form.form_received,
-    applied: form.applied,
-    admit_card: form.admit_card,
-    appeared: form.appeared,
-    selected: form.selected,
-    admitted: form.admitted,
+    applied: stageFlags.applied,
+    admit_card: stageFlags.admit_card,
+    appeared: stageFlags.appeared,
+    selected: stageFlags.selected,
+    admitted: stageFlags.admitted,
     exam_category_id: form.exam_category_id,
     exam_center_id: show("exam_center") ? form.exam_center_id : null,
     application_number: show("application_number") ? form.application_number : null,
@@ -319,7 +328,12 @@ export function AdmissionForm({
       }
     }
     onAdmitBlockMsg?.(null);
-    setForm((f) => ({ ...f, ...updates }));
+    setForm((f) =>
+      normalizePipelineStages({
+        ...f,
+        ...updates,
+      }),
+    );
   }
 
   const schoolTypes = (
