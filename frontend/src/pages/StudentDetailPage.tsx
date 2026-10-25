@@ -37,8 +37,8 @@ export default function StudentDetailPage() {
     queryFn: () => listKutirs(),
   });
   const { data: districts = [] } = useQuery({
-    queryKey: ["all-districts"],
-    queryFn: () => listDistricts(),
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
   const { data: areas = [] } = useQuery({
     queryKey: ["all-areas"],
