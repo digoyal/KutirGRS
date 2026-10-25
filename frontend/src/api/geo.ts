@@ -1,10 +1,18 @@
 import api from "./client";
 
+export interface State    { id: number; name: string; }
 export interface Zone     { id: number; name: string; }
-export interface District { id: number; name: string; zone_id: number; }
+export interface District {
+  id: number;
+  name: string;
+  zone_id: number;
+  state_id: number;
+  parivaar_presence: boolean;
+}
 export interface Area     { id: number; name: string; district_id: number; }
 export interface Cluster  { id: number; name: string; area_id: number; }
 
+export const listStates = async (): Promise<State[]> => (await api.get("/geo/states")).data;
 export const listZones = async (): Promise<Zone[]> => (await api.get("/geo/zones")).data;
 export const listDistricts = async (zone_id?: number): Promise<District[]> => (await api.get("/geo/districts", { params: zone_id ? { zone_id } : {} })).data;
 export const listAreas = async (district_id?: number): Promise<Area[]> => (await api.get("/geo/areas", { params: district_id ? { district_id } : {} })).data;
@@ -13,7 +21,12 @@ export const listClusters = async (area_id?: number): Promise<Cluster[]> => (awa
 export const createZone    = async (data: { name: string }): Promise<Zone>     => (await api.post("/geo/zones", data)).data;
 export const updateZone    = async (id: number, data: Partial<Zone>): Promise<Zone>     => (await api.put(`/geo/zones/${id}`, data)).data;
 export const deleteZone    = async (id: number): Promise<void>                           => { await api.delete(`/geo/zones/${id}`); };
-export const createDistrict = async (data: { name: string; zone_id: number }): Promise<District> => (await api.post("/geo/districts", data)).data;
+export const createDistrict = async (data: {
+  name: string;
+  zone_id: number;
+  state_id: number;
+  parivaar_presence?: boolean;
+}): Promise<District> => (await api.post("/geo/districts", data)).data;
 export const updateDistrict = async (id: number, data: Partial<District>): Promise<District> => (await api.put(`/geo/districts/${id}`, data)).data;
 export const deleteDistrict = async (id: number): Promise<void>                               => { await api.delete(`/geo/districts/${id}`); };
 export const createArea    = async (data: { name: string; district_id: number }): Promise<Area>  => (await api.post("/geo/areas", data)).data;

@@ -2,6 +2,22 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+# ── State ─────────────────────────────────────────────────────────────────────
+
+class StateBase(BaseModel):
+    name: str
+
+class StateCreate(StateBase):
+    pass
+
+class StateUpdate(BaseModel):
+    name: Optional[str] = None
+
+class StateOut(StateBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+
 # ── Zone ──────────────────────────────────────────────────────────────────────
 
 class ZoneBase(BaseModel):
@@ -23,6 +39,8 @@ class ZoneOut(ZoneBase):
 class DistrictBase(BaseModel):
     name: str
     zone_id: int
+    state_id: int
+    parivaar_presence: bool = False
 
 class DistrictCreate(DistrictBase):
     pass
@@ -30,6 +48,8 @@ class DistrictCreate(DistrictBase):
 class DistrictUpdate(BaseModel):
     name: Optional[str] = None
     zone_id: Optional[int] = None
+    state_id: Optional[int] = None
+    parivaar_presence: Optional[bool] = None
 
 class DistrictOut(DistrictBase):
     id: int

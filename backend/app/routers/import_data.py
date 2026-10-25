@@ -189,6 +189,9 @@ async def _import_zones(rows, db):
 
 async def _import_districts(rows, db):
     created = skipped = 0; errors = []
+    default_state_id = (await db.execute(
+        text("SELECT id FROM states WHERE name = 'Madhya Pradesh' LIMIT 1")
+    )).scalar_one_or_none()
     for r in rows:
         raw_name = _str(r.get("name")); zone_name = _str(r.get("zone_name"))
         if not raw_name:
@@ -198,6 +201,17 @@ async def _import_districts(rows, db):
         )).scalar_one_or_none()
         if not zone_id:
             errors.append(f"Zone '{zone_name}' not found for district '{raw_name}'"); continue
+        state_name = _str(r.get("state_name")) or "Madhya Pradesh"
+        state_id = (await db.execute(
+            text("SELECT id FROM states WHERE lower(name)=lower(:n) LIMIT 1"), {"n": state_name}
+        )).scalar_one_or_none() or default_state_id
+        if not state_id:
+            errors.append(f"State '{state_name}' not found for district '{raw_name}'"); continue
+        presence_raw = r.get("parivaar_presence")
+        if presence_raw is None or str(presence_raw).strip() == "":
+            parivaar_presence = True
+        else:
+            parivaar_presence = str(presence_raw).strip().lower() in ("1", "true", "yes", "y")
         username = _str(r.get("userid"))
         uid = None
         if username:
@@ -220,8 +234,11 @@ async def _import_districts(rows, db):
                     )
                 continue
             dist_id = (await db.execute(
-                text("INSERT INTO districts (name, zone_id, created_at, updated_at) VALUES (:n, :z, now(), now()) RETURNING id"),
-                {"n": name, "z": zone_id}
+                text(
+                    "INSERT INTO districts (name, zone_id, state_id, parivaar_presence, created_at, updated_at) "
+                    "VALUES (:n, :z, :s, :p, now(), now()) RETURNING id"
+                ),
+                {"n": name, "z": zone_id, "s": state_id, "p": parivaar_presence}
             )).scalar_one_or_none()
             created += 1
             if uid:

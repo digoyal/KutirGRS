@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.auth import get_current_user, require_roles, get_geo_scope, GeoScope
 from app.roles import MANAGE_GEOGRAPHY, MANAGE_EXAM_CENTERS
-from app.models.geo import Zone, District, Area, Cluster, ExamCenter
+from app.models.geo import State, Zone, District, Area, Cluster, ExamCenter
 from app.schemas.geo import (
+    StateCreate, StateUpdate, StateOut,
     ZoneCreate, ZoneUpdate, ZoneOut,
     DistrictCreate, DistrictUpdate, DistrictOut,
     AreaCreate, AreaUpdate, AreaOut,
@@ -16,6 +17,48 @@ from app.schemas.geo import (
 )
 
 router = APIRouter(prefix="/geo", tags=["Geo"])
+
+
+# ── States ────────────────────────────────────────────────────────────────────
+
+@router.get("/states", response_model=list[StateOut])
+async def list_states(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    result = await db.execute(select(State).order_by(State.name))
+    return result.scalars().all()
+
+@router.post("/states", response_model=StateOut, status_code=201)
+async def create_state(body: StateCreate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
+    obj = State(**body.model_dump())
+    db.add(obj)
+    await db.commit()
+    await db.refresh(obj)
+    return obj
+
+@router.get("/states/{state_id}", response_model=StateOut)
+async def get_state(state_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    obj = await db.get(State, state_id)
+    if not obj:
+        raise HTTPException(404, "State not found")
+    return obj
+
+@router.put("/states/{state_id}", response_model=StateOut)
+async def update_state(state_id: int, body: StateUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
+    obj = await db.get(State, state_id)
+    if not obj:
+        raise HTTPException(404, "State not found")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(obj, k, v)
+    await db.commit()
+    await db.refresh(obj)
+    return obj
+
+@router.delete("/states/{state_id}", status_code=204)
+async def delete_state(state_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
+    obj = await db.get(State, state_id)
+    if not obj:
+        raise HTTPException(404, "State not found")
+    await db.delete(obj)
+    await db.commit()
 
 
 # ── Zones ─────────────────────────────────────────────────────────────────────

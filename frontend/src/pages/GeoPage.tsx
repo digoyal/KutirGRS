@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listZones, listDistricts, listAreas, listClusters, createZone, createDistrict, createArea, createCluster, updateZone, updateDistrict, updateArea, updateCluster, deleteZone, deleteDistrict, deleteArea, deleteCluster } from "../api/geo";
+import { listStates, listZones, listDistricts, listAreas, listClusters, createZone, createDistrict, createArea, createCluster, updateZone, updateDistrict, updateArea, updateCluster, deleteZone, deleteDistrict, deleteArea, deleteCluster } from "../api/geo";
 import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
@@ -12,7 +12,13 @@ import { GrsTabs } from "../components/GrsTabs";
 
 type Tab = "zones" | "districts" | "areas" | "clusters";
 
-type GeoRow = { id: number; name: string; parent?: string };
+type GeoRow = {
+  id: number;
+  name: string;
+  parent?: string;
+  state?: string;
+  presence?: string;
+};
 
 const PARENT_LABEL: Partial<Record<Tab, string>> = {
   districts: "Zone",
@@ -41,11 +47,13 @@ export default function GeoPage() {
     clusters:  geoOk && ["Admin", "Regional Head", "District Anchor", "Education Coordinator"].includes(role),
   };
 
+  const { data: states = [] }    = useQuery({ queryKey: ["states"],          queryFn: listStates });
   const { data: zones = [] }     = useQuery({ queryKey: ["zones"],           queryFn: listZones });
   const { data: districts = [] } = useQuery({ queryKey: ["districts", null], queryFn: () => listDistricts() });
   const { data: areas = [] }     = useQuery({ queryKey: ["areas", null],     queryFn: () => listAreas() });
   const { data: clusters = [] }  = useQuery({ queryKey: ["clusters", null],  queryFn: () => listClusters() });
 
+  const stateMap    = Object.fromEntries(states.map(s => [s.id, s.name]));
   const zoneMap     = Object.fromEntries(zones.map(z => [z.id, z.name]));
   const districtMap = Object.fromEntries(districts.map(d => [d.id, d.name]));
   const areaMap     = Object.fromEntries(areas.map(a => [a.id, a.name]));
@@ -88,20 +96,39 @@ export default function GeoPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name?.trim()) { setFormError("Name is required"); return; }
+    if (tab === "districts") {
+      if (!form.zone_id) { setFormError("Zone is required"); return; }
+      if (!form.state_id) { setFormError("State is required"); return; }
+    }
+    const payload =
+      tab === "districts"
+        ? {
+            ...form,
+            zone_id: Number(form.zone_id),
+            state_id: Number(form.state_id),
+            parivaar_presence: Boolean(form.parivaar_presence),
+          }
+        : form;
     if (editRow) {
-      updateMut.mutate({ id: editRow.id, data: form });
+      updateMut.mutate({ id: editRow.id, data: payload });
     } else {
-      createMut.mutate(form);
+      createMut.mutate(payload);
     }
   }
 
   const rows = useMemo<GeoRow[]>(() => {
     if (tab === "zones")     return zones.map(z => ({ id: z.id, name: z.name }));
-    if (tab === "districts") return districts.map(d => ({ id: d.id, name: d.name, parent: zoneMap[d.zone_id] ?? String(d.zone_id) }));
+    if (tab === "districts") return districts.map(d => ({
+      id: d.id,
+      name: d.name,
+      parent: zoneMap[d.zone_id] ?? String(d.zone_id),
+      state: stateMap[d.state_id] ?? String(d.state_id),
+      presence: d.parivaar_presence ? "Yes" : "No",
+    }));
     if (tab === "areas")     return areas.map(a => ({ id: a.id, name: a.name, parent: districtMap[a.district_id] ?? String(a.district_id) }));
     return clusters.map(c => ({ id: c.id, name: c.name, parent: areaMap[c.area_id] ?? String(c.area_id) }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, zones, districts, areas, clusters]);
+  }, [tab, zones, districts, areas, clusters, states]);
 
   const columns = useMemo<Col<GeoRow>[]>(() => {
     const cols: Col<GeoRow>[] = [
@@ -109,6 +136,10 @@ export default function GeoPage() {
     ];
     if (tab !== "zones") {
       cols.push({ key: "parent", label: PARENT_LABEL[tab]!, sortable: true });
+    }
+    if (tab === "districts") {
+      cols.push({ key: "state", label: "State", sortable: true });
+      cols.push({ key: "presence", label: "Parivaar presence", sortable: true });
     }
     return cols;
   }, [tab]);
@@ -138,7 +169,12 @@ export default function GeoPage() {
         searchPlaceholder={`Search ${tab}…`}
         exportFilename={tab}
         printTitle={tab.charAt(0).toUpperCase() + tab.slice(1)}
-        onAdd={canWrite[tab] ? () => { setShowForm(true); setEditRow(null); setForm({}); setFormError(""); } : undefined}
+        onAdd={canWrite[tab] ? () => {
+          setShowForm(true);
+          setEditRow(null);
+          setForm(tab === "districts" ? { parivaar_presence: false } : {});
+          setFormError("");
+        } : undefined}
         addLabel="+ Add"
         actions={r => canWrite[tab] ? ({
           onEdit: () => {
@@ -168,13 +204,40 @@ export default function GeoPage() {
                 <input style={grs.input} value={form.name ?? ""} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
               </div>
               {tab === "districts" && (
-                <div style={{ marginBottom: 10 }}>
-                  <label style={grs.fieldLabel}>Zone *</label>
-                  <select style={grs.select} value={form.zone_id ?? ""} onChange={e => setForm(f => ({ ...f, zone_id: Number(e.target.value) }))}>
-                    <option value="">— select zone —</option>
-                    {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                  </select>
-                </div>
+                <>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={grs.fieldLabel}>Zone *</label>
+                    <select style={grs.select} value={form.zone_id ?? ""} onChange={e => setForm(f => ({ ...f, zone_id: Number(e.target.value) }))}>
+                      <option value="">— select zone —</option>
+                      {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={grs.fieldLabel}>State *</label>
+                    <select style={grs.select} value={form.state_id ?? ""} onChange={e => setForm(f => ({ ...f, state_id: Number(e.target.value) }))}>
+                      <option value="">— select state —</option>
+                      {states.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      cursor: "pointer",
+                      fontSize: "0.875rem",
+                      color: "var(--text-primary)",
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(form.parivaar_presence)}
+                        onChange={e => setForm(f => ({ ...f, parivaar_presence: e.target.checked }))}
+                        style={{ width: 15, height: 15 }}
+                      />
+                      Parivaar has presence here
+                    </label>
+                  </div>
+                </>
               )}
               {tab === "areas" && (
                 <div style={{ marginBottom: 10 }}>

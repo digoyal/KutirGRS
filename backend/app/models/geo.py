@@ -1,16 +1,30 @@
 """
 Geographic hierarchy: Zone → District → Area → Cluster
 
-Also includes ExamCenter (belongs to a District).
+Also includes ExamCenter (belongs to a District) and State (lookup for District).
 """
 from typing import Optional
-from sqlalchemy import String, ForeignKey, Integer
+from sqlalchemy import String, ForeignKey, Integer, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin
 
 STATE_CHOICES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"]
+
+
+class State(Base, TimestampMixin):
+    __tablename__ = "states"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+
+    districts: Mapped[list["District"]] = relationship(
+        "District", back_populates="state"
+    )
+
+    def __repr__(self):
+        return f"<State {self.name}>"
 
 
 class Zone(Base, TimestampMixin):
@@ -34,9 +48,12 @@ class District(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     zone_id: Mapped[int] = mapped_column(ForeignKey("zones.id"), nullable=False)
+    state_id: Mapped[int] = mapped_column(ForeignKey("states.id"), nullable=False)
+    parivaar_presence: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
     zone: Mapped["Zone"] = relationship("Zone", back_populates="districts")
+    state: Mapped["State"] = relationship("State", back_populates="districts")
     areas: Mapped[list["Area"]] = relationship(
         "Area", back_populates="district", cascade="all, delete-orphan"
     )
