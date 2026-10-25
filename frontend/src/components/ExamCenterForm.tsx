@@ -45,8 +45,15 @@ const secTitle: React.CSSProperties = {
   color: "var(--badge-blue-fg, #2563eb)",
   marginBottom: 8,
 };
+/** View-mode only: muted labels so values read clearly. */
+const viewLabel: React.CSSProperties = {
+  ...grs.fieldLabel,
+  color: "var(--text-secondary)",
+  fontWeight: 500,
+};
 const viewVal: React.CSSProperties = {
   fontSize: 14,
+  fontWeight: 600,
   color: "var(--text-primary)",
   padding: "7px 0",
 };
@@ -92,7 +99,7 @@ export function ExamCenterForm({
   function field(label: string, viewValue: React.ReactNode, editContent: React.ReactNode) {
     return (
       <div>
-        <label style={grs.fieldLabel}>{label}</label>
+        <label style={readOnly ? viewLabel : grs.fieldLabel}>{label}</label>
         {readOnly ? <div style={viewVal}>{viewValue ?? "—"}</div> : editContent}
       </div>
     );
