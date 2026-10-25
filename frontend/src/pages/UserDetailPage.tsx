@@ -51,11 +51,11 @@ export default function UserDetailPage() {
     u.zone_ids.length > 0 || u.district_ids.length > 0 || u.area_ids.length > 0 ||
     u.cluster_ids.length > 0 || u.kutir_ids.length > 0
   );
-  const { data: allZones } = useQuery({ queryKey: ["zones"], queryFn: listZones, enabled: needGeoNames });
-  const { data: allDistricts } = useQuery({ queryKey: ["districts"], queryFn: listDistricts, enabled: needGeoNames });
-  const { data: allAreas } = useQuery({ queryKey: ["areas"], queryFn: listAreas, enabled: needGeoNames });
-  const { data: allClusters } = useQuery({ queryKey: ["clusters"], queryFn: listClusters, enabled: needGeoNames });
-  const { data: allKutirs } = useQuery({ queryKey: ["kutirs"], queryFn: listKutirs, enabled: needGeoNames });
+  const { data: allZones } = useQuery({ queryKey: ["zones"], queryFn: () => listZones(), enabled: needGeoNames });
+  const { data: allDistricts } = useQuery({ queryKey: ["districts"], queryFn: () => listDistricts(), enabled: needGeoNames });
+  const { data: allAreas } = useQuery({ queryKey: ["areas"], queryFn: () => listAreas(), enabled: needGeoNames });
+  const { data: allClusters } = useQuery({ queryKey: ["clusters"], queryFn: () => listClusters(), enabled: needGeoNames });
+  const { data: allKutirs } = useQuery({ queryKey: ["kutirs"], queryFn: () => listKutirs(), enabled: needGeoNames });
 
   useEffect(() => {
     if (!u) return;
