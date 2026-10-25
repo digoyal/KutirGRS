@@ -59,8 +59,8 @@ export default function NewYearSetupPage() {
     queryFn: () => listKutirs(),
   });
   const { data: allDistricts = [] } = useQuery({
-    queryKey: ["all-districts"],
-    queryFn: () => listDistricts(),
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
   const { data: allAreas = [] } = useQuery({
     queryKey: ["all-areas"],

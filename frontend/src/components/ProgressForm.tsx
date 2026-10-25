@@ -95,8 +95,8 @@ export function ProgressForm({
     enabled: isAdd,
   });
   const { data: allDistricts = [] } = useQuery({
-    queryKey: ["all-districts"],
-    queryFn: () => listDistricts(),
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
     enabled: isAdd,
   });
   const { data: allAreas = [] } = useQuery({

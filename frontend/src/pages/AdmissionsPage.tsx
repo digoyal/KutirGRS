@@ -84,7 +84,10 @@ export default function AdmissionsPage() {
   });
 
   const { data: allKutirs   = [] } = useQuery({ queryKey: ["all-kutirs"],    queryFn: () => listKutirs() });
-  const { data: allDistricts= [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
+  const { data: allDistricts= [] } = useQuery({
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
+  });
   const { data: allAreas    = [] } = useQuery({ queryKey: ["all-areas"],     queryFn: () => listAreas() });
   const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"],  queryFn: () => listClusters() });
   const { data: examCategories=[] }= useQuery({ queryKey: ["exam-categories"],queryFn: () => listExamCategories() });

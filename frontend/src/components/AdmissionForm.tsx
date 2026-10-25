@@ -202,8 +202,8 @@ export function AdmissionForm({
     queryFn: () => listSchools(),
   });
   const { data: districts = [] } = useQuery({
-    queryKey: ["all-districts"],
-    queryFn: () => listDistricts(),
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
   const { data: examCategories = [] } = useQuery({
     queryKey: ["exam-categories"],
