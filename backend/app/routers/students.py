@@ -452,6 +452,7 @@ async def list_progress(
     cluster_id: Optional[int] = Query(None),
     district_id: Optional[int] = Query(None),
     admitted: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None),
     limit: Optional[int] = Query(25),
     offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
@@ -460,7 +461,8 @@ async def list_progress(
     def _apply_filters(q):
         needs_student = (
             scope is not None or kutir_id is not None or
-            cluster_id is not None or district_id is not None
+            cluster_id is not None or district_id is not None or
+            (search is not None and search.strip() != "")
         )
         if needs_student:
             q = q.join(Student, StudentProgress.student_id == Student.id)
@@ -482,6 +484,14 @@ async def list_progress(
             q = q.where(StudentProgress.school_id == school_id)
         if academic_year:
             q = q.where(StudentProgress.academic_year == academic_year)
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            q = q.where(
+                (Student.first_name.ilike(term)) |
+                (Student.last_name.ilike(term)) |
+                (Student.phone.ilike(term)) |
+                (Student.father_name.ilike(term))
+            )
         return q
 
     count_q = _apply_filters(select(func.count()).select_from(StudentProgress))

@@ -1,5 +1,5 @@
 import React from "react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -53,6 +53,7 @@ export default function StudentProgressPage() {
     cluster?: FilterId;
     kutir?: FilterId;
     year?: number;
+    search?: string;
     page?: number;
   }>(STORAGE_KEY);
 
@@ -62,11 +63,20 @@ export default function StudentProgressPage() {
   const [filterCluster, setFilterCluster] = useState<FilterId>(saved?.cluster ?? defaults.cluster);
   const [filterKutir, setFilterKutir] = useState<FilterId>(saved?.kutir ?? defaults.kutir);
   const [filterYear, setFilterYear] = useState(saved?.year ?? CURRENT_YEAR);
+  const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(saved?.page ?? 1);
   const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
-  const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "";
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
+  };
+  const hasFilter =
+    filterDistrict !== "" || filterCluster !== "" || filterKutir !== "" || debouncedSearch !== "";
 
   const { isVisible, orderedMetas } = useFieldConfig("progress", PROGRESS_FIELDS);
 
@@ -76,17 +86,19 @@ export default function StudentProgressPage() {
       cluster: filterCluster,
       kutir: filterKutir,
       year: filterYear,
+      search: searchQuery,
       page,
     });
   }
 
   const { data: progressPage = { items: [], total: 0 }, isLoading } = useQuery({
-    queryKey: ["progress", filterYear, filterDistrict, filterCluster, filterKutir, page],
+    queryKey: ["progress", filterYear, filterDistrict, filterCluster, filterKutir, debouncedSearch, page],
     queryFn: () => listProgressPaged({
       academic_year: filterYear,
       district_id: filterDistrict !== "" ? filterDistrict : undefined,
       cluster_id: filterCluster !== "" ? filterCluster : undefined,
       kutir_id: filterKutir !== "" ? filterKutir : undefined,
+      search: debouncedSearch || undefined,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     }),
@@ -247,11 +259,9 @@ export default function StudentProgressPage() {
         pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: progressTotal, onPageChange: setPage } : undefined}
         searchable
         searchPlaceholder="Search by student name…"
-        searchFn={(p, q) => {
-          const s = studentMap2.get(p.student_id);
-          return !!s && `${(s as any).first_name} ${(s as any).last_name}`.toLowerCase().includes(q);
-        }}
-        emptyMessage={hasFilter ? `No progress records for ${filterYear}-${String(filterYear + 1).slice(2)}.` : "Select a district, cluster, or kutir to view progress."}
+        externalSearch={searchQuery}
+        onExternalSearch={handleSearch}
+        emptyMessage={hasFilter ? `No progress records for ${filterYear}-${String(filterYear + 1).slice(2)}.` : "Select a District or search by Student name to view Progress"}
         filters={
           <GeoFilterBar
             leading={
