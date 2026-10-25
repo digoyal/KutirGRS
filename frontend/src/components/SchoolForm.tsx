@@ -5,6 +5,7 @@
  */
 import React, { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ViewField, ViewSection, viewStyles } from "@parivaar/ui";
 import { type SchoolCreate } from "../api/schools";
 import { listDistricts } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
@@ -27,43 +28,8 @@ export function emptySchoolForm(): SchoolFormState {
   };
 }
 
-const sec: React.CSSProperties = {
-  background: "var(--bg-card)",
-  borderRadius: 8,
-  padding: "10px 14px",
-  marginBottom: 8,
-};
-const secTitle: React.CSSProperties = {
-  // Match grs.fieldLabel / viewLabel size (12); use --link-color (#2563eb) —
-  // --badge-blue-fg is slate navy (#2c5282) and reads as not-blue in the UI.
-  fontSize: 12,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.07em",
-  color: "var(--link-color)",
-  marginBottom: 8,
-};
-/** View-mode only: muted label text on a light shaded chip so values stand out. */
-const viewLabel: React.CSSProperties = {
-  ...grs.fieldLabel,
-  color: "var(--text-secondary)",
-  fontWeight: 500,
-  background: "var(--bg-input)",
-  border: "1px solid var(--border)",
-  borderRadius: 4,
-  padding: "3px 8px",
-  marginBottom: 4,
-  display: "inline-block",
-  width: "fit-content",
-  maxWidth: "100%",
-  boxSizing: "border-box",
-};
-const viewVal: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 400,
-  color: "var(--text-primary)",
-  padding: "7px 0",
-};
+const sec: React.CSSProperties = viewStyles.section;
+const secTitle: React.CSSProperties = viewStyles.sectionTitle;
 
 interface SchoolFormProps {
   form: SchoolFormState;
@@ -100,111 +66,130 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
   }, [isAdd, scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function field(label: string, viewValue: React.ReactNode, editContent: React.ReactNode) {
+    if (readOnly) {
+      return <ViewField label={label}>{viewValue}</ViewField>;
+    }
     return (
       <div>
-        <label style={readOnly ? viewLabel : grs.fieldLabel}>{label}</label>
-        {readOnly ? <div style={viewVal}>{viewValue ?? "—"}</div> : editContent}
+        <label style={grs.fieldLabel}>{label}</label>
+        {editContent}
       </div>
+    );
+  }
+
+  function wrapSection(title: string, children: React.ReactNode) {
+    if (readOnly) {
+      return <ViewSection title={title}>{children}</ViewSection>;
+    }
+    return (
+      <section style={sec}>
+        <div style={secTitle}>{title}</div>
+        {children}
+      </section>
     );
   }
 
   return (
     <div>
-      <section style={sec}>
-        <div style={secTitle}>Details</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8, marginBottom: 8 }}>
+      {wrapSection(
+        "Details",
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8, marginBottom: 8 }}>
+            {field(
+              "Type",
+              form.school_type,
+              <select
+                style={grs.select}
+                value={form.school_type}
+                onChange={(e) => setForm((f) => ({ ...f, school_type: e.target.value }))}
+              >
+                {SCHOOL_TYPES.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>,
+            )}
+            {field(
+              "Name *",
+              form.name,
+              <input
+                style={grs.input}
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="School name"
+              />,
+            )}
+          </div>
           {field(
-            "Type",
-            form.school_type,
-            <select
-              style={grs.select}
-              value={form.school_type}
-              onChange={(e) => setForm((f) => ({ ...f, school_type: e.target.value }))}
-            >
-              {SCHOOL_TYPES.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>,
-          )}
-          {field(
-            "Name *",
-            form.name,
+            "Street / Address",
+            form.street,
             <input
               style={grs.input}
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="School name"
+              value={form.street ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, street: e.target.value || null }))}
             />,
           )}
-        </div>
-        {field(
-          "Street / Address",
-          form.street,
-          <input
-            style={grs.input}
-            value={form.street ?? ""}
-            onChange={(e) => setForm((f) => ({ ...f, street: e.target.value || null }))}
-          />,
-        )}
-      </section>
+        </>,
+      )}
 
-      <section style={sec}>
-        <div style={secTitle}>Location</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-          {field(
-            "City / Block",
-            form.city,
-            <input
-              style={grs.input}
-              value={form.city ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, city: e.target.value || null }))}
-            />,
-          )}
-          {field(
-            "District",
-            districtName ?? districts.find((d) => d.id === form.district_id)?.name,
-            <select
-              style={grs.select}
-              value={form.district_id ?? ""}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, district_id: Number(e.target.value) || null }))
-              }
-            >
-              <option value="">— none —</option>
-              {districtOptions.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>,
-          )}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {field(
-            "State",
-            form.state,
-            <select
-              style={grs.select}
-              value={form.state ?? "Madhya Pradesh"}
-              onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
-            >
-              {STATES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>,
-          )}
-          {field(
-            "Pincode",
-            form.pincode,
-            <input
-              style={grs.input}
-              value={form.pincode ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, pincode: e.target.value || null }))}
-              maxLength={10}
-            />,
-          )}
-        </div>
-      </section>
+      {wrapSection(
+        "Location",
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+            {field(
+              "City / Block",
+              form.city,
+              <input
+                style={grs.input}
+                value={form.city ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value || null }))}
+              />,
+            )}
+            {field(
+              "District",
+              districtName ?? districts.find((d) => d.id === form.district_id)?.name,
+              <select
+                style={grs.select}
+                value={form.district_id ?? ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, district_id: Number(e.target.value) || null }))
+                }
+              >
+                <option value="">— none —</option>
+                {districtOptions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>,
+            )}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {field(
+              "State",
+              form.state,
+              <select
+                style={grs.select}
+                value={form.state ?? "Madhya Pradesh"}
+                onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+              >
+                {STATES.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>,
+            )}
+            {field(
+              "Pincode",
+              form.pincode,
+              <input
+                style={grs.input}
+                value={form.pincode ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, pincode: e.target.value || null }))}
+                maxLength={10}
+              />,
+            )}
+          </div>
+        </>,
+      )}
     </div>
   );
 }

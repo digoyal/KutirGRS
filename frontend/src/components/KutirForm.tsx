@@ -5,6 +5,7 @@
  */
 import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ViewField, ViewSection, viewStyles } from "@parivaar/ui";
 import { type KutirCreate, type KutirDetail } from "../api/kutirs";
 import { listZones, listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
@@ -33,26 +34,8 @@ export function kutirFormFromDetail(kutir: KutirDetail): KutirFormState {
   };
 }
 
-const sec: React.CSSProperties = {
-  background: "var(--bg-card)",
-  borderRadius: 8,
-  padding: "10px 14px",
-  marginBottom: 8,
-};
-const secTitle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.07em",
-  color: "var(--badge-blue-fg, #2563eb)",
-  marginBottom: 8,
-};
-const viewVal: React.CSSProperties = {
-  fontSize: 14,
-  color: "var(--text-primary)",
-  padding: "7px 0",
-  borderBottom: "1px solid transparent",
-};
+const sec: React.CSSProperties = viewStyles.section;
+const secTitle: React.CSSProperties = viewStyles.sectionTitle;
 
 interface KutirFormProps {
   form: KutirFormState;
@@ -156,64 +139,33 @@ export function KutirForm({
   if (readOnly) {
     return (
       <div>
-        <section style={sec}>
-          <div style={secTitle}>Location</div>
+        <ViewSection title="Location">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div>
-              <label style={grs.fieldLabel}>Zone</label>
-              <div style={viewVal}>{locationLabels?.zone ?? "—"}</div>
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>District</label>
-              <div style={viewVal}>{locationLabels?.district ?? "—"}</div>
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Area</label>
-              <div style={viewVal}>{locationLabels?.area ?? "—"}</div>
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Cluster</label>
-              <div style={viewVal}>{locationLabels?.cluster ?? "—"}</div>
-            </div>
+            <ViewField label="Zone">{locationLabels?.zone}</ViewField>
+            <ViewField label="District">{locationLabels?.district}</ViewField>
+            <ViewField label="Area">{locationLabels?.area}</ViewField>
+            <ViewField label="Cluster">{locationLabels?.cluster}</ViewField>
           </div>
-        </section>
+        </ViewSection>
 
-        <section style={sec}>
-          <div style={secTitle}>Details</div>
+        <ViewSection title="Details">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-            <div>
-              <label style={grs.fieldLabel}>Name *</label>
-              <div style={viewVal}>{form.name || "—"}</div>
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>Type</label>
-              <div style={viewVal}>{form.kutir_type || "—"}</div>
-            </div>
+            <ViewField label="Name *">{form.name || null}</ViewField>
+            <ViewField label="Type">{form.kutir_type || null}</ViewField>
           </div>
-          <div>
-            <label style={grs.fieldLabel}>State</label>
-            <div style={viewVal}>{form.state ?? "—"}</div>
-          </div>
-        </section>
+          <ViewField label="State">{form.state}</ViewField>
+        </ViewSection>
 
-        <section style={sec}>
-          <div style={secTitle}>Enrollment</div>
+        <ViewSection title="Enrollment">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div>
-              <label style={grs.fieldLabel}>5th Grade</label>
-              <div style={viewVal}>{form.enrollment_5th ?? "—"}</div>
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>8th Grade</label>
-              <div style={viewVal}>{form.enrollment_8th ?? "—"}</div>
-            </div>
+            <ViewField label="5th Grade">{form.enrollment_5th}</ViewField>
+            <ViewField label="8th Grade">{form.enrollment_8th}</ViewField>
           </div>
-        </section>
+        </ViewSection>
 
         {teacher && (
-          <section style={sec}>
-            <div style={secTitle}>Teacher</div>
-            <div style={viewVal}>
+          <ViewSection title="Teacher">
+            <div style={viewStyles.value}>
               {[teacher.first_name, teacher.last_name].filter(Boolean).join(" ") ||
                 teacher.username}
               {teacher.title && (
@@ -223,7 +175,7 @@ export function KutirForm({
                 </span>
               )}
             </div>
-          </section>
+          </ViewSection>
         )}
       </div>
     );

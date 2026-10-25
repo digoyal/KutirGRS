@@ -23,6 +23,7 @@ import {
   listNoExamReasons,
   listNoAdmitReasons,
 } from "../api/geo";
+import { viewStyles } from "@parivaar/ui";
 import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 import {
@@ -1018,36 +1019,8 @@ const inputStyles: React.CSSProperties = {
   color: "var(--text-primary)",
   boxSizing: "border-box",
 };
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "var(--text-secondary)",
-};
-const valueStyle: React.CSSProperties = {
-  fontSize: 14,
-  color: "var(--text-primary)",
-  padding: "7px 10px",
-  borderRadius: 6,
-  border: "1px solid var(--border)",
-  background: "var(--bg-input)",
-  boxSizing: "border-box",
-  display: "block",
-  width: "100%",
-};
+const labelStyle: React.CSSProperties = viewStyles.label;
+const valueStyle: React.CSSProperties = viewStyles.value;
 const fieldStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 2 };
-const sec: React.CSSProperties = {
-  background: "var(--bg-card)",
-  borderRadius: 8,
-  padding: "10px 14px",
-  marginBottom: 8,
-};
-const secTitle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.07em",
-  color: "var(--badge-blue-fg, #2563eb)",
-  marginBottom: 8,
-};
+const sec: React.CSSProperties = viewStyles.section;
+const secTitle: React.CSSProperties = viewStyles.sectionTitle;
