@@ -901,20 +901,19 @@ export function VisitForm({
             />
           ))}
         </div>
-        <div style={{ marginTop: 10 }}>
-          <label
-            style={{ ...grs.fieldLabel, color: allChecked ? "var(--text-secondary)" : undefined }}
-          >
-            If any of them not checked, provide a reason
-          </label>
-          <textarea
-            value={form.timeslot_reason ?? ""}
-            onChange={(e) => set("timeslot_reason", e.target.value || null)}
-            rows={2}
-            disabled={allChecked}
-            style={allChecked ? disabledInpStyle : { ...grs.input, resize: "vertical" }}
-          />
-        </div>
+        {!allChecked && (
+          <div style={{ marginTop: 10 }}>
+            <label style={grs.fieldLabel}>
+              If any of them not checked, provide a reason
+            </label>
+            <textarea
+              value={form.timeslot_reason ?? ""}
+              onChange={(e) => set("timeslot_reason", e.target.value || null)}
+              rows={2}
+              style={{ ...grs.input, resize: "vertical" }}
+            />
+          </div>
+        )}
 
         <SectionHead label="Registers & Materials" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
