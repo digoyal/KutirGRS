@@ -69,7 +69,10 @@ export default function VisitsPage() {
   });
   const kutirMap = useMemo(() => new Map(kutirs.map((k) => [k.id, k])), [kutirs]);
 
-  const { data: allDistricts = [] } = useQuery({ queryKey: ["all-districts"], queryFn: () => listDistricts() });
+  const { data: allDistricts = [] } = useQuery({
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
+  });
   const { data: allAreas = [] }     = useQuery({ queryKey: ["all-areas"],    queryFn: () => listAreas() });
   const { data: allClusters = [] }  = useQuery({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
 
