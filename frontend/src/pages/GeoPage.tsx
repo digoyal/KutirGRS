@@ -134,12 +134,14 @@ export default function GeoPage() {
     const cols: Col<GeoRow>[] = [
       { key: "name", label: "Name", sortable: true, render: r => <strong>{r.name}</strong> },
     ];
+    if (tab === "districts") {
+      cols.push({ key: "presence", label: "Parivaar Presence", sortable: true });
+    }
     if (tab !== "zones") {
       cols.push({ key: "parent", label: PARENT_LABEL[tab]!, sortable: true });
     }
     if (tab === "districts") {
       cols.push({ key: "state", label: "State", sortable: true });
-      cols.push({ key: "presence", label: "Parivaar presence", sortable: true });
     }
     return cols;
   }, [tab]);
@@ -206,20 +208,6 @@ export default function GeoPage() {
               {tab === "districts" && (
                 <>
                   <div style={{ marginBottom: 10 }}>
-                    <label style={grs.fieldLabel}>Zone *</label>
-                    <select style={grs.select} value={form.zone_id ?? ""} onChange={e => setForm(f => ({ ...f, zone_id: Number(e.target.value) }))}>
-                      <option value="">— select zone —</option>
-                      {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ marginBottom: 10 }}>
-                    <label style={grs.fieldLabel}>State *</label>
-                    <select style={grs.select} value={form.state_id ?? ""} onChange={e => setForm(f => ({ ...f, state_id: Number(e.target.value) }))}>
-                      <option value="">— select state —</option>
-                      {states.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ marginBottom: 10 }}>
                     <label style={{
                       display: "flex",
                       alignItems: "center",
@@ -234,8 +222,22 @@ export default function GeoPage() {
                         onChange={e => setForm(f => ({ ...f, parivaar_presence: e.target.checked }))}
                         style={{ width: 15, height: 15 }}
                       />
-                      Parivaar has presence here
+                      Parivaar Presence
                     </label>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={grs.fieldLabel}>Zone *</label>
+                    <select style={grs.select} value={form.zone_id ?? ""} onChange={e => setForm(f => ({ ...f, zone_id: Number(e.target.value) }))}>
+                      <option value="">— select zone —</option>
+                      {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={grs.fieldLabel}>State *</label>
+                    <select style={grs.select} value={form.state_id ?? ""} onChange={e => setForm(f => ({ ...f, state_id: Number(e.target.value) }))}>
+                      <option value="">— select state —</option>
+                      {states.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
                   </div>
                 </>
               )}
