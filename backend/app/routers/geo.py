@@ -111,6 +111,7 @@ async def delete_zone(zone_id: int, db: AsyncSession = Depends(get_db), _=Depend
 @router.get("/districts", response_model=list[DistrictOut])
 async def list_districts(
     zone_id: Optional[int] = Query(None),
+    parivaar_presence: Optional[bool] = Query(None),
     db: AsyncSession = Depends(get_db),
     gs: GeoScope = Depends(get_geo_scope),
 ):
@@ -119,6 +120,8 @@ async def list_districts(
         q = q.where(District.id.in_(gs.district_ids))
     if zone_id:
         q = q.where(District.zone_id == zone_id)
+    if parivaar_presence is not None:
+        q = q.where(District.parivaar_presence == parivaar_presence)
     result = await db.execute(q)
     return result.scalars().all()
 

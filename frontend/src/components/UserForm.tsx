@@ -92,7 +92,10 @@ export function UserForm({
 }: UserFormProps) {
   const { data: allZonesRaw }        = useQuery<Zone[]>({ queryKey: ["zones"],        queryFn: () => listZones() });
   const allZones: Zone[] = allZonesRaw ?? [];
-  const { data: allDistrictsRaw }    = useQuery<District[]>({ queryKey: ["districts"],    queryFn: () => listDistricts() });
+  const { data: allDistrictsRaw }    = useQuery<District[]>({
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
+  });
   const allDistricts: District[] = allDistrictsRaw ?? [];
   const { data: allAreasRaw }        = useQuery<Area[]>({ queryKey: ["areas"],        queryFn: () => listAreas() });
   const allAreas: Area[] = allAreasRaw ?? [];

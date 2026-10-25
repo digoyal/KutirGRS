@@ -14,7 +14,15 @@ export interface Cluster  { id: number; name: string; area_id: number; }
 
 export const listStates = async (): Promise<State[]> => (await api.get("/geo/states")).data;
 export const listZones = async (): Promise<Zone[]> => (await api.get("/geo/zones")).data;
-export const listDistricts = async (zone_id?: number): Promise<District[]> => (await api.get("/geo/districts", { params: zone_id ? { zone_id } : {} })).data;
+export const listDistricts = async (
+  zone_id?: number,
+  opts?: { parivaar_presence?: boolean },
+): Promise<District[]> => {
+  const params: Record<string, number | boolean> = {};
+  if (zone_id != null) params.zone_id = zone_id;
+  if (opts?.parivaar_presence != null) params.parivaar_presence = opts.parivaar_presence;
+  return (await api.get("/geo/districts", { params })).data;
+};
 export const listAreas = async (district_id?: number): Promise<Area[]> => (await api.get("/geo/areas", { params: district_id ? { district_id } : {} })).data;
 export const listClusters = async (area_id?: number): Promise<Cluster[]> => (await api.get("/geo/clusters", { params: area_id ? { area_id } : {} })).data;
 
