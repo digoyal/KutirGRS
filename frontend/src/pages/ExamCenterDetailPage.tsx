@@ -30,8 +30,8 @@ export default function ExamCenterDetailPage() {
     enabled: !!id,
   });
   const { data: districts = [] } = useQuery({
-    queryKey: ["all-districts"],
-    queryFn: () => listDistricts(),
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
 
   useEffect(() => {

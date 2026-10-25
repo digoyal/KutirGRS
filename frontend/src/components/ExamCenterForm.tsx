@@ -55,8 +55,8 @@ export function ExamCenterForm({
   const isAdmin = user?.title === "Admin";
 
   const { data: allDistricts = [] } = useQuery({
-    queryKey: ["all-districts"],
-    queryFn: () => listDistricts(),
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
 
   const scopedDistricts =
