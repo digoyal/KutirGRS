@@ -18,11 +18,66 @@ export function subjectsForExamType(rows: ExamTypeSubjectRow[], examTypeId: numb
   return rows.find(r => r.id === examTypeId)?.subjects ?? [];
 }
 
-export function pipelineStage(exam: StudentExam): number {
+export function pipelineStage(exam: Pick<StudentExam, StageKey>): number {
   for (let i = STAGES.length - 1; i >= 0; i--) {
     if (exam[STAGES[i].key as StageKey]) return i;
   }
   return -1;
+}
+
+/** Spreadsheet "Admin Card Downloaded" ↔ stage key `admit_card`. */
+export type PipelineField =
+  | "year"
+  | "exam_type"
+  | "exam_category"
+  | "parivaar_district"
+  | "exam_center"
+  | "application_number"
+  | "roll_number"
+  | "reason_not_appeared"
+  | "scores"
+  | "school_district"
+  | "school_type"
+  | "school_name"
+  | "reason_not_admitted";
+
+type FieldRule = { kind: "always" } | { kind: "min"; stage: StageKey } | { kind: "only"; stage: StageKey };
+
+const STAGE_INDEX: Record<StageKey, number> = {
+  eligible: 0,
+  applied: 1,
+  admit_card: 2,
+  appeared: 3,
+  selected: 4,
+  admitted: 5,
+};
+
+/** Pipeline Stages.xlsx — Yes = show for current furthest stage. */
+const PIPELINE_FIELD_RULES: Record<PipelineField, FieldRule> = {
+  year: { kind: "always" },
+  exam_type: { kind: "always" },
+  exam_category: { kind: "always" },
+  parivaar_district: { kind: "min", stage: "applied" },
+  exam_center: { kind: "min", stage: "applied" },
+  application_number: { kind: "min", stage: "applied" },
+  roll_number: { kind: "min", stage: "admit_card" },
+  reason_not_appeared: { kind: "only", stage: "admit_card" },
+  scores: { kind: "min", stage: "appeared" },
+  school_district: { kind: "min", stage: "selected" },
+  school_type: { kind: "min", stage: "selected" },
+  school_name: { kind: "min", stage: "selected" },
+  reason_not_admitted: { kind: "only", stage: "selected" },
+};
+
+export function pipelineFieldVisible(
+  exam: Pick<StudentExam, StageKey>,
+  field: PipelineField,
+): boolean {
+  const rule = PIPELINE_FIELD_RULES[field];
+  if (rule.kind === "always") return true;
+  const idx = pipelineStage(exam);
+  if (rule.kind === "min") return idx >= STAGE_INDEX[rule.stage];
+  return idx === STAGE_INDEX[rule.stage];
 }
 
 export function StageBadge({ exam }: { exam: StudentExam }) {

@@ -6,6 +6,7 @@ import {
   AdmissionForm,
   emptyAdmissionForm,
   admissionPayloadFromForm,
+  admissionSchoolFieldsRequired,
   type AdmissionFormState,
 } from "../components/AdmissionForm";
 import { grs } from "../styles/grs";
@@ -39,10 +40,10 @@ export default function AdmissionAddPage() {
     addMut.mutate(admissionPayloadFromForm(form) as StudentExamCreate);
   }
 
+  const schoolRequired = admissionSchoolFieldsRequired(form);
   const canSave =
     !!form.student_id &&
-    !!form.school_type &&
-    (!form.selected || !!form.admitted_school_id);
+    (!schoolRequired || (!!form.school_type && !!form.admitted_school_id));
 
   return (
     <div style={{ maxWidth: 640, padding: "16px 20px" }}>

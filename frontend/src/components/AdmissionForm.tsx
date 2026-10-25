@@ -31,6 +31,7 @@ import {
   StageBadge,
   PipelineStepper,
   subjectsForExamType,
+  pipelineFieldVisible,
 } from "./admissions-pipeline";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -123,10 +124,22 @@ export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
 export function admissionPayloadFromForm(
   form: AdmissionFormState,
 ): Omit<StudentExamCreate, "student_id"> & { student_id: number } {
+  const stageFlags = {
+    eligible: form.eligible,
+    applied: form.applied,
+    admit_card: form.admit_card,
+    appeared: form.appeared,
+    selected: form.selected,
+    admitted: form.admitted,
+  };
+  const show = (field: Parameters<typeof pipelineFieldVisible>[1]) =>
+    pipelineFieldVisible(stageFlags, field);
+  const showScores = show("scores");
+  const showSchool = show("school_name");
   return {
     student_id: form.student_id,
     school_id: null,
-    school_type: form.school_type || null,
+    school_type: showSchool ? form.school_type || null : null,
     exam_type_id: form.exam_type_id,
     school_start_year: form.school_start_year,
     eligible: form.eligible,
@@ -137,17 +150,24 @@ export function admissionPayloadFromForm(
     selected: form.selected,
     admitted: form.admitted,
     exam_category_id: form.exam_category_id,
-    exam_center_id: form.exam_center_id,
-    application_number: form.application_number,
-    roll_number: form.roll_number,
-    scores: Object.entries(form.scoreInputs)
-      .filter(([, v]) => v !== "")
-      .map(([id, v]) => ({ subject_id: Number(id), score: parseFloat(v) })),
-    no_exam_reason_id: form.appeared ? null : form.no_exam_reason_id,
-    no_admit_reason_id: form.selected && !form.admitted ? form.no_admit_reason_id : null,
-    admitted_school_id: form.admitted ? form.admitted_school_id : null,
+    exam_center_id: show("exam_center") ? form.exam_center_id : null,
+    application_number: show("application_number") ? form.application_number : null,
+    roll_number: show("roll_number") ? form.roll_number : null,
+    scores: showScores
+      ? Object.entries(form.scoreInputs)
+          .filter(([, v]) => v !== "")
+          .map(([id, v]) => ({ subject_id: Number(id), score: parseFloat(v) }))
+      : [],
+    no_exam_reason_id: show("reason_not_appeared") ? form.no_exam_reason_id : null,
+    no_admit_reason_id: show("reason_not_admitted") ? form.no_admit_reason_id : null,
+    admitted_school_id: showSchool ? form.admitted_school_id : null,
     admission_class: form.admission_class,
   };
+}
+
+/** Whether school fields are required for the current pipeline stage. */
+export function admissionSchoolFieldsRequired(form: Pick<AdmissionFormState, StageKey>): boolean {
+  return pipelineFieldVisible(form, "school_name");
 }
 
 interface AdmissionFormProps {
@@ -323,6 +343,15 @@ export function AdmissionForm({
     updated_at: "",
   } as StudentExam;
 
+  const show = (field: Parameters<typeof pipelineFieldVisible>[1]) =>
+    pipelineFieldVisible(form, field);
+  const showAppliedExam = show("parivaar_district");
+  const showRoll = show("roll_number");
+  const showReasonNotAppeared = show("reason_not_appeared");
+  const showScores = show("scores");
+  const showSchool = show("school_name");
+  const showReasonNotAdmitted = show("reason_not_admitted");
+
   const viewExamCategory = examCategories.find((c) => c.id === form.exam_category_id);
   const viewExamCenter = examCenters.find((c) => c.id === form.exam_center_id);
   const noExamReason = noExamReasons.find((r) => r.id === form.no_exam_reason_id);
@@ -403,33 +432,41 @@ export function AdmissionForm({
               <span style={valueStyle}>{viewExamCategory?.name ?? "—"}</span>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
-            <div style={fieldStyle}>
-              <span style={labelStyle}>Parivaar District</span>
-              <span style={valueStyle}>
-                {viewExamCenter?.district_id != null
-                  ? (districts.find((d) => d.id === viewExamCenter.district_id)?.name ?? "—")
-                  : "—"}
-              </span>
+          {showAppliedExam && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Parivaar District</span>
+                <span style={valueStyle}>
+                  {viewExamCenter?.district_id != null
+                    ? (districts.find((d) => d.id === viewExamCenter.district_id)?.name ?? "—")
+                    : "—"}
+                </span>
+              </div>
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Exam Center</span>
+                <span style={valueStyle}>{viewExamCenter?.name ?? "—"}</span>
+              </div>
             </div>
-            <div style={fieldStyle}>
-              <span style={labelStyle}>Exam Center</span>
-              <span style={valueStyle}>{viewExamCenter?.name ?? "—"}</span>
+          )}
+          {(showAppliedExam || showRoll) && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+              {showAppliedExam && (
+                <div style={fieldStyle}>
+                  <span style={labelStyle}>Application #</span>
+                  <span style={valueStyle}>{form.application_number ?? "—"}</span>
+                </div>
+              )}
+              {showRoll && (
+                <div style={fieldStyle}>
+                  <span style={labelStyle}>Roll #</span>
+                  <span style={valueStyle}>{form.roll_number ?? "—"}</span>
+                </div>
+              )}
             </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
-            <div style={fieldStyle}>
-              <span style={labelStyle}>Application #</span>
-              <span style={valueStyle}>{form.application_number ?? "—"}</span>
-            </div>
-            <div style={fieldStyle}>
-              <span style={labelStyle}>Roll #</span>
-              <span style={valueStyle}>{form.roll_number ?? "—"}</span>
-            </div>
-          </div>
+          )}
         </section>
 
-        {hasScore && (
+        {showScores && hasScore && (
           <section style={sec}>
             <div style={secTitle}>Scores</div>
             <div
@@ -488,14 +525,14 @@ export function AdmissionForm({
           </section>
         )}
 
-        {noExamReason && (
+        {showReasonNotAppeared && (
           <section style={sec}>
             <div style={secTitle}>Reason Not Appeared</div>
-            <span style={valueStyle}>{noExamReason.reason}</span>
+            <span style={valueStyle}>{noExamReason ? noExamReason.reason : "—"}</span>
           </section>
         )}
 
-        {form.selected && (
+        {showSchool && (
           <section style={sec}>
             <div style={secTitle}>School Name</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 130px 2fr", gap: 8 }}>
@@ -526,7 +563,7 @@ export function AdmissionForm({
           </section>
         )}
 
-        {form.selected && !form.admitted && (
+        {showReasonNotAdmitted && (
           <section style={sec}>
             <div style={secTitle}>Reason Not Admitted</div>
             <span style={valueStyle}>{noAdmitReason ? noAdmitReason.reason : "—"}</span>
@@ -757,96 +794,94 @@ export function AdmissionForm({
           </div>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-            alignItems: "end",
-            marginTop: 12,
-          }}
-        >
-          <div>
-            <label style={grs.fieldLabel}>Parivaar District</label>
-            <select
-              value={examDistrictFilter}
-              onChange={(e) => {
-                setExamDistrictFilter(e.target.value === "" ? "" : Number(e.target.value));
-                setField("exam_center_id", null);
-              }}
-              style={selStyles}
-            >
-              <option value="">-- all --</option>
-              {scopedDistricts.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={grs.fieldLabel}>Exam Center</label>
-            <select
-              value={form.exam_center_id ?? ""}
-              onChange={(e) =>
-                setField("exam_center_id", e.target.value === "" ? null : Number(e.target.value))
-              }
-              style={{
-                ...selStyles,
-                opacity: form.admit_card ? 1 : 0.45,
-                cursor: form.admit_card ? "auto" : "not-allowed",
-              }}
-              disabled={!form.admit_card}
-            >
-              <option value="">-- select --</option>
-              {filteredExamCenters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-            alignItems: "end",
-            marginTop: 12,
-          }}
-        >
-          {form.applied ? (
+        {showAppliedExam && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+              alignItems: "end",
+              marginTop: 12,
+            }}
+          >
             <div>
-              <label style={grs.fieldLabel}>Application #</label>
-              <input
-                value={form.application_number ?? ""}
-                onChange={(e) => setField("application_number", e.target.value || null)}
-                style={inputStyles}
-              />
+              <label style={grs.fieldLabel}>Parivaar District</label>
+              <select
+                value={examDistrictFilter}
+                onChange={(e) => {
+                  setExamDistrictFilter(e.target.value === "" ? "" : Number(e.target.value));
+                  setField("exam_center_id", null);
+                }}
+                style={selStyles}
+              >
+                <option value="">-- all --</option>
+                {scopedDistricts.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : (
-            <div />
-          )}
-          <div>
-            <label style={grs.fieldLabel}>Roll #</label>
-            <input
-              value={form.roll_number ?? ""}
-              onChange={(e) => setField("roll_number", e.target.value || null)}
-              style={{
-                ...inputStyles,
-                opacity: form.admit_card ? 1 : 0.45,
-                cursor: form.admit_card ? "auto" : "not-allowed",
-              }}
-              readOnly={!form.admit_card}
-            />
+            <div>
+              <label style={grs.fieldLabel}>Exam Center</label>
+              <select
+                value={form.exam_center_id ?? ""}
+                onChange={(e) =>
+                  setField("exam_center_id", e.target.value === "" ? null : Number(e.target.value))
+                }
+                style={selStyles}
+              >
+                <option value="">-- select --</option>
+                {filteredExamCenters.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
+        )}
+
+        {(showAppliedExam || showRoll) && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+              alignItems: "end",
+              marginTop: 12,
+            }}
+          >
+            {showAppliedExam ? (
+              <div>
+                <label style={grs.fieldLabel}>Application #</label>
+                <input
+                  value={form.application_number ?? ""}
+                  onChange={(e) => setField("application_number", e.target.value || null)}
+                  style={inputStyles}
+                />
+              </div>
+            ) : (
+              <div />
+            )}
+            {showRoll ? (
+              <div>
+                <label style={grs.fieldLabel}>Roll #</label>
+                <input
+                  value={form.roll_number ?? ""}
+                  onChange={(e) => setField("roll_number", e.target.value || null)}
+                  style={inputStyles}
+                />
+              </div>
+            ) : (
+              <div />
+            )}
+          </div>
+        )}
       </section>
 
       {/* Scores */}
-      {form.appeared && subjects.length > 0 && (
+      {showScores && subjects.length > 0 && (
         <section style={sec}>
           <div style={secTitle}>Scores</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -869,8 +904,8 @@ export function AdmissionForm({
         </section>
       )}
 
-      {/* Reason Not Appeared */}
-      {!form.appeared && (
+      {/* Reason Not Appeared — only at Admit Card Downloaded stage */}
+      {showReasonNotAppeared && (
         <section style={sec}>
           <div style={secTitle}>Reason Not Appeared for Exam</div>
           <select
@@ -893,8 +928,8 @@ export function AdmissionForm({
         </section>
       )}
 
-      {/* School Name */}
-      {form.selected && (
+      {/* School Name — Selected + Admitted */}
+      {showSchool && (
         <section style={sec}>
           <div style={secTitle}>School Name</div>
           <div
@@ -966,8 +1001,8 @@ export function AdmissionForm({
         </section>
       )}
 
-      {/* Reason Not Admitted */}
-      {form.selected && !form.admitted && (
+      {/* Reason Not Admitted — Selected only */}
+      {showReasonNotAdmitted && (
         <section style={sec}>
           <div style={secTitle}>Reason Not Admitted</div>
           <select

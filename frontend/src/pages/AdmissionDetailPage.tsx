@@ -15,6 +15,7 @@ import {
   AdmissionForm,
   admissionFormFromExam,
   admissionPayloadFromForm,
+  admissionSchoolFieldsRequired,
   emptyAdmissionForm,
   type AdmissionFormState,
 } from "../components/AdmissionForm";
@@ -88,7 +89,8 @@ export default function AdmissionDetailPage() {
   const studentName = student
     ? `${student.first_name} ${student.last_name}`
     : `Student #${exam.student_id}`;
-  const canSave = !form.selected || !!form.admitted_school_id;
+  const schoolRequired = admissionSchoolFieldsRequired(form);
+  const canSave = !schoolRequired || (!!form.school_type && !!form.admitted_school_id);
 
   function resetFromExam() {
     setForm(admissionFormFromExam(exam!));
