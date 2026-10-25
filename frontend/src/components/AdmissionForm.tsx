@@ -32,6 +32,7 @@ import {
   PipelineStepper,
   subjectsForExamType,
   pipelineFieldVisible,
+  pipelineStage,
 } from "./admissions-pipeline";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -72,7 +73,8 @@ export function emptyAdmissionForm(year = CURRENT_YEAR): AdmissionFormState {
     exam_center_id: null,
     application_number: null,
     roll_number: null,
-    eligible: true,
+    // No stage selected until the user ticks Pipeline Stage — keeps Year editable on Add.
+    eligible: false,
     form_received: false,
     applied: false,
     admit_card: false,
@@ -351,6 +353,8 @@ export function AdmissionForm({
   const showScores = show("scores");
   const showSchool = show("school_name");
   const showReasonNotAdmitted = show("reason_not_admitted");
+  /** Year editable only while no pipeline stage is selected (pipelineStage === -1). */
+  const yearEditable = pipelineStage(form) < 0;
 
   const viewExamCategory = examCategories.find((c) => c.id === form.exam_category_id);
   const viewExamCenter = examCenters.find((c) => c.id === form.exam_center_id);
@@ -735,7 +739,7 @@ export function AdmissionForm({
         >
           <div>
             <label style={grs.fieldLabel}>Year</label>
-            {isAdd ? (
+            {yearEditable ? (
               <select
                 value={form.school_start_year}
                 onChange={(e) => setField("school_start_year", Number(e.target.value))}
