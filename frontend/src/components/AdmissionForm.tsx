@@ -223,9 +223,14 @@ export function AdmissionForm({
     queryKey: ["schools"],
     queryFn: () => listSchools(),
   });
-  const { data: districts = [] } = useQuery({
+  const { data: presenceDistricts = [] } = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
+  });
+  /** All districts for GRS School picker (not limited by Parivaar Presence). */
+  const { data: allDistricts = [] } = useQuery({
+    queryKey: ["districts", null],
+    queryFn: () => listDistricts(),
   });
   const { data: examCategories = [] } = useQuery({
     queryKey: ["exam-categories"],
@@ -267,18 +272,32 @@ export function AdmissionForm({
     if (kutirs.length === 1 && kutirFilter === "") setKutirFilter(kutirs[0].id);
   }, [isAdd, kutirs.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const scopedDistricts = useMemo(() => {
-    if (isAdmin) return districts;
+  const scopeByUser = (list: typeof allDistricts) => {
+    if (isAdmin) return list;
     return user!.district_ids?.length > 0
-      ? districts.filter((d) => user!.district_ids.includes(d.id))
-      : districts;
-  }, [districts, user, isAdmin]);
+      ? list.filter((d) => user!.district_ids.includes(d.id))
+      : list;
+  };
+  const scopedPresenceDistricts = useMemo(
+    () => scopeByUser(presenceDistricts),
+    [presenceDistricts, user, isAdmin],
+  );
+  const scopedSchoolDistricts = useMemo(
+    () => scopeByUser(allDistricts),
+    [allDistricts, user, isAdmin],
+  );
 
   useEffect(() => {
-    if (scopedDistricts.length !== 1) return;
-    if (examDistrictFilter === "") setExamDistrictFilter(scopedDistricts[0].id);
-    if (schoolDistrictFilter === "") setSchoolDistrictFilter(scopedDistricts[0].id);
-  }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (scopedPresenceDistricts.length === 1 && examDistrictFilter === "") {
+      setExamDistrictFilter(scopedPresenceDistricts[0].id);
+    }
+  }, [scopedPresenceDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (scopedSchoolDistricts.length === 1 && schoolDistrictFilter === "") {
+      setSchoolDistrictFilter(scopedSchoolDistricts[0].id);
+    }
+  }, [scopedSchoolDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setField<K extends keyof AdmissionFormState>(key: K, val: AdmissionFormState[K]) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -442,7 +461,7 @@ export function AdmissionForm({
                 <span style={labelStyle}>Parivaar District</span>
                 <span style={valueStyle}>
                   {viewExamCenter?.district_id != null
-                    ? (districts.find((d) => d.id === viewExamCenter.district_id)?.name ?? "—")
+                    ? (presenceDistricts.find((d) => d.id === viewExamCenter.district_id)?.name ?? "—")
                     : "—"}
                 </span>
               </div>
@@ -544,7 +563,7 @@ export function AdmissionForm({
                 <span style={labelStyle}>District</span>
                 <span style={valueStyle}>
                   {admittedSchool && (admittedSchool as { district_id?: number }).district_id
-                    ? (districts.find(
+                    ? (allDistricts.find(
                         (d) =>
                           d.id === (admittedSchool as { district_id?: number }).district_id,
                       )?.name ?? "—")
@@ -819,7 +838,7 @@ export function AdmissionForm({
                 style={selStyles}
               >
                 <option value="">-- all --</option>
-                {scopedDistricts.map((d) => (
+                {scopedPresenceDistricts.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>
@@ -955,7 +974,7 @@ export function AdmissionForm({
                 style={selStyles}
               >
                 <option value="">-- all --</option>
-                {scopedDistricts.map((d) => (
+                {scopedSchoolDistricts.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>
