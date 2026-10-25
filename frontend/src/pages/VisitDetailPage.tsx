@@ -14,10 +14,6 @@ import {
   type VisitFormState,
 } from "../components/VisitForm";
 
-const NAVY_BG = "#1a365d";
-const NAVY_TEXT = "#ffffff";
-const NAVY_ACCENT = "#90cdf4";
-
 export default function VisitDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -106,80 +102,70 @@ export default function VisitDetailPage() {
   const kutirName =
     kutirs.find((k) => k.id === visit.kutir_id)?.name ?? `Kutir #${visit.kutir_id}`;
 
+  const visitTitle = `Visit: ${new Date(visit.visit_date).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })}`;
+
   // ── VIEW MODE ─────────────────────────────────────────────────────────────
   if (!editing) {
     return (
-      <div className="grs-page" style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px" }}>
-        <div style={{ borderRadius: 8, marginBottom: 20, overflow: "hidden" }}>
-          <div
-            style={{
-              background: NAVY_BG,
-              padding: "16px 20px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 700, color: NAVY_TEXT, fontSize: "1.05rem" }}>
-                Visit:{" "}
-                {new Date(visit.visit_date).toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </div>
-              <div style={{ fontSize: "0.85rem", color: NAVY_ACCENT, marginTop: 2 }}>{kutirName}</div>
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {canManageVisits && (
-                <button
-                  onClick={() => setConfirmDeleteOpen(true)}
-                  disabled={deleting}
-                  style={grs.btnDanger}
-                >
-                  {deleting ? "Deleting…" : "Delete"}
-                </button>
-              )}
-              {canManageVisits && (
-                <button onClick={() => setEditing(true)} style={grs.btnPrimary}>
-                  Edit
-                </button>
-              )}
-              <button
-                onClick={() => navigate(-1)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.3)",
-                  color: NAVY_ACCENT,
-                  borderRadius: 6,
-                  padding: "6px 14px",
-                  cursor: "pointer",
-                  fontSize: "0.85rem",
-                }}
-              >
-                ← Back
-              </button>
-            </div>
-          </div>
-        </div>
-
+      <div style={{ maxWidth: 720, padding: "16px 20px" }}>
         <div
           style={{
-            background: "var(--bg-card)",
-            borderRadius: 8,
-            padding: "16px 20px",
-            border: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: "wrap",
           }}
         >
-          <VisitForm
-            form={form}
-            setForm={setForm}
-            mode="view"
-            existingPhoto={visit.visit_photo}
-            kutirName={kutirName}
-          />
+          <button
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--link-color)",
+              cursor: "pointer",
+              fontSize: 14,
+              padding: 0,
+            }}
+            onClick={() => navigate("/visits")}
+          >
+            ← Back
+          </button>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: 20 }}>{visitTitle}</h2>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>
+              {kutirName}
+            </div>
+          </div>
+          {canManageVisits && (
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                onClick={() => setConfirmDeleteOpen(true)}
+                disabled={deleting}
+                style={{ ...grs.btnDanger, fontSize: 13 }}
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+              <button
+                style={{ ...grs.btnSecondary, fontSize: 13 }}
+                onClick={() => setEditing(true)}
+              >
+                Edit
+              </button>
+            </div>
+          )}
         </div>
+
+        <VisitForm
+          form={form}
+          setForm={setForm}
+          mode="view"
+          existingPhoto={visit.visit_photo}
+          kutirName={kutirName}
+        />
         {confirmDeleteOpen && (
           <ConfirmDialog
             message="Delete this visit record?"
