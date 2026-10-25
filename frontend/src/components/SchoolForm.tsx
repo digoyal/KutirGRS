@@ -34,11 +34,13 @@ const sec: React.CSSProperties = {
   marginBottom: 8,
 };
 const secTitle: React.CSSProperties = {
-  fontSize: 10,
+  // Match grs.fieldLabel / viewLabel size (12); use --link-color (#2563eb) —
+  // --badge-blue-fg is slate navy (#2c5282) and reads as not-blue in the UI.
+  fontSize: 12,
   fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.07em",
-  color: "var(--badge-blue-fg, #2563eb)",
+  color: "var(--link-color)",
   marginBottom: 8,
 };
 /** View-mode only: muted label text on a light shaded chip so values stand out. */
