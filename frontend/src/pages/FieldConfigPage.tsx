@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useFieldConfig, type FieldMeta, type FieldConfigEntry } from "../hooks/useFieldConfig";
 import { PROGRESS_FIELDS } from "../constants/progressFields";
 import { ADMISSIONS_FIELDS } from "../constants/admissionsFields";
@@ -21,19 +21,30 @@ const TABLE_REGISTRY: Record<string, { label: string; fields: FieldMeta[]; backP
   users:       { label: "Users",        fields: USERS_FIELDS,        backPath: "/users" },
 };
 
+const DEFAULT_TABLE = "progress";
+
+function resolveTable(key: string | null): string {
+  return key && key in TABLE_REGISTRY ? key : DEFAULT_TABLE;
+}
+
 export default function FieldConfigPage() {
   const navigate = useNavigate();
-  const params = new URLSearchParams(window.location.search);
-  const initialTable = params.get("table") ?? "progress";
-  const [activeTable, setActiveTable] = useState(initialTable);
-  const tableInfo = TABLE_REGISTRY[activeTable] ?? TABLE_REGISTRY["progress"];
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Tab must live in the URL — React-only state resets to Progress on remount
+  // (HMR, browser Back after a hard navigate, etc.).
+  const activeTable = resolveTable(searchParams.get("table"));
+  const tableInfo = TABLE_REGISTRY[activeTable];
   const backPath = tableInfo.backPath;
+
+  function selectTable(key: string) {
+    setSearchParams({ table: key }, { replace: true });
+  }
 
   return (
     <div style={{ padding: "24px 28px", maxWidth: 680 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button
-          onClick={() => navigate(backPath)}
+          onClick={() => navigate(backPath + "?_=" + Date.now())}
           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: "4px 0", fontSize: "0.875rem" }}
         >
           ← Back
@@ -42,11 +53,12 @@ export default function FieldConfigPage() {
       </div>
 
       {Object.keys(TABLE_REGISTRY).length > 1 && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
           {Object.entries(TABLE_REGISTRY).map(([key, { label }]) => (
             <button
               key={key}
-              onClick={() => setActiveTable(key)}
+              type="button"
+              onClick={() => selectTable(key)}
               style={{
                 padding: "6px 16px", borderRadius: 6, border: "1px solid var(--border)",
                 background: activeTable === key ? "var(--badge-purple-fg)" : "var(--bg-input)",
@@ -65,19 +77,17 @@ export default function FieldConfigPage() {
         tableName={activeTable}
         allFields={tableInfo.fields}
         tableLabel={tableInfo.label}
-        backPath={backPath}
       />
     </div>
   );
 }
 
 function FieldConfigEditor({
-  tableName, allFields, tableLabel, backPath,
+  tableName, allFields, tableLabel,
 }: {
   tableName: string;
   allFields: FieldMeta[];
   tableLabel: string;
-  backPath: string;
 }) {
   const { orderedMetas, saved, saveConfig, apiSynced } = useFieldConfig(tableName, allFields);
 
@@ -134,7 +144,7 @@ function FieldConfigEditor({
     await saveConfig(entries);
     setSaving(false);
     setDidSave(true);
-    window.location.assign(backPath + "?_=" + Date.now());
+    // Stay on this table tab; Back uses ?_= for list bfcache bust.
   }
 
   function reset() {
