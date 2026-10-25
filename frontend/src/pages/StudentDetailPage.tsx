@@ -117,6 +117,14 @@ export default function StudentDetailPage() {
         <h2 style={{ margin: 0, fontSize: 20 }}>
           {s.first_name} {s.last_name}
         </h2>
+        {!editing && (
+          <button
+            style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }}
+            onClick={() => setEditing(true)}
+          >
+            Edit
+          </button>
+        )}
       </div>
 
       {saveError && (
@@ -147,14 +155,6 @@ export default function StudentDetailPage() {
         categoryName={category?.name}
         subCategoryName={subCategory?.name}
       />
-
-      {!editing && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-          <button style={grs.btnPrimary} onClick={() => setEditing(true)}>
-            Edit
-          </button>
-        </div>
-      )}
 
       {editing && (
         <div style={{ display: "flex", gap: 10, marginTop: 12, justifyContent: "flex-end" }}>

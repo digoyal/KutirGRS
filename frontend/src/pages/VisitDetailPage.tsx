@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getVisit, updateVisit, deleteVisit, uploadVisitPhoto } from "../api/visits";
+import { getVisit, updateVisit, uploadVisitPhoto } from "../api/visits";
 import { listKutirs } from "../api/kutirs";
 import { useAuth } from "../context/AuthContext";
 import { grs } from "../styles/grs";
 import { canManageVisits as roleCanManageVisits } from "../constants/roles";
-import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
   VisitForm,
   emptyVisitForm,
@@ -28,8 +27,6 @@ export default function VisitDetailPage() {
   const [form, setForm] = useState<VisitFormState>(emptyVisitForm);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data: visit, isLoading } = useQuery({
@@ -80,18 +77,6 @@ export default function VisitDetailPage() {
       setError(null);
       setPhotoFile(null);
       if (visit) setForm(visitFormFromVisit(visit));
-    }
-  }
-
-  async function handleDelete() {
-    setDeleting(true);
-    try {
-      await deleteVisit(Number(id));
-      qc.invalidateQueries({ queryKey: ["visits"] });
-      navigate(-1);
-    } finally {
-      setDeleting(false);
-      setConfirmDeleteOpen(false);
     }
   }
 
