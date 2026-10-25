@@ -50,6 +50,10 @@ export default function GeoPage() {
   const { data: states = [] }    = useQuery({ queryKey: ["states"],          queryFn: listStates });
   const { data: zones = [] }     = useQuery({ queryKey: ["zones"],           queryFn: listZones });
   const { data: districts = [] } = useQuery({ queryKey: ["districts", null], queryFn: () => listDistricts() });
+  const { data: presenceDistricts = [] } = useQuery({
+    queryKey: ["districts", { parivaar_presence: true }],
+    queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
+  });
   const { data: areas = [] }     = useQuery({ queryKey: ["areas", null],     queryFn: () => listAreas() });
   const { data: clusters = [] }  = useQuery({ queryKey: ["clusters", null],  queryFn: () => listClusters() });
 
@@ -257,7 +261,7 @@ export default function GeoPage() {
                   <label style={grs.fieldLabel}>District *</label>
                   <select style={grs.select} value={form.district_id ?? ""} onChange={e => setForm(f => ({ ...f, district_id: Number(e.target.value) }))}>
                     <option value="">— select district —</option>
-                    {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    {presenceDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
               )}
