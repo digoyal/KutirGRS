@@ -35,6 +35,7 @@ import {
   pipelineStage,
   normalizePipelineStages,
 } from "./admissions-pipeline";
+import { formatAcademicYear } from "../utils/academicYear";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
@@ -456,7 +457,7 @@ export function AdmissionForm({
           <div style={{ display: "grid", gridTemplateColumns: "90px 130px 1fr", gap: 12 }}>
             <div style={fieldStyle}>
               <span style={labelStyle}>Year</span>
-              <span style={valueStyle}>{form.school_start_year}</span>
+              <span style={valueStyle}>{formatAcademicYear(form.school_start_year)}</span>
             </div>
             <div style={fieldStyle}>
               <span style={labelStyle}>Exam Type</span>
@@ -780,14 +781,14 @@ export function AdmissionForm({
               >
                 {YEARS.map((y) => (
                   <option key={y} value={y}>
-                    {y}
+                    {formatAcademicYear(y)}
                   </option>
                 ))}
               </select>
             ) : (
               <input
                 readOnly
-                value={form.school_start_year}
+                value={formatAcademicYear(form.school_start_year)}
                 style={{ ...inputStyles, opacity: 0.6, cursor: "not-allowed" }}
               />
             )}

@@ -20,6 +20,7 @@ import {
   type AdmissionFormState,
 } from "../components/AdmissionForm";
 import { grs } from "../styles/grs";
+import { formatAcademicYear } from "../utils/academicYear";
 
 const NAVY_BG = "#1e3a5f";
 const NAVY_TEXT = "#ffffff";
@@ -155,7 +156,7 @@ export default function AdmissionDetailPage() {
                 </div>
                 <div style={{ color: NAVY_ACCENT, fontSize: "0.78rem", marginTop: 2 }}>
                   {examTypes.find((e) => e.id === exam.exam_type_id)?.name ?? "—"} ·{" "}
-                  {exam.school_start_year}
+                  {formatAcademicYear(exam.school_start_year)}
                 </div>
               </div>
             </div>

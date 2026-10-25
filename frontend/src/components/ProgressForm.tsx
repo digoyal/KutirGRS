@@ -22,6 +22,7 @@ import {
   STATUS_OPTIONS,
   STATUS_BADGES,
 } from "../constants/progressStatus";
+import { formatAcademicYear } from "../utils/academicYear";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -339,7 +340,7 @@ export function ProgressForm({
       {readOnly ? (
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <ViewField label={yearLabel} style={{ flex: 1 }}>
-            {form.academic_year}-{String(form.academic_year + 1).slice(2)}
+            {formatAcademicYear(form.academic_year)}
           </ViewField>
           <ViewField label="Class" style={{ flex: 1 }}>
             {form.class_in_year != null ? `Class ${form.class_in_year}` : null}
@@ -356,7 +357,7 @@ export function ProgressForm({
             >
               {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map((y) => (
                 <option key={y} value={y}>
-                  {y}-{String(y + 1).slice(2)}
+                  {formatAcademicYear(y)}
                 </option>
               ))}
             </select>

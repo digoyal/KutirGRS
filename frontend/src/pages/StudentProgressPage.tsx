@@ -36,6 +36,7 @@ import {
   scopeKutirs,
   type FilterId,
 } from "../utils/geoFilters";
+import { formatAcademicYear } from "../utils/academicYear";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const STORAGE_KEY = "progress_filter_state";
@@ -261,13 +262,13 @@ export default function StudentProgressPage() {
         searchPlaceholder="Search by student name…"
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
-        emptyMessage={hasFilter ? `No progress records for ${filterYear}-${String(filterYear + 1).slice(2)}.` : "Select a District or search by Student name to view Progress"}
+        emptyMessage={hasFilter ? `No progress records for ${formatAcademicYear(filterYear)}.` : "Select a District or search by Student name to view Progress"}
         filters={
           <GeoFilterBar
             leading={
               <select style={grs.filterSelect} value={filterYear} onChange={e => { setFilterYear(Number(e.target.value)); setPage(1); }}>
                 {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map(y => (
-                  <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
+                  <option key={y} value={y}>{formatAcademicYear(y)}</option>
                 ))}
               </select>
             }

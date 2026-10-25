@@ -25,6 +25,7 @@ import {
   scopeKutirs,
   type FilterId,
 } from "../utils/geoFilters";
+import { formatAcademicYear } from "../utils/academicYear";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
@@ -312,7 +313,7 @@ export default function AdmissionsPage() {
         pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: examTotal, onPageChange: setPage } : undefined}
         rowKey={exam => exam.id}
         isLoading={isLoading}
-        emptyMessage={hasFilter ? `No admissions for ${year}.` : "Select a district or search by student name to view admissions."}
+        emptyMessage={hasFilter ? `No admissions for ${formatAcademicYear(year)}.` : "Select a district or search by student name to view admissions."}
         searchable
         searchPlaceholder="Search student..."
         externalSearch={searchQuery}
@@ -323,9 +324,9 @@ export default function AdmissionsPage() {
               <select
                 value={year}
                 onChange={e => { setYear(Number(e.target.value)); setPage(1); }}
-                style={{ ...filterSelectStyle, width: 90 }}
+                style={{ ...filterSelectStyle, width: 110 }}
               >
-                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                {YEARS.map(y => <option key={y} value={y}>{formatAcademicYear(y)}</option>)}
               </select>
             }
             district={filterDistrict}
