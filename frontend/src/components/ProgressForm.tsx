@@ -191,7 +191,7 @@ export function ProgressForm({
     queryKey: ["students-search", search],
     queryFn: async () =>
       (await api.get("/students", { params: { search, name_only: true, limit: 100 } })).data,
-    enabled: isAdd && search.length >= 2,
+    enabled: isAdd && search.trim().length >= 1,
   });
 
   const students = useMemo(() => {
