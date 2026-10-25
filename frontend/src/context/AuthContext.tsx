@@ -12,7 +12,8 @@ interface User {
   username: string;
   email: string;
   title: string;
-  is_superuser: boolean;
+  /** From /auth/me (API field name). */
+  is_admin: boolean;
   is_active: boolean;
   district_ids: number[];
   cluster_ids: number[];

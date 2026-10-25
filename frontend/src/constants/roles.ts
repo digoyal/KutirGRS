@@ -82,6 +82,14 @@ export function canManageGeography(title: string | null | undefined): boolean {
 export function canManageLookups(title: string | null | undefined): boolean {
   return hasRole(title, MANAGE_LOOKUPS);
 }
+
+/** Lookups mutate: Admin title or API is_admin (superuser). */
+export function canManageLookupsUser(user: {
+  title?: string | null;
+  is_admin?: boolean;
+} | null | undefined): boolean {
+  return canManageLookups(user?.title) || !!user?.is_admin;
+}
 export function canManageUsers(title: string | null | undefined): boolean {
   return hasRole(title, MANAGE_USERS);
 }

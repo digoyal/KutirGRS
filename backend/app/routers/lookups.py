@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -294,7 +295,11 @@ async def list_school_types(db: AsyncSession = Depends(get_db), _=Depends(get_cu
 async def create_school_type(body: SchoolTypeCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     obj = SchoolType(**body.model_dump())
     db.add(obj)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "A school type with that name already exists.")
     await db.refresh(obj)
     return obj
 

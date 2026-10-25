@@ -2,13 +2,35 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { canManageLookups } from "../constants/roles";
+import { canManageLookupsUser } from "../constants/roles";
 import { grs } from "../styles/grs";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { GrsModal } from "../components/GrsModal";
 import { GrsTabs } from "../components/GrsTabs";
 
 interface LookupItem { id: number; name?: string; reason?: string; category_id?: number }
+
+/** Normalize axios/FastAPI errors so Add failures are never silent. */
+function formatApiError(e: unknown, fallback: string): string {
+  const err = e as { response?: { data?: unknown }; message?: string };
+  const data = err?.response?.data;
+  let detail: unknown;
+  if (data && typeof data === "object" && data !== null && "detail" in data) {
+    detail = (data as { detail: unknown }).detail;
+  } else if (typeof data === "string") {
+    detail = data;
+  }
+  if (typeof detail === "string" && detail.trim()) return detail.trim();
+  if (detail != null) {
+    try { return JSON.stringify(detail); } catch { /* ignore */ }
+  }
+  if (typeof err?.message === "string" && err.message.trim()) return err.message;
+  return fallback;
+}
+
+function asItemList(old: unknown): LookupItem[] {
+  return Array.isArray(old) ? (old as LookupItem[]) : [];
+}
 
 type Tab = "categories" | "sub-categories" | "exam-categories" | "no-exam-reasons" | "no-admit-reasons" | "subjects" | "exam-type-subjects" | "school-types" | "exam-types";
 
@@ -60,8 +82,9 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
   const [editValue, setEditValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<LookupItem | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const { data: items = [], isLoading } = useQuery<LookupItem[]>({
+  const { data: items = [], isLoading, isError, error: loadError, refetch } = useQuery<LookupItem[]>({
     queryKey: [tab.key],
     queryFn: async () => { const r = await api.get(tab.endpoint); return Array.isArray(r.data) ? r.data : []; },
   });
@@ -78,33 +101,53 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
 
   async function handleAdd() {
     const val = addValue.trim();
-    if (!val) return;
+    if (!val || saving) return;
     if (tab.hasParent && !addParent) { setError("Select a category."); return; }
     setError(null);
+    setSaving(true);
     try {
-      const payload: Record<string, any> = { [tab.nameField]: val };
+      const payload: Record<string, unknown> = { [tab.nameField]: val };
       if (tab.hasParent) payload.category_id = Number(addParent);
-      const { data: newItem } = await api.post(tab.endpoint, payload);
+      const { data: newItem } = await api.post<LookupItem>(tab.endpoint, payload);
+      if (!newItem || typeof newItem !== "object" || newItem.id == null) {
+        setAddValue(""); setAddParent("");
+        await qc.invalidateQueries({ queryKey: [tab.key] });
+        setError("Created, but the server returned an empty body — refreshed the list.");
+        return;
+      }
       setAddValue(""); setAddParent("");
-      qc.setQueryData([tab.key], (old: LookupItem[] = []) => [...old, newItem]);
-    } catch (e: any) {
-      const det = e?.response?.data?.detail;
-      setError(typeof det === "string" ? det : det ? JSON.stringify(det) : "Add failed.");
+      qc.setQueryData([tab.key], (old: unknown) => {
+        const prev = asItemList(old);
+        if (prev.some(i => i.id === newItem.id)) return prev;
+        return [...prev, newItem];
+      });
+      await qc.invalidateQueries({ queryKey: [tab.key] });
+    } catch (e: unknown) {
+      setError(formatApiError(e, "Add failed."));
+      // Create may have landed despite a client-side follow-up error — refresh.
+      await qc.invalidateQueries({ queryKey: [tab.key] });
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleEdit() {
-    if (!editing) return;
+    if (!editing || saving) return;
     const val = editValue.trim();
     if (!val) return;
     setError(null);
+    setSaving(true);
     try {
-      const { data: updated } = await api.put(`${tab.endpoint}/${editing.id}`, { [tab.nameField]: val });
+      const { data: updated } = await api.put<LookupItem>(`${tab.endpoint}/${editing.id}`, { [tab.nameField]: val });
       setEditing(null);
-      qc.setQueryData([tab.key], (old: LookupItem[] = []) => old.map(item => item.id === updated.id ? updated : item));
-    } catch (e: any) {
-      const det = e?.response?.data?.detail;
-      setError(typeof det === "string" ? det : det ? JSON.stringify(det) : "Update failed.");
+      qc.setQueryData([tab.key], (old: unknown) =>
+        asItemList(old).map(item => (item.id === updated?.id ? updated : item)),
+      );
+      await qc.invalidateQueries({ queryKey: [tab.key] });
+    } catch (e: unknown) {
+      setError(formatApiError(e, "Update failed."));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -112,10 +155,10 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
     try {
       await api.delete(`${tab.endpoint}/${id}`);
       setConfirmDelete(null);
-      qc.setQueryData([tab.key], (old: LookupItem[] = []) => old.filter(item => item.id !== id));
-    } catch (e: any) {
-      const det = e?.response?.data?.detail;
-      setError(typeof det === "string" ? det : det ? JSON.stringify(det) : "Delete failed — item may be in use.");
+      qc.setQueryData([tab.key], (old: unknown) => asItemList(old).filter(item => item.id !== id));
+      await qc.invalidateQueries({ queryKey: [tab.key] });
+    } catch (e: unknown) {
+      setError(formatApiError(e, "Delete failed — item may be in use."));
       setConfirmDelete(null);
     }
   }
@@ -129,7 +172,7 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
           {tab.hasParent && (
             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
               <label style={grs.fieldLabel}>Category</label>
-              <select style={{ ...grs.select, width: "auto", minWidth: 160 }} value={addParent} onChange={e => setAddParent(Number(e.target.value) || "")}>
+              <select style={{ ...grs.select, width: "auto", minWidth: 160 }} value={addParent} onChange={e => setAddParent(Number(e.target.value) || "")} disabled={saving}>
                 <option value="">— select —</option>
                 {safeParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -141,16 +184,36 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
               style={grs.input}
               value={addValue}
               onChange={e => setAddValue(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleAdd()}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleAdd();
+                }
+              }}
               placeholder={`Add new ${tab.nameField === "reason" ? "reason" : "name"}…`}
+              disabled={saving}
             />
           </div>
-          <button onClick={handleAdd} style={{ ...grs.btnPrimary, whiteSpace: "nowrap" }} disabled={!addValue.trim()}>+ Add</button>
+          <button
+            type="button"
+            onClick={() => { void handleAdd(); }}
+            style={{ ...grs.btnPrimary, whiteSpace: "nowrap", opacity: saving ? 0.7 : 1 }}
+            disabled={!addValue.trim() || saving}
+          >
+            {saving ? "Adding…" : "+ Add"}
+          </button>
         </div>
       )}
 
       {isLoading ? (
         <p style={grs.muted}>Loading…</p>
+      ) : isError ? (
+        <div style={{ ...grs.errorBox, textAlign: "center", padding: 16 }}>
+          {formatApiError(loadError, "Failed to load items.")}
+          <div style={{ marginTop: 10 }}>
+            <button type="button" onClick={() => { void refetch(); }} style={grs.btnSecondary}>Retry</button>
+          </div>
+        </div>
       ) : safeItems.length === 0 ? (
         <p style={{ ...grs.muted, textAlign: "center", padding: "24px 0" }}>No items yet.</p>
       ) : (
@@ -413,7 +476,10 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
   });
   const { data: schoolTypes = [] } = useQuery<SchoolTypeRef[]>({
     queryKey: ["school-types"],
-    queryFn: async () => (await api.get("/lookups/school-types")).data,
+    queryFn: async () => {
+      const r = await api.get("/lookups/school-types");
+      return Array.isArray(r.data) ? r.data : [];
+    },
   });
 
   function toggleAdd(id: number) {
@@ -428,11 +494,17 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
     if (!name) return;
     setError(null);
     try {
-      const { data: newItem } = await api.post("/lookups/exam-types", { name, school_type_ids: addSchoolTypeIds });
+      const { data: newItem } = await api.post<ExamTypeItem>("/lookups/exam-types", { name, school_type_ids: addSchoolTypeIds });
       setAddName(""); setAddSchoolTypeIds([]);
-      qc.setQueryData(["exam-types"], (old: ExamTypeItem[] = []) => [...old, newItem]);
-    } catch (e: any) {
-      setError(e?.response?.data?.detail ?? "Add failed.");
+      qc.setQueryData(["exam-types"], (old: unknown) => {
+        const prev = Array.isArray(old) ? (old as ExamTypeItem[]) : [];
+        if (newItem?.id != null && prev.some(i => i.id === newItem.id)) return prev;
+        return newItem ? [...prev, newItem] : prev;
+      });
+      await qc.invalidateQueries({ queryKey: ["exam-types"] });
+    } catch (e: unknown) {
+      setError(formatApiError(e, "Add failed."));
+      await qc.invalidateQueries({ queryKey: ["exam-types"] });
     }
   }
 
@@ -577,7 +649,7 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
 
 export default function LookupsPage() {
   const { user } = useAuth();
-  const isAdmin = canManageLookups(user?.title);
+  const isAdmin = canManageLookupsUser(user);
   const [activeTab, setActiveTab] = useState<Tab>("categories");
   const current = TABS.find(t => t.key === activeTab)!;
 
