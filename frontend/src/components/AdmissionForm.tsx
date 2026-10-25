@@ -405,6 +405,14 @@ export function AdmissionForm({
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
             <div style={fieldStyle}>
+              <span style={labelStyle}>Parivaar District</span>
+              <span style={valueStyle}>
+                {viewExamCenter?.district_id != null
+                  ? (districts.find((d) => d.id === viewExamCenter.district_id)?.name ?? "—")
+                  : "—"}
+              </span>
+            </div>
+            <div style={fieldStyle}>
               <span style={labelStyle}>Exam Center</span>
               <span style={valueStyle}>{viewExamCenter?.name ?? "—"}</span>
             </div>
@@ -759,7 +767,7 @@ export function AdmissionForm({
           }}
         >
           <div>
-            <label style={grs.fieldLabel}>District</label>
+            <label style={grs.fieldLabel}>Parivaar District</label>
             <select
               value={examDistrictFilter}
               onChange={(e) => {
