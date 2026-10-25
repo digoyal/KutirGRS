@@ -69,6 +69,7 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 - After schema or API changes: typecheck FE; hit the affected endpoint or page once locally when practical.
 - Prefer focused checks over large new suites unless asked. Cover auth/scope regressions when touching permissions.
 - For UI: verify loading, empty, and error paths — not only the happy path.
+- Before asking for browser verification of a UI change: check out the PR branch locally (or merge to main first), ensure Vite is serving that checkout, and say which branch is running. Unmerged PR work will not appear on Vite still on main.
 - Mobile: use the checklist in **Mobile** above; do not ship desktop-only CRUD layouts.
 
 ## Process (PRs / branches)
