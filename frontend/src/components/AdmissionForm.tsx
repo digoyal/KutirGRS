@@ -489,7 +489,7 @@ export function AdmissionForm({
 
         {form.selected && (
           <section style={sec}>
-            <div style={secTitle}>GRS School</div>
+            <div style={secTitle}>School Name</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 130px 2fr", gap: 8 }}>
               <div style={fieldStyle}>
                 <span style={labelStyle}>District</span>
@@ -507,7 +507,7 @@ export function AdmissionForm({
                 <span style={valueStyle}>{form.school_type || "—"}</span>
               </div>
               <div style={fieldStyle}>
-                <span style={labelStyle}>GRS School</span>
+                <span style={labelStyle}>School Name</span>
                 <span style={valueStyle}>
                   {admittedSchool
                     ? `${admittedSchool.name} (${admittedSchool.school_type})`
@@ -885,10 +885,10 @@ export function AdmissionForm({
         </section>
       )}
 
-      {/* GRS School */}
+      {/* School Name */}
       {form.selected && (
         <section style={sec}>
-          <div style={secTitle}>GRS School</div>
+          <div style={secTitle}>School Name</div>
           <div
             style={{
               display: "grid",
@@ -934,7 +934,7 @@ export function AdmissionForm({
             </div>
             <div>
               <label style={grs.fieldLabel}>
-                GRS School <span style={{ color: "var(--danger)" }}>*</span>
+                School Name <span style={{ color: "var(--danger)" }}>*</span>
               </label>
               <select
                 value={form.admitted_school_id ?? ""}
