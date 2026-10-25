@@ -538,7 +538,7 @@ export function AdmissionForm({
 
         {showSchool && (
           <section style={sec}>
-            <div style={secTitle}>School Name</div>
+            <div style={secTitle}>GRS School</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 130px 2fr", gap: 8 }}>
               <div style={fieldStyle}>
                 <span style={labelStyle}>District</span>
@@ -932,10 +932,10 @@ export function AdmissionForm({
         </section>
       )}
 
-      {/* School Name — Selected + Admitted */}
+      {/* GRS School — Selected + Admitted */}
       {showSchool && (
         <section style={sec}>
-          <div style={secTitle}>School Name</div>
+          <div style={secTitle}>GRS School</div>
           <div
             style={{
               display: "grid",
