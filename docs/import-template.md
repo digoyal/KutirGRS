@@ -50,9 +50,11 @@ There is **no States sheet** — districts reference existing `states` rows (Mad
 - **Users `title`:** Teacher, Cluster Coordinator, Education Coordinator, District Anchor, Regional Head, Admin, **SysAdmin**. Geo assignment is via `userid` on Zones / Districts / Areas / Clusters / Kutirs — not on the Users sheet.
 - **Districts:** `state_name`, `parivaar_presence` (yes/no, default yes).
 - **Schools / ExamCenters:** `street`, `city`, `district_name`, `state`, `pincode` (not a free-text `address`).
-- **Donors:** `name`, `contact`, `notes`.
+- **Donors:** `name`, `contact`, `notes` (also editable in UI under Lookups → Donors).
+- **Kutirs `donor_name`:** optional; resolved to `donor_id` by donor name (must already exist from `4_Donors`).
 - **Kutir type:** Seva Kutir | Shiksha Kutir | Non-Kutir.
 - **Parent-scoped names (not globally unique):** cluster names are unique **within a district**; kutir names are unique **within a cluster**. Import accepts name alone when that name matches **exactly one** row (including `14_Clusters` skip); if 2+ match, set parents. Creating a new cluster still needs `area_name` (and `district_name` if the area name is ambiguous).
 - **Years:** `school_start_year` / `academic_year` are **integers** (e.g. `2025`). UI display `2025-26` is not used on import.
 - **Admissions / Progress:** resolve students by `first_name` + `last_name` + hierarchical kutir key — **no `student_id`**. Progress resolves school by `school_name` only — **no `school_id`**.
-- **Admissions pipeline:** `eligible`, `form_received`, `applied`, `admit_card`, `appeared`, `selected`, `admitted` (+ optional `score_<subject>` columns).
+- **Admissions pipeline:** `eligible`, `applied`, `admit_card`, `appeared`, `selected`, `admitted` (+ optional `score_<subject>` columns).
+- **Re-import:** matched rows **upsert** (update) for Schools, ExamCenters, Donors, Kutirs, Students, Admissions (+ scores), Progress, KutirVisits. Users and name-only lookup/geo sheets stay create-or-skip. Match keys: see [`docs/KutirGRS_PRD.md`](./KutirGRS_PRD.md) §5.9 / §8.10.

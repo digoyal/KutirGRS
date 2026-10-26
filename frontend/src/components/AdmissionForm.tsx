@@ -74,7 +74,6 @@ export interface AdmissionFormState {
   application_number: string | null;
   roll_number: string | null;
   eligible: boolean;
-  form_received: boolean;
   applied: boolean;
   admit_card: boolean;
   appeared: boolean;
@@ -101,7 +100,6 @@ export function emptyAdmissionForm(year = CURRENT_YEAR): AdmissionFormState {
     roll_number: null,
     // No stage selected until the user ticks Pipeline Stage — keeps Year editable on Add.
     eligible: false,
-    form_received: false,
     applied: false,
     admit_card: false,
     appeared: false,
@@ -135,7 +133,6 @@ export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
     application_number: exam.application_number,
     roll_number: exam.roll_number,
     eligible: stages.eligible,
-    form_received: exam.form_received,
     applied: stages.applied,
     admit_card: stages.admit_card,
     appeared: stages.appeared,
@@ -179,7 +176,6 @@ export function admissionPayloadFromForm(
     exam_type_id: form.exam_type_id,
     school_start_year: form.school_start_year,
     eligible: stageFlags.eligible,
-    form_received: form.form_received,
     applied: stageFlags.applied,
     admit_card: stageFlags.admit_card,
     appeared: stageFlags.appeared,

@@ -2,6 +2,7 @@ import { useState, useMemo, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listKutirs, deleteKutir, type Kutir } from "../api/kutirs";
+import { listDonors } from "../api/donors";
 import { useAuth } from "../context/AuthContext";
 import { listClusters, listAreas, listDistricts } from "../api/geo";
 import { GrsTable } from "../components/GrsTable";
@@ -34,7 +35,10 @@ function teacherLabel(t: { first_name?: string | null; last_name?: string | null
   return [t.first_name, t.last_name].filter(Boolean).join(" ") || t.username;
 }
 
-function kutirColRenderers(clusterMap: Map<number, { id: number; name: string }>): Record<string, KutirColRenderer> {
+function kutirColRenderers(
+  clusterMap: Map<number, { id: number; name: string }>,
+  donorMap: Map<number, { id: number; name: string }>,
+): Record<string, KutirColRenderer> {
   const renderers: Record<string, KutirColRenderer> = {
     name: {
       sortable: true,
@@ -64,6 +68,16 @@ function kutirColRenderers(clusterMap: Map<number, { id: number; name: string }>
       sortable: true,
       render: (r) => r.pincode ?? "—",
       csvValue: (r) => r.pincode ?? "",
+    },
+    donor_id: {
+      sortable: true,
+      sortValue: (r) => (r.donor_id != null ? donorMap.get(r.donor_id)?.name ?? "" : ""),
+      render: (r) => (
+        <span style={{ fontSize: "0.82rem" }}>
+          {r.donor_id != null ? donorMap.get(r.donor_id)?.name ?? "—" : "—"}
+        </span>
+      ),
+      csvValue: (r) => (r.donor_id != null ? donorMap.get(r.donor_id)?.name ?? "" : ""),
     },
     enrollment_5th: {
       sortable: true,
@@ -121,9 +135,11 @@ export default function KutirsPage() {
   });
   const { data: allAreas = [] }     = useQuery({ queryKey: ["all-areas"],     queryFn: () => listAreas() });
   const { data: allClusters = [] }  = useQuery({ queryKey: ["all-clusters"],  queryFn: () => listClusters() });
+  const { data: donors = [] } = useQuery({ queryKey: ["donors"], queryFn: listDonors });
 
   const areaMap    = useMemo(() => new Map(allAreas.map((a) => [a.id, a])), [allAreas]);
   const clusterMap = useMemo(() => new Map(allClusters.map((c) => [c.id, c])), [allClusters]);
+  const donorMap   = useMemo(() => new Map(donors.map((d) => [d.id, d])), [donors]);
 
   const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
@@ -165,7 +181,7 @@ export default function KutirsPage() {
   // List columns, labels, visibility, order, and CSV headers all come from KUTIRS_FIELDS.
   const { isVisible, orderedMetas } = useFieldConfig("kutirs", KUTIRS_FIELDS);
   const columns = useMemo<Col<Kutir>[]>(() => {
-    const renderers = kutirColRenderers(clusterMap);
+    const renderers = kutirColRenderers(clusterMap, donorMap);
     return orderedMetas
       .filter((m) => isVisible(m.key))
       .map((meta): Col<Kutir> => {
@@ -179,7 +195,7 @@ export default function KutirsPage() {
           sortValue: r.sortValue,
         };
       });
-  }, [orderedMetas, isVisible, clusterMap]);
+  }, [orderedMetas, isVisible, clusterMap, donorMap]);
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>

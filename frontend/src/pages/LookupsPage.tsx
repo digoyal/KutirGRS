@@ -33,7 +33,17 @@ function asItemList(old: unknown): LookupItem[] {
   return Array.isArray(old) ? (old as LookupItem[]) : [];
 }
 
-type Tab = "categories" | "sub-categories" | "exam-categories" | "no-exam-reasons" | "no-admit-reasons" | "subjects" | "exam-type-subjects" | "school-types" | "exam-types";
+type Tab =
+  | "categories"
+  | "sub-categories"
+  | "exam-categories"
+  | "no-exam-reasons"
+  | "no-admit-reasons"
+  | "subjects"
+  | "exam-type-subjects"
+  | "school-types"
+  | "exam-types"
+  | "donors";
 
 interface TabDef {
   key: Tab;
@@ -54,6 +64,7 @@ const TABS: TabDef[] = [
   { key: "exam-types",         label: "Exam Types",           endpoint: "/lookups/exam-types",       nameField: "name" },
   { key: "subjects",           label: "Subjects",             endpoint: "/lookups/subjects",         nameField: "name" },
   { key: "exam-type-subjects", label: "Subjects by Exam Type", endpoint: "/lookups/exam-type-subjects",     nameField: "name" },
+  { key: "donors",             label: "Donors",               endpoint: "/donors",                   nameField: "name" },
 ];
 
 import React from "react";
@@ -663,6 +674,265 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
+interface DonorItem {
+  id: number;
+  name: string;
+  contact: string | null;
+  notes: string | null;
+}
+
+function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
+  const qc = useQueryClient();
+  const [addName, setAddName] = useState("");
+  const [addContact, setAddContact] = useState("");
+  const [addNotes, setAddNotes] = useState("");
+  const [editing, setEditing] = useState<DonorItem | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editContact, setEditContact] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<DonorItem | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const { data: items = [], isLoading, isError, error: loadError, refetch } = useQuery<DonorItem[]>({
+    queryKey: ["donors"],
+    queryFn: async () => {
+      const r = await api.get("/donors");
+      return Array.isArray(r.data) ? r.data : [];
+    },
+  });
+
+  async function handleAdd() {
+    const name = addName.trim();
+    if (!name || saving) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const { data: newItem } = await api.post<DonorItem>("/donors", {
+        name,
+        contact: addContact.trim() || null,
+        notes: addNotes.trim() || null,
+      });
+      setAddName("");
+      setAddContact("");
+      setAddNotes("");
+      qc.setQueryData(["donors"], (old: unknown) => {
+        const prev = Array.isArray(old) ? (old as DonorItem[]) : [];
+        if (newItem?.id != null && prev.some((i) => i.id === newItem.id)) return prev;
+        return newItem ? [...prev, newItem] : prev;
+      });
+      await qc.invalidateQueries({ queryKey: ["donors"] });
+    } catch (e: unknown) {
+      setError(formatApiError(e, "Add failed."));
+      await qc.invalidateQueries({ queryKey: ["donors"] });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleEdit() {
+    if (!editing || saving) return;
+    const name = editName.trim();
+    if (!name) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const { data: updated } = await api.put<DonorItem>(`/donors/${editing.id}`, {
+        name,
+        contact: editContact.trim() || null,
+        notes: editNotes.trim() || null,
+      });
+      setEditing(null);
+      qc.setQueryData(["donors"], (old: unknown) =>
+        (Array.isArray(old) ? (old as DonorItem[]) : []).map((item) =>
+          item.id === updated?.id ? updated : item,
+        ),
+      );
+      await qc.invalidateQueries({ queryKey: ["donors"] });
+    } catch (e: unknown) {
+      setError(formatApiError(e, "Update failed."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    try {
+      await api.delete(`/donors/${id}`);
+      setConfirmDelete(null);
+      qc.setQueryData(["donors"], (old: unknown) =>
+        (Array.isArray(old) ? (old as DonorItem[]) : []).filter((item) => item.id !== id),
+      );
+      await qc.invalidateQueries({ queryKey: ["donors"] });
+    } catch (e: unknown) {
+      setError(formatApiError(e, "Delete failed — donor may be linked to a Kutir."));
+      setConfirmDelete(null);
+    }
+  }
+
+  const safeItems = Array.isArray(items) ? items : [];
+
+  return (
+    <div>
+      {error && <div style={{ ...grs.errorBox, marginBottom: 10 }}>{error}</div>}
+
+      {isAdmin && (
+        <div style={{ marginBottom: 16, padding: 14, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }}>
+          <p style={{ margin: "0 0 10px", fontWeight: 600, fontSize: "0.85rem" }}>Add Donor</p>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 160 }}>
+              <label style={grs.fieldLabel}>Name *</label>
+              <input
+                style={grs.input}
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                placeholder="Donor name"
+                onKeyDown={(e) => e.key === "Enter" && void handleAdd()}
+                disabled={saving}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 140 }}>
+              <label style={grs.fieldLabel}>Contact</label>
+              <input
+                style={grs.input}
+                value={addContact}
+                onChange={(e) => setAddContact(e.target.value)}
+                placeholder="Phone / email"
+                disabled={saving}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 2, minWidth: 180 }}>
+              <label style={grs.fieldLabel}>Notes</label>
+              <input
+                style={grs.input}
+                value={addNotes}
+                onChange={(e) => setAddNotes(e.target.value)}
+                placeholder="Optional notes"
+                disabled={saving}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => { void handleAdd(); }}
+              style={{ ...grs.btnPrimary, whiteSpace: "nowrap", opacity: saving ? 0.7 : 1 }}
+              disabled={!addName.trim() || saving}
+            >
+              {saving ? "Adding…" : "+ Add"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <p style={grs.muted}>Loading…</p>
+      ) : isError ? (
+        <div style={{ ...grs.errorBox, textAlign: "center", padding: 16 }}>
+          {formatApiError(loadError, "Failed to load donors.")}
+          <div style={{ marginTop: 10 }}>
+            <button type="button" onClick={() => { void refetch(); }} style={grs.btnSecondary}>Retry</button>
+          </div>
+        </div>
+      ) : safeItems.length === 0 ? (
+        <p style={{ ...grs.muted, textAlign: "center", padding: "24px 0" }}>No donors yet.</p>
+      ) : (
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            <RowCountBadge count={safeItems.length} />
+          </div>
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <thead>
+                <tr>
+                  <th className="grs-thead-th" style={grs.th}>Name</th>
+                  <th className="grs-thead-th" style={grs.th}>Contact</th>
+                  <th className="grs-thead-th" style={{ ...grs.th, width: "100%" }}>Notes</th>
+                  {isAdmin && (
+                    <th
+                      className="grs-thead-th"
+                      style={{ ...grs.th, width: 96, position: "sticky", right: 0, background: "var(--bg-thead)" }}
+                    />
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {safeItems.map((item, i) => (
+                  <tr key={item.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--bg-input)" }}>
+                    <td style={{ ...grs.td, fontWeight: 600, whiteSpace: "nowrap" }}>{item.name}</td>
+                    <td style={{ ...grs.td, whiteSpace: "nowrap" }}>{item.contact || "—"}</td>
+                    <td style={grs.td}>
+                      {item.notes
+                        ? <span style={{ fontSize: "0.82rem" }}>{item.notes}</span>
+                        : <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>—</span>}
+                    </td>
+                    {isAdmin && (
+                      <td style={{ ...grs.td, textAlign: "right", width: 96, position: "sticky", right: 0, background: "var(--bg-card)", borderLeft: "1px solid var(--border)" }}>
+                        <RowActions
+                          onEdit={() => {
+                            setEditing(item);
+                            setEditName(item.name);
+                            setEditContact(item.contact ?? "");
+                            setEditNotes(item.notes ?? "");
+                            setError(null);
+                          }}
+                          onDelete={() => setConfirmDelete(item)}
+                        />
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {editing && (
+        <GrsModal title="Edit Donor" onClose={() => setEditing(null)} width={440}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label style={grs.fieldLabel}>Name *</label>
+              <input style={grs.input} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
+            </div>
+            <div>
+              <label style={grs.fieldLabel}>Contact</label>
+              <input style={grs.input} value={editContact} onChange={(e) => setEditContact(e.target.value)} />
+            </div>
+            <div>
+              <label style={grs.fieldLabel}>Notes</label>
+              <textarea
+                style={{ ...grs.input, minHeight: 72, resize: "vertical" }}
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+              />
+            </div>
+            {error && <div style={grs.errorBox}>{error}</div>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => setEditing(null)} style={grs.btnSecondary}>Cancel</button>
+              <button
+                type="button"
+                onClick={() => { void handleEdit(); }}
+                style={grs.btnPrimary}
+                disabled={!editName.trim() || saving}
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </GrsModal>
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          message={<>Delete donor <strong>"{confirmDelete.name}"</strong>?</>}
+          detail="This may fail if the donor is linked to a Kutir."
+          onConfirm={() => { void handleDelete(confirmDelete.id); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function LookupsPage() {
   const { user } = useAuth();
   const isAdmin = canManageLookupsUser(user);
@@ -691,6 +961,8 @@ export default function LookupsPage() {
           ? <ExamTypeSubjectsTable isAdmin={isAdmin} />
           : activeTab === "exam-types"
           ? <ExamTypesTable isAdmin={isAdmin} />
+          : activeTab === "donors"
+          ? <DonorsTable isAdmin={isAdmin} />
           : <LookupTable tab={current} isAdmin={isAdmin} />}
       </LookupErrorBoundary>
     </div>

@@ -85,7 +85,6 @@ class StudentExamBase(BaseModel):
     exam_type_id: Optional[int] = None
     school_start_year: int
     eligible: bool = True
-    form_received: bool = False
     applied: bool = False
     admit_card: bool = False
     appeared: bool = False
@@ -106,7 +105,6 @@ class StudentExamCreate(StudentExamBase):
 
 class StudentExamUpdate(BaseModel):
     eligible: Optional[bool] = None
-    form_received: Optional[bool] = None
     applied: Optional[bool] = None
     admit_card: Optional[bool] = None
     appeared: Optional[bool] = None

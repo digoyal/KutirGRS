@@ -13,6 +13,16 @@ export const STAGES = [
 
 export type StageKey = typeof STAGES[number]["key"];
 
+/** Short labels for Home / Reports Summary funnel (same keys/order as STAGES). */
+export const FUNNEL_STAGE_LABELS: Record<StageKey, string> = {
+  eligible: "Eligible",
+  applied: "Applied",
+  admit_card: "Admit Card",
+  appeared: "Appeared",
+  selected: "Selected",
+  admitted: "Admitted",
+};
+
 export function subjectsForExamType(rows: ExamTypeSubjectRow[], examTypeId: number | null | undefined): SubjectRef[] {
   if (!examTypeId) return [];
   return rows.find(r => r.id === examTypeId)?.subjects ?? [];

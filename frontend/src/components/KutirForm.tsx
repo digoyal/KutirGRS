@@ -7,6 +7,7 @@ import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ViewField, ViewSection, viewStyles } from "@parivaar/ui";
 import { type KutirCreate, type KutirDetail } from "../api/kutirs";
+import { listDonors } from "../api/donors";
 import { listZones, listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
@@ -19,7 +20,13 @@ const STATES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"];
 export type KutirFormState = KutirCreate;
 
 export function emptyKutirForm(): KutirFormState {
-  return { name: "", kutir_type: "Seva Kutir", cluster_id: 0, state: "Madhya Pradesh" };
+  return {
+    name: "",
+    kutir_type: "Seva Kutir",
+    cluster_id: 0,
+    state: "Madhya Pradesh",
+    donor_id: null,
+  };
 }
 
 export function kutirFormFromDetail(kutir: KutirDetail): KutirFormState {
@@ -31,6 +38,7 @@ export function kutirFormFromDetail(kutir: KutirDetail): KutirFormState {
     street: kutir.street,
     state: kutir.state,
     pincode: kutir.pincode,
+    donor_id: kutir.donor_id,
     enrollment_5th: kutir.enrollment_5th,
     enrollment_8th: kutir.enrollment_8th,
   };
@@ -83,6 +91,10 @@ export function KutirForm({
   const { data: allClusters = [] } = useQuery({
     queryKey: ["all-clusters"],
     queryFn: () => listClusters(),
+  });
+  const { data: donors = [] } = useQuery({
+    queryKey: ["donors"],
+    queryFn: listDonors,
   });
 
   const scopedDistricts =
@@ -155,7 +167,12 @@ export function KutirForm({
             <ViewField label={kutirFieldLabel("name", { required: true })}>{form.name || null}</ViewField>
             <ViewField label={kutirFieldLabel("kutir_type")}>{form.kutir_type || null}</ViewField>
           </div>
-          <ViewField label={kutirFieldLabel("state")}>{form.state}</ViewField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <ViewField label={kutirFieldLabel("state")}>{form.state}</ViewField>
+            <ViewField label={kutirFieldLabel("donor_id")}>
+              {donors.find((d) => d.id === form.donor_id)?.name ?? null}
+            </ViewField>
+          </div>
         </ViewSection>
 
         <ViewSection title="Enrollment">
@@ -294,17 +311,39 @@ export function KutirForm({
             </select>
           </div>
         </div>
-        <div>
-          <label style={grs.fieldLabel}>{kutirFieldLabel("state")}</label>
-          <select
-            style={grs.select}
-            value={form.state ?? "Madhya Pradesh"}
-            onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
-          >
-            {STATES.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div>
+            <label style={grs.fieldLabel}>{kutirFieldLabel("state")}</label>
+            <select
+              style={grs.select}
+              value={form.state ?? "Madhya Pradesh"}
+              onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+            >
+              {STATES.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={grs.fieldLabel}>{kutirFieldLabel("donor_id")}</label>
+            <select
+              style={grs.select}
+              value={form.donor_id ?? ""}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  donor_id: e.target.value ? Number(e.target.value) : null,
+                }))
+              }
+            >
+              <option value="">— none —</option>
+              {donors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </section>
 

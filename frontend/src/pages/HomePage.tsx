@@ -1,7 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "../api/client";
 import { getAdmissionFunnel } from "../api/admissions";
+import { STAGES, FUNNEL_STAGE_LABELS, type StageKey } from "../components/admissions-pipeline";
 import { useAuth } from "../context/AuthContext";
+
+const FUNNEL_COLORS: Record<StageKey, string> = {
+  eligible: "var(--badge-sky-fg)",
+  applied: "var(--link-color)",
+  admit_card: "var(--badge-amber-fg)",
+  appeared: "var(--link-color)",
+  selected: "var(--status-success-fg)",
+  admitted: "var(--status-success-fg)",
+};
 
 interface StatCard {
   label: string;
@@ -139,15 +149,12 @@ export default function HomePage() {
     queryFn: () => getAdmissionFunnel({ school_start_year: currentYear }),
   });
 
-  // Pipeline §5.2: Eligible → Applied → Admit Card → Appeared → Selected → Admitted
-  const funnelStages: FunnelStage[] = [
-    { label: "Eligible", count: funnel?.eligible ?? 0, color: "var(--badge-sky-fg)" },
-    { label: "Applied", count: funnel?.applied ?? 0, color: "var(--link-color)" },
-    { label: "Admit Card", count: funnel?.admit_card ?? 0, color: "var(--badge-amber-fg)" },
-    { label: "Appeared", count: funnel?.appeared ?? 0, color: "var(--link-color)" },
-    { label: "Selected", count: funnel?.selected ?? 0, color: "var(--status-success-fg)" },
-    { label: "Admitted", count: funnel?.admitted ?? 0, color: "var(--status-success-fg)" },
-  ];
+  // Same six stages as Reports Summary / admissions-pipeline STAGES
+  const funnelStages: FunnelStage[] = STAGES.map((s) => ({
+    label: FUNNEL_STAGE_LABELS[s.key],
+    count: funnel?.[s.key] ?? 0,
+    color: FUNNEL_COLORS[s.key],
+  }));
 
   const statCards: StatCard[] = [
     {

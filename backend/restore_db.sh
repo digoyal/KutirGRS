@@ -41,11 +41,14 @@ venv/bin/python migrate_class_in_year.py
 venv/bin/python migrate_status_field.py
 venv/bin/python migrate_drop_grade.py
 
-echo "→ Applying numbered migrations 004–021"
+echo "→ Applying numbered migrations (NNN_*.sql)"
 for f in scripts/0[0-9][0-9]_*.sql; do
   echo "  $f"
   $PSQL -d "$DB" -f "$f"
 done
+
+echo "→ Syncing schema_migrations ledger (record applied NNN_*.sql; no re-run)"
+venv/bin/python -m app.sql_migrations --sync-ledger
 
 echo "→ Creating any remaining tables from models (e.g. app_settings)"
 venv/bin/python -c "

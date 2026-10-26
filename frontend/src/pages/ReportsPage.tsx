@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import api from "../api/client";
 import { listExams, type StudentExam } from "../api/admissions";
 import { listVisits, type KutirVisit } from "../api/visits";
+import { STAGES, FUNNEL_STAGE_LABELS, type StageKey } from "../components/admissions-pipeline";
 import { GrsTabs } from "../components/GrsTabs";
 import { RowCountBadge } from "@parivaar/ui";
 
@@ -39,32 +40,30 @@ function FunnelReport({ year }: { year: number }) {
   // Map student → kutir
   const studentKutir = new Map(students.map((s) => [s.id, s.kutir_id]));
 
-  // Group exams by kutir
-  type Row = { kutir: Kutir; eligible: number; applied: number; appeared: number; selected: number; admitted: number };
+  // Group exams by kutir — same six pipeline stages as Home / STAGES
+  type StageCounts = Record<StageKey, number>;
+  type Row = { kutir: Kutir } & StageCounts;
+  const emptyCounts = (): StageCounts =>
+    Object.fromEntries(STAGES.map((s) => [s.key, 0])) as StageCounts;
+
   const rows: Row[] = kutirs
     .map((k) => {
       const kExams = exams.filter((e) => studentKutir.get(e.student_id) === k.id);
-      return {
-        kutir: k,
-        eligible: kExams.filter((e) => e.eligible).length,
-        applied: kExams.filter((e) => e.applied).length,
-        appeared: kExams.filter((e) => e.appeared).length,
-        selected: kExams.filter((e) => e.selected).length,
-        admitted: kExams.filter((e) => e.admitted).length,
-      };
+      const counts = emptyCounts();
+      for (const stage of STAGES) {
+        counts[stage.key] = kExams.filter((e) => e[stage.key]).length;
+      }
+      return { kutir: k, ...counts };
     })
     .filter((r) => r.eligible > 0)
     .sort((a, b) => b.admitted - a.admitted || b.selected - a.selected || b.eligible - a.eligible);
 
   const totals = rows.reduce(
-    (acc, r) => ({
-      eligible: acc.eligible + r.eligible,
-      applied: acc.applied + r.applied,
-      appeared: acc.appeared + r.appeared,
-      selected: acc.selected + r.selected,
-      admitted: acc.admitted + r.admitted,
-    }),
-    { eligible: 0, applied: 0, appeared: 0, selected: 0, admitted: 0 }
+    (acc, r) => {
+      for (const stage of STAGES) acc[stage.key] += r[stage.key];
+      return acc;
+    },
+    emptyCounts()
   );
 
   if (isLoading) return <p style={{ color: "var(--text-secondary)" }}>Loading…</p>;
@@ -83,11 +82,9 @@ function FunnelReport({ year }: { year: number }) {
         <thead>
           <tr style={{ background: "var(--badge-blue-bg)" }}>
             <th style={{ ...hdrCol, textAlign: "left" }}>Kutir</th>
-            <th style={hdrCol}>Eligible</th>
-            <th style={hdrCol}>Applied</th>
-            <th style={hdrCol}>Appeared</th>
-            <th style={hdrCol}>Selected</th>
-            <th style={hdrCol}>Admitted</th>
+            {STAGES.map((s) => (
+              <th key={s.key} style={hdrCol}>{FUNNEL_STAGE_LABELS[s.key]}</th>
+            ))}
             <th style={hdrCol}>Conv. %</th>
           </tr>
         </thead>
@@ -100,11 +97,22 @@ function FunnelReport({ year }: { year: number }) {
                 </Link>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: 6 }}>{r.kutir.code}</span>
               </td>
-              <td style={numCol}>{r.eligible}</td>
-              <td style={numCol}>{r.applied}</td>
-              <td style={numCol}>{r.appeared}</td>
-              <td style={{ ...numCol, color: r.selected > 0 ? "var(--status-success-fg)" : undefined, fontWeight: r.selected > 0 ? 700 : 400 }}>{r.selected}</td>
-              <td style={{ ...numCol, color: r.admitted > 0 ? "var(--status-success-fg)" : undefined, fontWeight: r.admitted > 0 ? 700 : 400 }}>{r.admitted}</td>
+              {STAGES.map((s) => {
+                const v = r[s.key];
+                const highlight = (s.key === "selected" || s.key === "admitted") && v > 0;
+                return (
+                  <td
+                    key={s.key}
+                    style={{
+                      ...numCol,
+                      color: highlight ? "var(--status-success-fg)" : undefined,
+                      fontWeight: highlight ? 700 : 400,
+                    }}
+                  >
+                    {v}
+                  </td>
+                );
+              })}
               <td style={numCol}>
                 {r.eligible > 0 ? `${Math.round((r.admitted / r.eligible) * 100)}%` : "—"}
               </td>
@@ -114,8 +122,10 @@ function FunnelReport({ year }: { year: number }) {
         <tfoot>
           <tr style={{ background: "var(--badge-blue-bg)", fontWeight: 700 }}>
             <td style={{ padding: "9px 12px", borderTop: "2px solid var(--badge-blue-bg)", color: "var(--badge-blue-fg)" }}>Total</td>
-            {[totals.eligible, totals.applied, totals.appeared, totals.selected, totals.admitted].map((v, i) => (
-              <td key={i} style={{ ...numCol, borderTop: "2px solid var(--badge-blue-bg)", fontWeight: 700, color: "var(--text-primary)" }}>{v}</td>
+            {STAGES.map((s) => (
+              <td key={s.key} style={{ ...numCol, borderTop: "2px solid var(--badge-blue-bg)", fontWeight: 700, color: "var(--text-primary)" }}>
+                {totals[s.key]}
+              </td>
             ))}
             <td style={{ ...numCol, borderTop: "2px solid var(--badge-blue-bg)", fontWeight: 700, color: "var(--text-primary)" }}>
               {totals.eligible > 0 ? `${Math.round((totals.admitted / totals.eligible) * 100)}%` : "—"}

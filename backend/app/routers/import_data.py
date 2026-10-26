@@ -31,6 +31,7 @@ class SheetResult(BaseModel):
     sheet: str
     total: int
     created: int
+    updated: int = 0
     skipped: int
     errors: list[str]
 
@@ -94,10 +95,11 @@ KUTIR_TYPE_MAP = {
     "non-kutir": "Non-Kutir", "non kutir": "Non-Kutir",
 }
 
-def _result(created, skipped, errors):
+def _result(created, skipped, errors, updated=0):
     cnt = Counter(errors)
     return {
         "created": created,
+        "updated": updated,
         "skipped": skipped,
         "errors": [f"{m} (×{c})" if c > 1 else m for m, c in cnt.items()],
     }
@@ -555,7 +557,7 @@ async def _import_subcategories(rows, db):
 
 
 async def _import_schools(rows, db):
-    created = skipped = 0; errors = []
+    created = updated = skipped = 0; errors = []
     for r in rows:
         name = _str(r.get("name"))
         if not name:
@@ -564,29 +566,35 @@ async def _import_schools(rows, db):
         exists = (await db.execute(
             text("SELECT id FROM schools WHERE lower(name)=lower(:n)"), {"n": name}
         )).scalar_one_or_none()
-        if exists:
-            skipped += 1; continue
         dist_name = _str(r.get("district_name"))
         dist_id = None
         if dist_name:
             dist_id = (await db.execute(
                 text("SELECT id FROM districts WHERE lower(name)=lower(:n) LIMIT 1"), {"n": dist_name}
             )).scalar_one_or_none()
-        await db.execute(text("""
-            INSERT INTO schools (name, school_type, street, city, district_id, state, pincode, created_at, updated_at)
-            VALUES (:n, :st, :sr, :ci, :di, :sa, :pi, now(), now())
-        """), {"n": name, "st": stype,
+        params = {"n": name, "st": stype,
                "sr": _str(r.get("street")) or None,
                "ci": _str(r.get("city")) or None,
                "di": dist_id,
                "sa": _state(r.get("state")),
-               "pi": _str(r.get("pincode")) or None})
+               "pi": _str(r.get("pincode")) or None}
+        if exists:
+            await db.execute(text("""
+                UPDATE schools SET school_type=:st, street=:sr, city=:ci, district_id=:di,
+                    state=:sa, pincode=:pi, updated_at=now()
+                WHERE id=:id
+            """), {**params, "id": exists})
+            updated += 1; continue
+        await db.execute(text("""
+            INSERT INTO schools (name, school_type, street, city, district_id, state, pincode, created_at, updated_at)
+            VALUES (:n, :st, :sr, :ci, :di, :sa, :pi, now(), now())
+        """), params)
         created += 1
-    return _result(created, skipped, errors)
+    return _result(created, skipped, errors, updated)
 
 
 async def _import_exam_centers(rows, db):
-    created = skipped = 0; errors = []
+    created = updated = skipped = 0; errors = []
     for r in rows:
         name = _str(r.get("name"))
         if not name:
@@ -594,29 +602,35 @@ async def _import_exam_centers(rows, db):
         exists = (await db.execute(
             text("SELECT id FROM exam_centers WHERE lower(name)=lower(:n)"), {"n": name}
         )).scalar_one_or_none()
-        if exists:
-            skipped += 1; continue
         dist_name = _str(r.get("district_name"))
         dist_id = None
         if dist_name:
             dist_id = (await db.execute(
                 text("SELECT id FROM districts WHERE lower(name)=lower(:n) LIMIT 1"), {"n": dist_name}
             )).scalar_one_or_none()
-        await db.execute(text("""
-            INSERT INTO exam_centers (name, street, city, district_id, state, pincode, created_at, updated_at)
-            VALUES (:n, :sr, :ci, :di, :sa, :pi, now(), now())
-        """), {"n": name,
+        params = {"n": name,
                "sr": _str(r.get("street")) or None,
                "ci": _str(r.get("city")) or None,
                "di": dist_id,
                "sa": _state(r.get("state")),
-               "pi": _str(r.get("pincode")) or None})
+               "pi": _str(r.get("pincode")) or None}
+        if exists:
+            await db.execute(text("""
+                UPDATE exam_centers SET street=:sr, city=:ci, district_id=:di,
+                    state=:sa, pincode=:pi, updated_at=now()
+                WHERE id=:id
+            """), {**params, "id": exists})
+            updated += 1; continue
+        await db.execute(text("""
+            INSERT INTO exam_centers (name, street, city, district_id, state, pincode, created_at, updated_at)
+            VALUES (:n, :sr, :ci, :di, :sa, :pi, now(), now())
+        """), params)
         created += 1
-    return _result(created, skipped, errors)
+    return _result(created, skipped, errors, updated)
 
 
 async def _import_donors(rows, db):
-    created = skipped = 0; errors = []
+    created = updated = skipped = 0; errors = []
     for r in rows:
         name = _str(r.get("name"))
         if not name:
@@ -624,18 +638,23 @@ async def _import_donors(rows, db):
         exists = (await db.execute(
             text("SELECT id FROM donors WHERE lower(name)=lower(:n)"), {"n": name}
         )).scalar_one_or_none()
+        params = {"n": name, "c": _str(r.get("contact")) or None, "no": _str(r.get("notes")) or None}
         if exists:
-            skipped += 1; continue
+            await db.execute(
+                text("UPDATE donors SET contact=:c, notes=:no, updated_at=now() WHERE id=:id"),
+                {**params, "id": exists},
+            )
+            updated += 1; continue
         await db.execute(
             text("INSERT INTO donors (name, contact, notes, created_at, updated_at) VALUES (:n, :c, :no, now(), now())"),
-            {"n": name, "c": _str(r.get("contact")) or None, "no": _str(r.get("notes")) or None}
+            params,
         )
         created += 1
-    return _result(created, skipped, errors)
+    return _result(created, skipped, errors, updated)
 
 
 async def _import_kutirs(rows, db):
-    created = skipped = 0; errors = []
+    created = updated = skipped = 0; errors = []
     for r in rows:
         name = _str(r.get("name"))
         if not name:
@@ -653,8 +672,6 @@ async def _import_kutirs(rows, db):
             text("SELECT id FROM kutirs WHERE lower(name)=lower(:n) AND cluster_id=:c"),
             {"n": name, "c": cluster_id},
         )).scalar_one_or_none()
-        if exists:
-            skipped += 1; continue
         dist_id = (await db.execute(
             text("SELECT id FROM districts WHERE lower(name)=lower(:n) LIMIT 1"), {"n": dist_name}
         )).scalar_one_or_none() if dist_name else None
@@ -667,20 +684,30 @@ async def _import_kutirs(rows, db):
             )).scalar_one_or_none()
             if not donor_id:
                 errors.append(f"Donor '{donor_name}' not found — kutir '{name}' imported without donor")
-        kutir_id = (await db.execute(text("""
-            INSERT INTO kutirs (name, kutir_type, cluster_id, district_id, street,
-                                state, pincode, donor_id, enrollment_5th, enrollment_8th,
-                                created_at, updated_at)
-            VALUES (:n, :kt, :cl, :di, :sr, :sa, :pi, :do, :e5, :e8, now(), now())
-            RETURNING id
-        """), {"n": name, "kt": ktype, "cl": cluster_id, "di": dist_id,
+        params = {"n": name, "kt": ktype, "cl": cluster_id, "di": dist_id,
                "sr": _str(r.get("street")) or None,
                "sa": _state(r.get("state")),
                "pi": _str(r.get("pincode")) or None,
                "do": donor_id,
                "e5": _int(r.get("enrollment_5th")),
-               "e8": _int(r.get("enrollment_8th"))})).scalar_one()
-        created += 1
+               "e8": _int(r.get("enrollment_8th"))}
+        if exists:
+            await db.execute(text("""
+                UPDATE kutirs SET kutir_type=:kt, district_id=:di, street=:sr, state=:sa,
+                    pincode=:pi, donor_id=:do, enrollment_5th=:e5, enrollment_8th=:e8, updated_at=now()
+                WHERE id=:id
+            """), {**params, "id": exists})
+            kutir_id = exists
+            updated += 1
+        else:
+            kutir_id = (await db.execute(text("""
+                INSERT INTO kutirs (name, kutir_type, cluster_id, district_id, street,
+                                    state, pincode, donor_id, enrollment_5th, enrollment_8th,
+                                    created_at, updated_at)
+                VALUES (:n, :kt, :cl, :di, :sr, :sa, :pi, :do, :e5, :e8, now(), now())
+                RETURNING id
+            """), params)).scalar_one()
+            created += 1
         username = _str(r.get("userid"))
         if username:
             uid = (await db.execute(
@@ -692,12 +719,12 @@ async def _import_kutirs(rows, db):
                     {"u": uid, "k": kutir_id}
                 )
             else:
-                errors.append(f"User '{username}' not found — kutir '{name}' created without user")
-    return _result(created, skipped, errors)
+                errors.append(f"User '{username}' not found — kutir '{name}' imported without user")
+    return _result(created, skipped, errors, updated)
 
 
 async def _import_students(rows, db):
-    created = skipped = 0; errors = []
+    created = updated = skipped = 0; errors = []
     for r in rows:
         first = _str(r.get("first_name")); last = _str(r.get("last_name"))
         if not first:
@@ -711,14 +738,12 @@ async def _import_students(rows, db):
         )
         if err:
             errors.append(f"{err} — student '{first} {last}' skipped"); continue
-        # May be multiple duplicates already — take any one id for skip check
+        # May be multiple duplicates already — take first id for match/upsert
         exists_rows = (await db.execute(
             text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
                  "AND lower(last_name)=lower(:l) AND kutir_id=:k LIMIT 1"),
             {"f": first, "l": last, "k": kutir_id}
         )).scalars().all()
-        if exists_rows:
-            skipped += 1; continue
         cat_name = _str(r.get("category_name"))
         cat_id = None
         if cat_name:
@@ -740,17 +765,7 @@ async def _import_students(rows, db):
         dob = _date(dob_raw)
         if dob_raw and not dob:
             errors.append(f"Bad date '{dob_raw}' for '{first} {last}' — imported without DOB")
-        await db.execute(text("""
-            INSERT INTO students (first_name, last_name, gender, dob, kutir_id,
-                                  category_id, sub_category_id,
-                                  father_name, mother_name, phone, email,
-                                  street, pincode, alt_contact_name, alt_contact_phone,
-                                  aadhaar, category_cert, birth_cert, residence_proof, medical,
-                                  created_at, updated_at)
-            VALUES (:fn, :ln, :ge, :db, :ki, :ca, :sc,
-                    :fa, :mo, :ph, :em, :st, :pi, :an, :ap,
-                    :aa, :cc, :bc, :rp, :me, now(), now())
-        """), {"fn": first, "ln": last, "ge": gender, "db": dob, "ki": kutir_id,
+        params = {"fn": first, "ln": last, "ge": gender, "db": dob, "ki": kutir_id,
                "ca": cat_id, "sc": subcat_id,
                "fa": _str(r.get("father_name")) or None,
                "mo": _str(r.get("mother_name")) or None,
@@ -764,9 +779,30 @@ async def _import_students(rows, db):
                "cc": _yn(r.get("category_cert")),
                "bc": _yn(r.get("birth_cert")),
                "rp": _yn(r.get("residence_proof")),
-               "me": _yn(r.get("medical"))})
+               "me": _yn(r.get("medical"))}
+        if exists_rows:
+            await db.execute(text("""
+                UPDATE students SET gender=:ge, dob=:db, category_id=:ca, sub_category_id=:sc,
+                    father_name=:fa, mother_name=:mo, phone=:ph, email=:em,
+                    street=:st, pincode=:pi, alt_contact_name=:an, alt_contact_phone=:ap,
+                    aadhaar=:aa, category_cert=:cc, birth_cert=:bc, residence_proof=:rp,
+                    medical=:me, updated_at=now()
+                WHERE id=:id
+            """), {**params, "id": exists_rows[0]})
+            updated += 1; continue
+        await db.execute(text("""
+            INSERT INTO students (first_name, last_name, gender, dob, kutir_id,
+                                  category_id, sub_category_id,
+                                  father_name, mother_name, phone, email,
+                                  street, pincode, alt_contact_name, alt_contact_phone,
+                                  aadhaar, category_cert, birth_cert, residence_proof, medical,
+                                  created_at, updated_at)
+            VALUES (:fn, :ln, :ge, :db, :ki, :ca, :sc,
+                    :fa, :mo, :ph, :em, :st, :pi, :an, :ap,
+                    :aa, :cc, :bc, :rp, :me, now(), now())
+        """), params)
         created += 1
-    return _result(created, skipped, errors)
+    return _result(created, skipped, errors, updated)
 
 
 async def _import_exam_types(rows, db):
@@ -838,7 +874,7 @@ async def _import_exam_type_subjects(rows, db):
 
 
 async def _import_admissions(rows, db):
-    created = skipped = 0; errors = []
+    created = updated = skipped = 0; errors = []
     for r in rows:
         # Resolve student by natural key + hierarchical kutir (district → cluster → kutir)
         first = _str(r.get("first_name")); last = _str(r.get("last_name"))
@@ -875,14 +911,11 @@ async def _import_admissions(rows, db):
                 text("SELECT id FROM schools WHERE lower(name)=lower(:n)"), {"n": school_name}
             )).scalar_one_or_none()
 
-        # Skip if already exists
         exists = (await db.execute(
             text("SELECT id FROM student_exams WHERE student_id=:s AND school_start_year=:y "
                  "AND school_type=:st"),
             {"s": sid, "y": year, "st": stype}
         )).scalar_one_or_none()
-        if exists:
-            skipped += 1; continue
 
         # Optional FKs
         exam_cat_name = _str(r.get("exam_category_name"))
@@ -915,27 +948,10 @@ async def _import_admissions(rows, db):
             errors.append(f"Invalid admission_class '{adm_class}' — must be 5 or 8, ignored")
             adm_class = None
 
-        res = await db.execute(text("""
-            INSERT INTO student_exams (
-                student_id, school_id, school_type, school_start_year,
-                exam_category_id, eligible, form_received, applied, admit_card,
-                appeared, no_exam_reason_id, selected, admitted,
-                no_admit_reason_id, application_number, roll_number,
-                exam_center_id, admitted_school_id, admission_class,
-                created_at, updated_at)
-            VALUES (
-                :si, :sc, :st, :yr,
-                :ec, :el, :fr, :ap, :ac,
-                :ap2, :ne, :se, :ad,
-                :na, :an, :rn,
-                :cen, :as_, :cls,
-                now(), now())
-            RETURNING id
-        """), {
+        params = {
             "si": sid, "sc": school_id, "st": stype, "yr": year,
             "ec": exam_cat_id,
             "el": _yn(r.get("eligible", "yes")),
-            "fr": _yn(r.get("form_received")),
             "ap": _yn(r.get("applied")),
             "ac": _yn(r.get("admit_card")),
             "ap2": _yn(r.get("appeared")),
@@ -948,10 +964,41 @@ async def _import_admissions(rows, db):
             "cen": center_id,
             "as_": adm_school_id,
             "cls": adm_class,
-        })
-        exam_id = res.scalar_one()
+        }
+        if exists:
+            await db.execute(text("""
+                UPDATE student_exams SET
+                    school_id=:sc, exam_category_id=:ec, eligible=:el, applied=:ap, admit_card=:ac,
+                    appeared=:ap2, no_exam_reason_id=:ne, selected=:se, admitted=:ad,
+                    no_admit_reason_id=:na, application_number=:an, roll_number=:rn,
+                    exam_center_id=:cen, admitted_school_id=:as_, admission_class=:cls,
+                    updated_at=now()
+                WHERE id=:id
+            """), {**params, "id": exists})
+            exam_id = exists
+            updated += 1
+        else:
+            res = await db.execute(text("""
+                INSERT INTO student_exams (
+                    student_id, school_id, school_type, school_start_year,
+                    exam_category_id, eligible, applied, admit_card,
+                    appeared, no_exam_reason_id, selected, admitted,
+                    no_admit_reason_id, application_number, roll_number,
+                    exam_center_id, admitted_school_id, admission_class,
+                    created_at, updated_at)
+                VALUES (
+                    :si, :sc, :st, :yr,
+                    :ec, :el, :ap, :ac,
+                    :ap2, :ne, :se, :ad,
+                    :na, :an, :rn,
+                    :cen, :as_, :cls,
+                    now(), now())
+                RETURNING id
+            """), params)
+            exam_id = res.scalar_one()
+            created += 1
 
-        # Per-subject scores
+        # Per-subject scores (upsert score on re-import)
         for key, val in r.items():
             if key.startswith("score_") and val not in (None, ""):
                 subj_name = key[6:].replace("_", " ").strip()
@@ -963,18 +1010,18 @@ async def _import_admissions(rows, db):
                     if score is not None:
                         await db.execute(
                             text("INSERT INTO student_exam_scores (exam_id, subject_id, score) "
-                                 "VALUES (:e, :s, :sc) ON CONFLICT DO NOTHING"),
+                                 "VALUES (:e, :s, :sc) "
+                                 "ON CONFLICT (exam_id, subject_id) DO UPDATE SET score = EXCLUDED.score"),
                             {"e": exam_id, "s": subj_id, "sc": score}
                         )
                 else:
                     errors.append(f"Subject '{subj_name}' not found — score skipped")
-        created += 1
-    return _result(created, skipped, errors)
+    return _result(created, skipped, errors, updated)
 
 
 async def _import_progress(rows, db):
     """Import student_progress records. Unique on (student_id, school_id, academic_year)."""
-    created = skipped = 0; errors = []
+    created = updated = skipped = 0; errors = []
     for r in rows:
         # Resolve student by natural key + hierarchical kutir
         first = _str(r.get("first_name")); last = _str(r.get("last_name"))
@@ -1012,13 +1059,10 @@ async def _import_progress(rows, db):
         if not academic_year:
             errors.append(f"Missing academic_year for student id={sid} — row skipped"); continue
 
-        # Skip duplicates
         exists_rows = (await db.execute(
             text("SELECT id FROM student_progress WHERE student_id=:s AND school_id=:sc AND academic_year=:y LIMIT 1"),
             {"s": sid, "sc": school_id, "y": academic_year}
         )).scalars().all()
-        if exists_rows:
-            skipped += 1; continue
 
         status = _str(r.get("status", "enrolled"))
         if status not in ("enrolled", "transferred", "dropped_out", "graduated"):
@@ -1027,6 +1071,24 @@ async def _import_progress(rows, db):
 
         pct_raw = r.get("previous_year_percentage")
         pct = _float(pct_raw) if pct_raw not in (None, "") else None
+
+        params = {
+            "si": sid, "sc": school_id, "yr": academic_year,
+            "cl": _int(r.get("class_in_year")),
+            "st": status,
+            "ts": _str(r.get("transfer_school")) or None,
+            "er": _str(r.get("exit_reason")) or None,
+            "pct": pct,
+            "rm": _str(r.get("remarks")) or None,
+        }
+        if exists_rows:
+            await db.execute(text("""
+                UPDATE student_progress SET
+                    class_in_year=:cl, status=:st, transfer_school=:ts, exit_reason=:er,
+                    previous_year_percentage=:pct, remarks=:rm, updated_at=now()
+                WHERE id=:id
+            """), {**params, "id": exists_rows[0]})
+            updated += 1; continue
 
         await db.execute(text("""
             INSERT INTO student_progress
@@ -1037,22 +1099,14 @@ async def _import_progress(rows, db):
                 (:si, :sc, :yr, :cl,
                  :st, :ts, :er,
                  :pct, :rm, now(), now())
-        """), {
-            "si": sid, "sc": school_id, "yr": academic_year,
-            "cl": _int(r.get("class_in_year")),
-            "st": status,
-            "ts": _str(r.get("transfer_school")) or None,
-            "er": _str(r.get("exit_reason")) or None,
-            "pct": pct,
-            "rm": _str(r.get("remarks")) or None,
-        })
+        """), params)
         created += 1
-    return _result(created, skipped, errors)
+    return _result(created, skipped, errors, updated)
 
 
 async def _import_kutir_visits(rows, db):
     """Import kutir_visits. Unique on (kutir_id, visit_date)."""
-    created = skipped = 0; errors = []
+    created = updated = skipped = 0; errors = []
     VALID_PVR  = ("Matched", "Not Matched")
     VALID_WC   = ("Upto Date", "Partial Upto Date", "Not Uptodate")
     VALID_BOOK = ("Sufficient", "Lacking", "More than required")
@@ -1078,8 +1132,6 @@ async def _import_kutir_visits(rows, db):
             text("SELECT id FROM kutir_visits WHERE kutir_id=:k AND visit_date=:d"),
             {"k": kutir_id, "d": visit_date}
         )).scalar_one_or_none()
-        if exists:
-            skipped += 1; continue
 
         visited_by_username = _str(r.get("visited_by"))
         visited_by_id = None
@@ -1104,37 +1156,7 @@ async def _import_kutir_visits(rows, db):
             v = _int(r.get(key))
             return max(1, min(5, v)) if v is not None else 3
 
-        await db.execute(text("""
-            INSERT INTO kutir_visits (
-                kutir_id, visited_by_id, visit_date,
-                avg_attendance_morning, avg_attendance_evening,
-                follow_timetable, kutir_closed,
-                plan_hindi, plan_math, plan_english, timetable_plan_reason,
-                math_topics_pre, math_topics_upper, english_topics_pre, english_topics_upper,
-                timeslot_reason, grs_prep_remarks,
-                physical_vs_registered, workbook_percentage, workbook_completion, book_availability,
-                cleanliness, hindi_proficiency, english_proficiency, maths_proficiency,
-                evs_proficiency, reasoning_proficiency, material_management, kutir_performance, staff_behavior,
-                reg_admission_forms, reg_attendance_students, reg_daily_activity, reg_observation,
-                reg_students_data, reg_attendance_teachers, reg_students_documents,
-                regular_students_morning, regular_students_evening,
-                timeslot_bal_sabha, timeslot_sports, timeslot_yoga, timeslot_value_ed, timeslot_gk_map,
-                final_remarks, created_at, updated_at
-            ) VALUES (
-                :ki, :vb, :vd,
-                :am, :ae,
-                :ft, :kc,
-                :ph, :pm, :pe, :tpr,
-                :mtp, :mtu, :etp, :etu,
-                :tr, :gpr,
-                :pvr, :wp, :wc, :ba,
-                :cl, :hp, :ep, :mp, :ev, :rp, :mm, :kp, :sb,
-                :ra, :rs, :rd, :ro, :rsd, :rt, :rdoc,
-                :regm, :rege,
-                :tbs, :tsp, :tyo, :tve, :tgk,
-                :fr, now(), now()
-            )
-        """), {
+        params = {
             "ki": kutir_id, "vb": visited_by_id, "vd": visit_date,
             "am": _int(r.get("avg_attendance_morning")),
             "ae": _int(r.get("avg_attendance_evening")),
@@ -1177,9 +1199,66 @@ async def _import_kutir_visits(rows, db):
             "tve": _yn(r.get("timeslot_value_ed")),
             "tgk": _yn(r.get("timeslot_gk_map")),
             "fr": _str(r.get("final_remarks")) or None,
-        })
+        }
+        if exists:
+            await db.execute(text("""
+                UPDATE kutir_visits SET
+                    visited_by_id=:vb,
+                    avg_attendance_morning=:am, avg_attendance_evening=:ae,
+                    follow_timetable=:ft, kutir_closed=:kc,
+                    plan_hindi=:ph, plan_math=:pm, plan_english=:pe, timetable_plan_reason=:tpr,
+                    math_topics_pre=:mtp, math_topics_upper=:mtu,
+                    english_topics_pre=:etp, english_topics_upper=:etu,
+                    timeslot_reason=:tr, grs_prep_remarks=:gpr,
+                    physical_vs_registered=:pvr, workbook_percentage=:wp,
+                    workbook_completion=:wc, book_availability=:ba,
+                    cleanliness=:cl, hindi_proficiency=:hp, english_proficiency=:ep,
+                    maths_proficiency=:mp, evs_proficiency=:ev, reasoning_proficiency=:rp,
+                    material_management=:mm, kutir_performance=:kp, staff_behavior=:sb,
+                    reg_admission_forms=:ra, reg_attendance_students=:rs, reg_daily_activity=:rd,
+                    reg_observation=:ro, reg_students_data=:rsd, reg_attendance_teachers=:rt,
+                    reg_students_documents=:rdoc,
+                    regular_students_morning=:regm, regular_students_evening=:rege,
+                    timeslot_bal_sabha=:tbs, timeslot_sports=:tsp, timeslot_yoga=:tyo,
+                    timeslot_value_ed=:tve, timeslot_gk_map=:tgk,
+                    final_remarks=:fr, updated_at=now()
+                WHERE id=:id
+            """), {**params, "id": exists})
+            updated += 1; continue
+
+        await db.execute(text("""
+            INSERT INTO kutir_visits (
+                kutir_id, visited_by_id, visit_date,
+                avg_attendance_morning, avg_attendance_evening,
+                follow_timetable, kutir_closed,
+                plan_hindi, plan_math, plan_english, timetable_plan_reason,
+                math_topics_pre, math_topics_upper, english_topics_pre, english_topics_upper,
+                timeslot_reason, grs_prep_remarks,
+                physical_vs_registered, workbook_percentage, workbook_completion, book_availability,
+                cleanliness, hindi_proficiency, english_proficiency, maths_proficiency,
+                evs_proficiency, reasoning_proficiency, material_management, kutir_performance, staff_behavior,
+                reg_admission_forms, reg_attendance_students, reg_daily_activity, reg_observation,
+                reg_students_data, reg_attendance_teachers, reg_students_documents,
+                regular_students_morning, regular_students_evening,
+                timeslot_bal_sabha, timeslot_sports, timeslot_yoga, timeslot_value_ed, timeslot_gk_map,
+                final_remarks, created_at, updated_at
+            ) VALUES (
+                :ki, :vb, :vd,
+                :am, :ae,
+                :ft, :kc,
+                :ph, :pm, :pe, :tpr,
+                :mtp, :mtu, :etp, :etu,
+                :tr, :gpr,
+                :pvr, :wp, :wc, :ba,
+                :cl, :hp, :ep, :mp, :ev, :rp, :mm, :kp, :sb,
+                :ra, :rs, :rd, :ro, :rsd, :rt, :rdoc,
+                :regm, :rege,
+                :tbs, :tsp, :tyo, :tve, :tgk,
+                :fr, now(), now()
+            )
+        """), params)
         created += 1
-    return _result(created, skipped, errors)
+    return _result(created, skipped, errors, updated)
 
 
 # ── Workbook processor ────────────────────────────────────────────────────────
@@ -1217,18 +1296,18 @@ async def process_workbook(data: bytes, db: AsyncSession) -> list[dict]:
     results = []
     for sheet_name, handler in SHEET_ORDER:
         if sheet_name not in wb.sheetnames:
-            results.append({"sheet": sheet_name, "total": 0, "created": 0, "skipped": 0, "errors": ["Sheet not found in uploaded file"]})
+            results.append({"sheet": sheet_name, "total": 0, "created": 0, "updated": 0, "skipped": 0, "errors": ["Sheet not found in uploaded file"]})
             continue
         ws = wb[sheet_name]
         # Auto-detect header row: if row 1 has short string cells (no long note), use it as headers.
         # Row 1 = headers, Row 2 = example/sample row (always skipped), data starts row 3
         all_rows = list(ws.iter_rows(values_only=True))
         if len(all_rows) < 1:
-            results.append({"sheet": sheet_name, "total": 0, "created": 0, "skipped": 0, "errors": []})
+            results.append({"sheet": sheet_name, "total": 0, "created": 0, "updated": 0, "skipped": 0, "errors": []})
             continue
         # Row 1=column titles (headers), Row 2=sample data (always skipped), Row 3+=data
         if len(all_rows) < 1:
-            results.append({"sheet": sheet_name, "total": 0, "created": 0, "skipped": 0, "errors": []})
+            results.append({"sheet": sheet_name, "total": 0, "created": 0, "updated": 0, "skipped": 0, "errors": []})
             continue
         headers = [_str(c).lower().replace(" ", "_") for c in all_rows[0]]
         data_rows = []
@@ -1238,14 +1317,14 @@ async def process_workbook(data: bytes, db: AsyncSession) -> list[dict]:
             data_rows.append(dict(zip(headers, row)))
         total = len(data_rows)
         if not data_rows:
-            results.append({"sheet": sheet_name, "total": 0, "created": 0, "skipped": 0, "errors": []})
+            results.append({"sheet": sheet_name, "total": 0, "created": 0, "updated": 0, "skipped": 0, "errors": []})
             continue
         try:
             r = await handler(data_rows, db)
             await db.commit()
         except Exception as e:
             await db.rollback()
-            r = {"created": 0, "skipped": 0, "errors": [f"Sheet error: {e}"]}
+            r = {"created": 0, "updated": 0, "skipped": 0, "errors": [f"Sheet error: {e}"]}
         r["sheet"] = sheet_name
         r["total"] = total
         results.append(r)
@@ -1255,10 +1334,11 @@ async def process_workbook(data: bytes, db: AsyncSession) -> list[dict]:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 def _build_totals(results: list[dict]) -> dict[str, int]:
-    totals = {"rows": 0, "created": 0, "skipped": 0, "errors": 0}
+    totals = {"rows": 0, "created": 0, "updated": 0, "skipped": 0, "errors": 0}
     for r in results:
         totals["rows"] += r.get("total", 0)
         totals["created"] += r.get("created", 0)
+        totals["updated"] += r.get("updated", 0)
         totals["skipped"] += r.get("skipped", 0)
         totals["errors"] += len(r.get("errors", []))
     # FE labels "Total Rows" as key "total"

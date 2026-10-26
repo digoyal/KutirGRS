@@ -23,7 +23,7 @@ Alpha is “does the product story work?” Beta is “does access control + dat
 
 | Source | What it drives |
 |--------|----------------|
-| [`docs/ideal-early-requirements.md`](./ideal-early-requirements.md) (PRD) | Personas, §5.5 admissions behaviour, BR-\* rules (§6), success criteria, §8 blockers |
+| [`docs/KutirGRS_PRD.md`](./KutirGRS_PRD.md) (PRD) | Personas, §5.5 admissions behaviour, BR-\* rules (§6), success criteria, §8 blockers |
 | [`docs/Role-and-Access.xlsx`](./Role-and-Access.xlsx) → [`docs/role-and-access.md`](./role-and-access.md) | **Functionality** (menu × Add/Edit/Delete vs View) and **Data** (kutir → cluster → area → district → zone → All). SysAdmin is documented in markdown (ops role; not a column on the spreadsheet). |
 | Pipeline Stages spreadsheet + PRD §5.5 / BR-ADM-\* | Six stages and **which admission fields show at each stage**; contiguous prefix tick/untick; one Admitted per student |
 | [`docs/smoke-test.md`](./smoke-test.md) | Every substantial change: tsc/build, login, one API read, SPA route curls — **always first, never replaced** |
@@ -74,7 +74,7 @@ Run [`docs/smoke-test.md`](./smoke-test.md) after any substantial change and **b
 5. Empty assignment → deny by default (no accidental “see everything”).  
 6. Privilege: CC1 cannot create Admin/SysAdmin or assign a higher title than allowed (PRD §2.3). Teacher assignable to **at most one** Kutir.
 
-**Optional API/script (high value, not a suite):** curl or a tiny script that logs in as T1/CC1 and asserts list counts + one out-of-scope mutation fails. Reuse any existing scope/IDOR notes from audit work; do not wait on a full pytest suite for Alpha.
+**Stage 1 automated API (high value, not a full suite):** [`backend/scripts/API_testing_matrix.py`](../backend/scripts/API_testing_matrix.py) logs in as fixtures T1/CC1/ADM/SYS against `http://localhost:8001`, asserts list scope + IDOR GET/PATCH/DELETE (403/404) + BR-ROLE-1 Deploy, and writes [`docs/API_testing_matrix_results.md`](./API_testing_matrix_results.md). No Playwright. Re-run the script to refresh the matrix; do not wait on a full pytest suite for Alpha.
 
 ### 3.2 Admissions pipeline stages
 
@@ -109,7 +109,7 @@ Manual pass: Add/Edit/View — change furthest stage and confirm show/hide + val
 - [ ] Cascades: school type → schools; exam type ↔ school type; subjects follow exam type.  
 - [ ] BR-UX-1: lists/search show `First Last (Father)` when father set.
 
-**Form received:** stored separately from the six stages (PRD). Until §8.3–4 are decided, Alpha: confirm it does not break contiguous stages; Beta: funnel bars must match the agreed stage set (today Home may disagree with Admit Card / Form Received — treat as known risk).
+**Form received:** **Decided (2026-10-26): not a stage; flag removed.** Alpha/Beta: funnel bars must match the six pipeline stages (Eligible → Applied → Admit Card → Appeared → Selected → Admitted).
 
 ### 3.3 Critical business rules (PRD §6)
 
@@ -231,15 +231,15 @@ These do **not** stop writing this approach, but they change pass/fail expectati
 
 | # | Topic | Impact on testing |
 |---|--------|-------------------|
-| 1 | Role matrix vs Admin-only schools / exam centres / visit delete | Functionality tests for CC+ will **fail or pass** depending on which source wins — decide before Beta “matrix compliance” claims |
+| 1 | Role matrix vs Admin-only schools / exam centres / visit delete | **Decided (see role-and-access.md):** Functionality matrix wins (CC+ for school/exam-centre/visit CUD). Stage 1 API script records actual vs expected; no silent pass on stricter code. |
 | 2 | Bulk Progress Update transfer/dropout (class +1 + Admitted∪prior Progress decided) | Defer deep bulk-setup tests until remaining rules exist; Alpha can skip Bulk Progress Update |
-| 3–4 | Form received + Home funnel bars | Funnel counts may not match six stages; do not treat Home as oracle until decided |
-| 5 | Alembic vs numbered SQL | Smoke/schema checks: know which path this checkout uses before “migration applied” claims |
+| 3–4 | Form received (removed) + Home funnel bars | Form received dropped; Home funnel must match six stages before treating as oracle |
+| 5 | Migrations: numbered SQL only (decided) | Expect `backend/scripts/NNN_*.sql` + `schema_migrations` ledger; Deploy runs `python -m app.sql_migrations` |
 | 6 | Soft vs hard delete | Delete tests: expect cascade vs block — confirm before Beta data drills |
-| 7 | Deploy target | SysAdmin Deploy: UI/API auth test only until target is defined |
-| 8 | Donors nav vs Kutir-only | Skip first-class Donors journey until product surface exists |
+| 7 | Deploy target | **Decided:** single AWS production (`/opt/sevakutir` / `PROJECT_ROOT`); Alpha: SysAdmin Deploy UI/API auth only — do not need a real production deploy |
+| 8 | Donors nav vs Kutir-only | **Decided:** Lookups → Donors (simple lookup) + Kutir Donor dropdown; Alpha may exercise Lookups Donors CRUD (Admin) and Kutir donor select |
 | 9 | Multi-attempt / multiple Selected | BR-ADM-2 tests “one Admitted”; clarify whether multiple Selected rows are allowed before asserting otherwise |
-| 10 | Import upsert vs create-only | Re-import tests: expect create/skip vs update — confirm before Beta bulk re-import |
+| 10 | Import upsert vs create-only | **Decided:** re-import upserts matched rows (natural keys in §5.9); Alpha/Beta re-import tests expect `updated` on match for Students/Admissions/Progress/Kutirs/Schools/ExamCenters/Donors/Visits — Users + name-only lookups still create/skip |
 
 **Also from role doc:** SysAdmin is markdown/ops (not a spreadsheet column) — include SYS in fixtures anyway per PRD §2.2 / BR-ROLE-1.
 

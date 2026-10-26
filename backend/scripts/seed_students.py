@@ -130,11 +130,11 @@ async def seed():
         async def insert_exam(sid, school_id, year, stage, scores=None,
                                admitted_school_id=None, no_admit_id=None,
                                no_exam_id=None):
-            """stage: eligible|form|applied|appeared|selected|admitted"""
+            """stage: eligible|form|applied|appeared|selected|admitted
+            ('form' is treated as eligible-only; form_received column removed)."""
             exam_cat_id = random.choice(examcat_ids) if examcat_ids else None
             center_id   = random.choice(center_ids)  if center_ids  else None
 
-            form_received = stage in ("form","applied","appeared","selected","admitted")
             applied       = stage in ("applied","appeared","selected","admitted")
             appeared      = stage in ("appeared","selected","admitted")
             selected      = stage in ("selected","admitted")
@@ -150,14 +150,14 @@ async def seed():
             await s.execute(text("""
                 INSERT INTO student_exams
                   (student_id, school_id, school_start_year,
-                   eligible, form_received, applied, appeared, selected, admitted,
+                   eligible, applied, appeared, selected, admitted,
                    exam_category_id, application_number, exam_center_id, roll_number,
                    math, english, reasoning, evs,
                    admitted_school_id, no_admit_reason_id, no_exam_reason_id,
                    created_at, updated_at)
                 VALUES
                   (:sid, :school_id, :year,
-                   TRUE, :form_received, :applied, :appeared, :selected, :admitted,
+                   TRUE, :applied, :appeared, :selected, :admitted,
                    :exam_cat, :app_num, :center_id, :roll,
                    :math, :eng, :reas, :evs,
                    :admitted_school, :no_admit, :no_exam,
@@ -165,7 +165,7 @@ async def seed():
                 ON CONFLICT ON CONSTRAINT uq_student_school_year DO NOTHING
             """), {
                 "sid": sid, "school_id": school_id, "year": year,
-                "form_received": form_received, "applied": applied,
+                "applied": applied,
                 "appeared": appeared, "selected": selected, "admitted": admitted,
                 "exam_cat": exam_cat_id, "app_num": app_num,
                 "center_id": center_id if applied else None, "roll": roll,

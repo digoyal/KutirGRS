@@ -20,8 +20,10 @@ echo "=== [2/5] Backend: install dependencies ==="
 source venv/bin/activate
 pip install -r requirements.txt --quiet
 
-echo "=== [3/5] Backend: run migrations ==="
-alembic upgrade head
+echo "=== [3/5] Backend: apply pending numbered SQL ==="
+cd backend
+python -m app.sql_migrations
+cd ..
 
 echo "=== [4/5] Frontend: install & build ==="
 cd frontend

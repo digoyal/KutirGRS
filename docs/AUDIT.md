@@ -5,7 +5,7 @@
 **Method:** Code inspection, `npx tsc -b --noEmit`, `npm run lint` (oxlint), read-only SQL against local DB via `backend/.env`.  
 **Constraint:** No code, config, or database writes were made for this audit.
 
-**Sources of truth consulted:** `AGENTS.md`, `docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`.
+**Sources of truth consulted:** `AGENTS.md`, `docs/KutirGRS_PRD.md`, `docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`.
 
 **Legend:** Effort S/M/L · Priority High/Medium/Low · **unsure** = not fully certain.
 
@@ -69,7 +69,7 @@
 |----|-------------|--------------|-----|--------|----------|
 | D1 | `frontend/src/api/students.ts:99–104` `listSchoolTypeSubjects` | Never imported. Calls `GET /school-type-subjects` — **no** backend route. Table dropped by design in `018_drop_school_type_subjects.sql` (still present in local DB — see §4). | Delete function + interface. | S | High |
 | D2 | `frontend/src/api/import.ts:30–37` `getTemplateUrl` | Exported; unused. `downloadTemplate` is what Import page uses. | Delete. | S | Low |
-| D3 | `backend/app/routers/donors.py:13–52` | Full donors CRUD mounted; **no** FE API client / Donors page (known gap R in requirements). Import still uses donors table. | Keep API until Donors UI; add FE page, or document as API-only. | M (UI) | Medium |
+| D3 | `backend/app/routers/donors.py:13–52` | ~~Full donors CRUD mounted; no FE~~ **Done:** Lookups → Donors UI + `donors.ts` client; Kutir `donor_id` dropdown. | — | — | Done |
 | D4 | `backend/app/routers/students.py:156–174` `POST /students/{id}/photo` | No FE caller; Student detail does not upload photos. | Wire UI or remove endpoint. | M | Medium |
 | D5 | `backend/app/routers/users.py:153–155` `GET /users/me` | Unused; auth uses `GET /auth/me`. | Remove or alias and document one. | S | Low |
 | D6 | `geo.py` GET-by-id for zones/districts/areas/clusters | No FE client; lists only. | Optional drop. | S | Low |
@@ -111,7 +111,7 @@
 |----|------|--------------|-----|--------|----------|
 | DB11 | `schemas/students.py:85` and `:96` | `exam_type_id` declared **twice** on `StudentExamBase`. | Remove duplicate field. | S | Low |
 | DB12 | `kutirsFields.ts` `teachers` vs list columns; `visitsFields.ts` missing `staff_behavior` | Field-config registry out of sync with table columns (see D11/D12). | Align Fields ↔ page columns ↔ model. | S | Medium |
-| DB13 | Donors model has `contact`/`notes`; no FE types/page | Master-data gap (requirements §3.5). | Donors UI + `donors.ts` client. | M | Low |
+| DB13 | ~~Donors model; no FE types/page~~ **Done:** Lookups → Donors + Kutir dropdown. | — | — | — | Done |
 
 ### 4.3 Indexes / FKs / uniques
 
@@ -135,7 +135,7 @@
 | S6 | `kutirgrs_v2_export.sql` **git-tracked** (also listed in `.gitignore` — ignore does not untrack); ~27 students with names/DOB/phones/parents; user password hash | PII + credential material in public repo history. | Remove from git history; rotate admin password; keep anonymized seeds only. | M | High |
 | S7 | `backend/scripts/seed_admin.py:13–19` | Hardcoded `PASSWORD = "***REMOVED***"` and hardcoded DB URL including DB password. | Read from env; never commit secrets; force password change. | S | High |
 | S8 | `config.py:8` default JWT secret | Missing/empty `.env` in prod → forgeable tokens. `.env` itself is gitignored (OK). | Refuse to start if `APP_ENV=production` and secret is default. | S | High |
-| S9 | `deploy.py:10`, `42–46`, `62–64` | Admin deploy runs `shell=True` subprocess; default path `/opt/sevakutir`; script calls `alembic upgrade head` but **no Alembic** in repo (hand SQL in `backend/scripts/`). | Prefer CI/systemd; if kept, argv list form, no shell; call real migration runner. | M | High |
+| S9 | `deploy.py` | Admin deploy still runs `shell=True` subprocess; default path `/opt/sevakutir`. **Migration step fixed (2026-10-26):** calls `python -m app.sql_migrations` (numbered SQL + ledger) instead of Alembic. | Prefer CI/systemd; if kept, argv list form, no shell. | M | High |
 | S10 | `main.py:50–51` `/docs` always on; `main.py:83–86` `/media` StaticFiles unauthenticated | Photos/docs readable by anyone with URL; OpenAPI exposes surface. | Auth/signed URLs for media; disable docs when not `is_dev`. | M | Medium |
 | S11 | `DashboardPage.tsx:84–88` `adminOnly` nav only; `App.tsx` `PrivateRoute` is login-only | Lookups/Import/Deploy/Field-config reachable by URL for any logged-in user (mutations mostly admin-gated on API — good). | `AdminRoute` wrapper for those pages. | S | Medium |
 | S12 | `HomePage.tsx:121–149` | Loads up to 5000 students + 2000 exams into the browser to count funnel; stages include **"Form Received"** and omit **"Admit Card"** vs pipeline §5.2. | Server-side aggregate endpoint; align stages with Eligible→Applied→Admit Card→Appeared→Selected→Admitted. | M | Medium |
@@ -163,7 +163,7 @@
 | ID | Finding | Fix / recommendation | Effort | Priority |
 |----|---------|----------------------|--------|----------|
 | T1 | **No automated tests** in repo (no `backend/tests`, no FE `*.test.*` / Playwright / Vitest / pytest configs found). | Add pytest + httpx for API; Vitest for critical FE helpers; optional Playwright smoke. | L | High |
-| T2 | Migrations are hand-numbered SQL + one-off Python; deploy references Alembic; no migration ledger table. | Introduce applied-migrations table or Alembic; make deploy call the same runner as `restore_db.sh`. | L | High |
+| T2 | ~~Deploy Alembic / no ledger~~ — **Done (2026-10-26):** `schema_migrations` ledger + `app.sql_migrations`; Deploy and `restore_db.sh --sync-ledger` aligned. One-off legacy Python migrators remain for pre-004 history. | — | — |
 | T3 | oxlint present; no CI gate verified in this audit for lint/tsc. **unsure** of GitHub Actions without opening workflows in depth. | Fail CI on `tsc` + oxlint errors. | S | Medium |
 
 ### Five most valuable tests to add first
@@ -183,7 +183,7 @@
 3. **Enforce `get_scope` on all student/exam/progress/visit/kutir mutations** (S1)  
 4. **Lock down user privilege escalation** — `is_superuser` + hierarchy on PUT (S4, S5)  
 5. **Admin-gate schools / exam-center CUD and visit delete on the API** (S2, S3)  
-6. **Replace deploy shell+Alembic mismatch** with real migration runner; harden or remove shell deploy (S9, T2)  
+6. **~~Replace deploy Alembic mismatch~~** — migration runner done (T2); still harden or remove shell deploy (S9)  
 7. **Server-side home funnel aggregates + correct stages (include Admit Card)** (S12)  
 8. **Add bfcache reload to Users/Schools/Kutirs/ExamCenters** (R1)  
 9. **Unify role constants FE/BE; fix Cluster Coordinator manage drift** (H3, H4, R13)  
@@ -197,7 +197,7 @@
 - Whether Geo tables should get column config (R9/R26 territory).  
 - Default `listVisits` limit 200 — intentional truncation or bug.  
 - Whether `kutirs.teacher_id` / geo `*_id` person columns are still written by any import path.  
-- Production deploy topology (is `/opt/sevakutir` still correct?).  
+- ~~Production deploy topology~~ — **Decided (2026-10-27):** single AWS production host; keep hard-coded `/opt/sevakutir` / `PROJECT_ROOT`; multi-env deferred.  
 - New Year Setup promotion rules (requirements §6 / gap #11) — page exists but is not in nav (D9).
 
 ---

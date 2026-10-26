@@ -25,7 +25,6 @@ export interface StudentExam {
   exam_type_id: number | null;
   school_start_year: number;
   eligible: boolean;
-  form_received: boolean;
   applied: boolean;
   admit_card: boolean;
   appeared: boolean;
@@ -52,7 +51,6 @@ export interface StudentExamCreate {
   exam_type_id?: number | null;
   school_start_year: number;
   eligible?: boolean;
-  form_received?: boolean;
   applied?: boolean;
   admit_card?: boolean;
   appeared?: boolean;

@@ -147,7 +147,7 @@ const s = {
     verticalAlign: "top" as const,
   } as React.CSSProperties,
 
-  badge: (color: "green" | "red" | "grey"): React.CSSProperties => ({
+  badge: (color: "green" | "red" | "grey" | "blue"): React.CSSProperties => ({
     display: "inline-block",
     padding: "2px 8px",
     borderRadius: 4,
@@ -156,10 +156,12 @@ const s = {
     background:
       color === "green" ? "var(--badge-green-bg, #d1fae5)"
       : color === "red" ? "var(--badge-red-bg, #fee2e2)"
+      : color === "blue" ? "var(--badge-blue-bg, #dbeafe)"
       : "var(--bg-input)",
     color:
       color === "green" ? "var(--badge-green-fg, #065f46)"
       : color === "red" ? "var(--badge-red-fg, #991b1b)"
+      : color === "blue" ? "var(--badge-blue-fg, #1e40af)"
       : "var(--text-secondary)",
   }),
 
@@ -356,6 +358,7 @@ function applyImportResponse(
   setTotals({
     total: t.total ?? t.rows ?? 0,
     created: t.created ?? 0,
+    updated: t.updated ?? 0,
     skipped: t.skipped ?? 0,
     errors: t.errors ?? 0,
   });
@@ -574,6 +577,7 @@ export default function ImportDataPage() {
             {[
               { label: "Total Rows", key: "total", color: "var(--text-primary)" },
               { label: "Created", key: "created", color: "var(--badge-green-fg, #065f46)" },
+              { label: "Updated", key: "updated", color: "var(--badge-blue-fg, #1e40af)" },
               { label: "Skipped", key: "skipped", color: "var(--text-secondary)" },
               { label: "Errors", key: "errors", color: "var(--badge-red-fg, #991b1b)" },
             ].map(({ label, key, color }) => (
@@ -605,6 +609,7 @@ export default function ImportDataPage() {
                 <th style={s.th}>Sheet</th>
                 <th style={{ ...s.th, textAlign: "center" }}>Rows</th>
                 <th style={{ ...s.th, textAlign: "center" }}>Created</th>
+                <th style={{ ...s.th, textAlign: "center" }}>Updated</th>
                 <th style={{ ...s.th, textAlign: "center" }}>Skipped</th>
                 <th style={{ ...s.th, textAlign: "center" }}>Errors</th>
                 <th style={s.th}>Error Details</th>
@@ -622,6 +627,13 @@ export default function ImportDataPage() {
                       <span style={s.badge("green")}>{r.created}</span>
                     ) : (
                       r.created
+                    )}
+                  </td>
+                  <td style={{ ...s.td, textAlign: "center" }}>
+                    {(r.updated ?? 0) > 0 ? (
+                      <span style={s.badge("blue")}>{r.updated}</span>
+                    ) : (
+                      r.updated ?? 0
                     )}
                   </td>
                   <td style={{ ...s.td, textAlign: "center" }}>{r.skipped}</td>

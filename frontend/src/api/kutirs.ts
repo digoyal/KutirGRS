@@ -36,6 +36,7 @@ export interface KutirDetail extends Kutir {
 export interface KutirCreate {
   name: string; kutir_type: string; cluster_id: number; district_id?: number | null;
   street?: string | null; state?: string; pincode?: string | null;
+  donor_id?: number | null;
   enrollment_5th?: number | null; enrollment_8th?: number | null;
 }
 

@@ -114,7 +114,7 @@ This Project’s Context — notes, AUDIT.md, agents notes, preferences — is *
 
 ### How you two should share context today
 
-1. **Repo as source of truth** — keep `AGENTS.md`, `docs/AUDIT.md`, `docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`, and a short CONTRIBUTING in git. Both pull → both (and both agents) have it.
+1. **Repo as source of truth** — keep `AGENTS.md`, `docs/AUDIT.md`, `docs/KutirGRS_PRD.md`, `docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`, and a short CONTRIBUTING in git. Both pull → both (and both agents) have it.
 2. **Branches + PRs** — code and review, not one shared working tree.
 3. **Optional:** duplicate important decisions into team Rules / a shared doc; share chat links when useful.
 

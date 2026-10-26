@@ -32,7 +32,7 @@ Teacher · Cluster Coordinator · Education Coordinator · District Anchor · Re
 | Exam Centers | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 | Geography (zone, district, area, cluster) | Add/Edit/Delete | No | No | Yes | Yes | Yes | Yes | Yes |
 | Geography | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| Lookups (categories, exam types, etc.) | Add/Edit/Delete | No | No | No | No | No | Yes | Yes |
+| Lookups (categories, exam types, donors, etc.) | Add/Edit/Delete | No | No | No | No | No | Yes | Yes |
 | Lookups | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 | Users | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | Yes |
 | Users | View | No | Yes | Yes | Yes | Yes | Yes | Yes |

@@ -12,7 +12,9 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 
 ## Database & migrations
 
-- Schema changes need a **migration** (numbered SQL/script or Alembic), **applied** in the same task/PR. `create_all` only creates missing tables — it does **not** alter columns. Unapplied scripts under `scripts/` are not done.
+- Schema changes ship as **numbered SQL only**: `backend/scripts/NNN_descriptive_name.sql` (e.g. `024_add_foo.sql`). **Do not add Alembic** migrations, `alembic.ini`, or an `alembic/` tree.
+- Deploy applies pending `NNN_*.sql` via `python -m app.sql_migrations`, which records each basename in the `schema_migrations` ledger so re-Deploy is safe. Unapplied scripts under `scripts/` are not done. `create_all` only creates missing tables — it does **not** alter columns.
+- **Ledger bootstrap:** on first create of `schema_migrations`, if the DB already looks initialized (`users` exists), seed the ledger with every current `NNN_*.sql` filename as applied so Deploy does not re-run scripts that were applied manually before the ledger existed. New files added later are pending and get applied. Fresh restores apply all SQL then `--sync-ledger` (see `restore_db.sh`).
 - Any model/API/FE field that needs a new column or table ships **with** that migration. Do not add pipeline/UI stages that cannot persist.
 - Before marking done: **verify** the column/table exists in the target DB (`information_schema` or a `SELECT`). Assume environments can drift.
 - When adding/renaming a field, update in the **same change**: model → API schema → FE type → forms/lists → import/export headers if applicable.
@@ -40,7 +42,15 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
   - On Apply → Back, avoid **bfcache** stale state: navigate with a cache-bust query, strip it on load, and reload on `pageshow` when `persisted`.
   - Do not let a racing API response overwrite a non-empty local column-config cache.
 - Extract repeated hooks/components (`ConfirmDialog`, geo filter bar, bfcache reload) instead of copying again.
-- Aim toward a **field registry** per model (label, form/list/import/export flags, order) so forms, columns, and templates stay aligned.
+- **Field registry** (list / Column Config / export / form labels): see **Field registry** below.
+
+## Field registry
+
+Entity list columns, Column Config, CSV export, and form field labels must come from **one registry per entity** — frontend `*Fields.ts` modules under `frontend/src/constants/` (e.g. `studentsFields.ts`, `kutirsFields.ts`, `admissionsFields.ts`; glob `**/*Fields.ts`). Each exports a `FieldMeta[]` list (`STUDENTS_FIELDS`, `KUTIRS_FIELDS`, …) plus helpers already used in the app (`studentField` / `kutirFieldLabel`, etc.).
+
+- Do **not** hardcode parallel label/key lists in pages, Column Config, or export.
+- Use `label` for list / Column Config / export. Use optional `formLabel` when Add/Edit needs a shorter or different label than the list (e.g. Kutir `enrollment_5th`: list `"5th Enrollment"`, form `"5th Class"`).
+- When adding or renaming a field visible in list/config/export/forms, update that entity’s registry **first**, then wire UI through it.
 
 ## Mobile (laptop + phone)
 
@@ -84,6 +94,6 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 
 ### This repo
 
-Checkout: `/Users/dineshgoyal/projects/KutirGRS` · Product detail: [`docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`](docs/KUTIRGRS_FEATURE_REQUIREMENTS.md) · Role & access: [`docs/role-and-access.md`](docs/role-and-access.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md) · Smoke test: [`docs/smoke-test.md`](docs/smoke-test.md)
+Checkout: `/Users/dineshgoyal/projects/KutirGRS` · PRD: [`docs/KutirGRS_PRD.md`](docs/KutirGRS_PRD.md) · Feature status: [`docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`](docs/KUTIRGRS_FEATURE_REQUIREMENTS.md) · Role & access: [`docs/role-and-access.md`](docs/role-and-access.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md) · Smoke test: [`docs/smoke-test.md`](docs/smoke-test.md)
 
 Local login is **`admin` / `admin`** (`backend/.env` `ADMIN_PASSWORD=admin`). API must be up on `:8001` (`bash backend/start.sh`). Startup creates admin only if missing — it does not rehash on every restart. If the UI says invalid password, check `/docs` first (API down / bad `ALLOWED_ORIGINS` env often looks like a bad password).

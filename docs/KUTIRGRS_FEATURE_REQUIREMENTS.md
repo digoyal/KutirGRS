@@ -2,6 +2,7 @@
 
 **Product:** Parivaar Kutir GRS Admission Tracking
 **Repo:** https://github.com/digoyal/KutirGRS (based on commit `df5d183`, 22 Oct 2026)
+**PRD (day-one requirements):** [`docs/KutirGRS_PRD.md`](./KutirGRS_PRD.md)
 **Status key:** ✅ built · 🟡 partial · ⬜ not built
 
 ---
@@ -60,8 +61,8 @@ Name, school type (seeded: EMRS, JNV, KSP, MRS, GNV, KGBV, Sports Boys, Sports G
 ### 3.4 Exam centres ✅
 Name, district, street, city, state, pincode.
 
-### 3.5 Donors 🟡
-API supports full CRUD and Kutirs can link to a donor. **No Donors page in the UI yet.**
+### 3.5 Donors ✅
+Simple lookup under **Lookups → Donors** (name, contact, notes). Admin / SysAdmin mutate; all roles may view. Kutir Add/Edit links via **Donor** dropdown (`donor_id`).
 
 ### 3.6 Lookups ✅ (Admin)
 - Categories with sub-categories (social category for students)
@@ -71,6 +72,7 @@ API supports full CRUD and Kutirs can link to a donor. **No Donors page in the U
 - Subjects
 - School types and exam types, linked many-to-many
 - Exam-type → subject matrix (which subjects each exam type scores)
+- Donors (sponsors linked from Kutirs)
 
 ---
 
@@ -95,7 +97,7 @@ One record per student per exam attempt (`student_exams`).
 - Admitted school, reason for not taking the exam, reason for not taking admission
 
 ### 5.2 Pipeline
-Stages, in order: **Eligible → Applied → Admit Card Downloaded → Appeared → Selected → Admitted.** A separate "Form received" flag is also stored.
+Stages, in order: **Eligible → Applied → Admit Card Downloaded → Appeared → Selected → Admitted.**
 
 - **R-ADM-1** Ticking a stage also ticks every earlier stage; unticking a stage clears every later stage.
 - **R-ADM-2** If the student did not appear, a "no exam" reason can be recorded. Otherwise it is cleared.
@@ -150,7 +152,7 @@ An inspection form filled in by a field user at a Kutir.
 - **R-ADMIN-1 Column settings** ✅ Admin chooses, per table, which columns show and in what order (drag and drop). Saved in `app_settings` and cached in localStorage. Every table page needs the bfcache fix.
 - **R-ADMIN-2 Excel import** ✅ Upload the workbook (`GRS_Import_Template.xlsx`). Sheets are processed in dependency order `0_Users` … `21_KutirVisits` (see [`docs/import-template.md`](./import-template.md)). Each sheet reports created / skipped / errors. Template download is included.
 - **R-ADMIN-3 Data reset** ✅ Admin-only endpoint that deletes imported data.
-- **R-ADMIN-4 One-click deploy** 🟡 Admin page runs git pull, install, build and restart on the server. The script calls `alembic upgrade head`, but the project uses hand-written SQL migrations in `backend/scripts/`, and the server path is hard-coded (`/opt/sevakutir`).
+- **R-ADMIN-4 One-click deploy** 🟡 SysAdmin page runs git pull, install, build, apply pending `backend/scripts/NNN_*.sql` via `schema_migrations` ledger, and restart on the single AWS production host. Server path is hard-coded (`/opt/sevakutir` / `PROJECT_ROOT`); multi-env / configurable target deferred.
 
 ---
 
@@ -169,10 +171,10 @@ An inspection form filled in by a field user at a Kutir.
 | # | Item | Priority |
 |---|---|---|
 | 1 | **`kutirgrs_v2_export.sql` is committed to a public repo.** It contains 27 student records (names, DOB, phones, parents' names) and a user password hash. Remove it from git history and change that password. | **High** |
-| 2 | Home funnel uses "Form Received" and leaves out "Admit Card"; this doesn't match the pipeline in §5.2. | Medium |
+| 2 | ~~Home/Reports funnel stages~~ — **Done (2026-10-26):** Form Received removed; Home + Reports Summary use full six §5.2 stages including Admit Card. | — |
 | 3 | Home funnel loads every exam record into the browser and counts there. Move the counts to the API before the data grows. | Medium |
-| 4 | Deploy script references Alembic, which isn't used (§9). | Medium |
-| 5 | No Donors page in the UI. | Low |
+| 4 | ~~Deploy script references Alembic~~ — **Done (2026-10-26):** Deploy applies numbered SQL via ledger (§9). **Deploy target decided (2026-10-27):** single AWS production host; path hard-coded (`/opt/sevakutir` / `PROJECT_ROOT`); multi-env deferred. | Low |
+| 5 | ~~No Donors page in the UI.~~ Done — Lookups → Donors + Kutir dropdown. | — |
 | 6 | Menu shows Students, Kutirs, Users and other pages to every role. Hide pages a role can't use. | Low |
 | 7 | "Reports" appears twice in the menu, both linking to Summary. | Low |
 | 8 | Deletes use `window.confirm()`; replace with a shared ConfirmDialog. | Low |

@@ -82,7 +82,6 @@ class StudentExam(Base, TimestampMixin):
 
     # Admission pipeline flags
     eligible: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    form_received: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     applied: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     admit_card: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     appeared: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -4,6 +4,7 @@ export interface SheetResult {
   sheet: string;
   total: number;
   created: number;
+  updated?: number;
   skipped: number;
   errors: string[];
 }
@@ -14,6 +15,7 @@ export interface ImportResponse {
     total?: number;
     rows?: number;
     created: number;
+    updated?: number;
     skipped: number;
     errors: number;
   };

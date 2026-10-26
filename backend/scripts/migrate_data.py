@@ -6,7 +6,7 @@ Run from the kutirGRS-v2/backend directory:
 
 Prerequisites:
   - Geo tables (zones, districts, areas, clusters) already seeded via seed_geo.py
-  - New DB tables created (run the app once to trigger alembic / create_all)
+  - New DB tables created (create_all / restore_db.sh / numbered SQL under scripts/)
 
 Users are NOT migrated — create them fresh in the new app.
 Kutir.teacher_id and KutirVisit.visited_by_id will be NULL (old user IDs don't exist in new DB).
@@ -234,7 +234,7 @@ async def migrate():
         print("\n→ Migrating student_exams...")
         rows = await src.fetch("""
             SELECT id, student_id, school_id, school_start_year,
-                   eligible, form_received, applied, appeared, selected, admitted,
+                   eligible, applied, appeared, selected, admitted,
                    admitted_school_id, no_admit_reason_id, exam_category_id,
                    application_number, exam_center_id, roll_number, no_exam_reason_id,
                    math, english, reasoning, evs,
@@ -245,15 +245,15 @@ async def migrate():
             await enable_replica(dst)
             await dst.executemany(
                 """INSERT INTO student_exams (id, student_id, school_id, school_start_year,
-                     eligible, form_received, applied, appeared, selected, admitted,
+                     eligible, applied, appeared, selected, admitted,
                      admitted_school_id, no_admit_reason_id, exam_category_id,
                      application_number, exam_center_id, roll_number, no_exam_reason_id,
                      math, english, reasoning, evs, created_at, updated_at)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-                           $18,$19,$20,$21,$22,$23)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+                           $17,$18,$19,$20,$21,$22)
                    ON CONFLICT DO NOTHING""",
                 [(r["id"], r["student_id"], r["school_id"], r["school_start_year"],
-                  r["eligible"], r["form_received"], r["applied"], r["appeared"],
+                  r["eligible"], r["applied"], r["appeared"],
                   r["selected"], r["admitted"],
                   r["admitted_school_id"], r["no_admit_reason_id"], r["exam_category_id"],
                   r["application_number"] or None, r["exam_center_id"],
