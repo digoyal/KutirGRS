@@ -112,11 +112,13 @@ async def delete_zone(zone_id: int, db: AsyncSession = Depends(get_db), _=Depend
 async def list_districts(
     zone_id: Optional[int] = Query(None),
     parivaar_presence: Optional[bool] = Query(None),
+    # Opt-in: skip role geo filter (e.g. Admissions GRS School District picker).
+    unscoped: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     gs: GeoScope = Depends(get_geo_scope),
 ):
     q = select(District).order_by(District.name)
-    if gs.district_ids is not None:
+    if not unscoped and gs.district_ids is not None:
         q = q.where(District.id.in_(gs.district_ids))
     if zone_id:
         q = q.where(District.zone_id == zone_id)

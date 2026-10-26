@@ -237,10 +237,10 @@ export function AdmissionForm({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
-  /** All districts for GRS School picker (not limited by Parivaar Presence). */
+  /** All districts for GRS School picker (no Parivaar Presence, no role geo scope). */
   const { data: allDistricts = [] } = useQuery({
-    queryKey: ["districts", null],
-    queryFn: () => listDistricts(),
+    queryKey: ["districts", { unscoped: true }],
+    queryFn: () => listDistricts(undefined, { unscoped: true }),
   });
   const { data: examCategories = [] } = useQuery({
     queryKey: ["exam-categories"],
@@ -298,22 +298,12 @@ export function AdmissionForm({
     () => scopeByUser(presenceDistricts),
     [presenceDistricts, user, isAdmin],
   );
-  const scopedSchoolDistricts = useMemo(
-    () => scopeByUser(allDistricts),
-    [allDistricts, user, isAdmin],
-  );
 
   useEffect(() => {
     if (scopedPresenceDistricts.length === 1 && examDistrictFilter === "") {
       setExamDistrictFilter(scopedPresenceDistricts[0].id);
     }
   }, [scopedPresenceDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (scopedSchoolDistricts.length === 1 && schoolDistrictFilter === "") {
-      setSchoolDistrictFilter(scopedSchoolDistricts[0].id);
-    }
-  }, [scopedSchoolDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setField<K extends keyof AdmissionFormState>(key: K, val: AdmissionFormState[K]) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -985,7 +975,7 @@ export function AdmissionForm({
                 style={selStyles}
               >
                 <option value="">-- all --</option>
-                {scopedSchoolDistricts.map((d) => (
+                {allDistricts.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>

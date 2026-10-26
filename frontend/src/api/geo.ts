@@ -16,11 +16,12 @@ export const listStates = async (): Promise<State[]> => (await api.get("/geo/sta
 export const listZones = async (): Promise<Zone[]> => (await api.get("/geo/zones")).data;
 export const listDistricts = async (
   zone_id?: number,
-  opts?: { parivaar_presence?: boolean },
+  opts?: { parivaar_presence?: boolean; unscoped?: boolean },
 ): Promise<District[]> => {
   const params: Record<string, number | boolean> = {};
   if (zone_id != null) params.zone_id = zone_id;
   if (opts?.parivaar_presence != null) params.parivaar_presence = opts.parivaar_presence;
+  if (opts?.unscoped) params.unscoped = true;
   return (await api.get("/geo/districts", { params })).data;
 };
 export const listAreas = async (district_id?: number): Promise<Area[]> => (await api.get("/geo/areas", { params: district_id ? { district_id } : {} })).data;
