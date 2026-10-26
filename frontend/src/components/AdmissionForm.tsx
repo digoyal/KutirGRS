@@ -1068,7 +1068,7 @@ export function AdmissionForm({
                 }}
                 style={selStyles}
               >
-                <option value="">-- all --</option>
+                <option value="">-- select --</option>
                 {allDistricts.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -1085,7 +1085,7 @@ export function AdmissionForm({
                 onChange={(e) => setField("school_type", e.target.value)}
                 style={selStyles}
               >
-                <option value="">-- all --</option>
+                <option value="">-- select --</option>
                 {schoolTypes.map((t) => (
                   <option key={t} value={t}>
                     {t}
