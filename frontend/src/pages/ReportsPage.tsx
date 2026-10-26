@@ -6,6 +6,7 @@ import api from "../api/client";
 import { listExams, type StudentExam } from "../api/admissions";
 import { listVisits, type KutirVisit } from "../api/visits";
 import { GrsTabs } from "../components/GrsTabs";
+import { RowCountBadge } from "@parivaar/ui";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -73,7 +74,11 @@ function FunnelReport({ year }: { year: number }) {
   const hdrCol: React.CSSProperties = { padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "var(--badge-blue-fg)", borderBottom: "2px solid var(--badge-blue-bg)" };
 
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div>
+      <div style={{ marginBottom: 8 }}>
+        <RowCountBadge count={rows.length} />
+      </div>
+      <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
         <thead>
           <tr style={{ background: "var(--badge-blue-bg)" }}>
@@ -118,6 +123,7 @@ function FunnelReport({ year }: { year: number }) {
           </tr>
         </tfoot>
       </table>
+      </div>
     </div>
   );
 }
@@ -173,10 +179,13 @@ function AdmittedReport({ year }: { year: number }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-          <strong style={{ color: "var(--status-success-fg)" }}>{admitted.length}</strong> students admitted in {year}
-        </span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <RowCountBadge count={admitted.length} />
+          <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+            admitted in {year}
+          </span>
+        </div>
         <button onClick={exportCSV} style={{ background: "var(--status-success-bg)", color: "var(--status-success-fg)", border: "1px solid var(--status-success-fg)", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}>
           ↓ Export CSV
         </button>
@@ -270,7 +279,11 @@ function VisitSummaryReport() {
   }
 
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div>
+      <div style={{ marginBottom: 8 }}>
+        <RowCountBadge count={rows.length} />
+      </div>
+      <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
         <thead>
           <tr style={{ background: "var(--badge-amber-bg)" }}>
@@ -311,6 +324,7 @@ function VisitSummaryReport() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

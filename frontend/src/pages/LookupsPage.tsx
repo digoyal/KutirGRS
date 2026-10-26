@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { canManageLookupsUser } from "../constants/roles";
+import { RowCountBadge } from "@parivaar/ui";
 import { grs } from "../styles/grs";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { GrsModal } from "../components/GrsModal";
@@ -217,7 +218,11 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
       ) : safeItems.length === 0 ? (
         <p style={{ ...grs.muted, textAlign: "center", padding: "24px 0" }}>No items yet.</p>
       ) : (
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            <RowCountBadge count={safeItems.length} />
+          </div>
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr>
@@ -269,6 +274,7 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -403,7 +409,11 @@ function ExamTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
           No subjects defined yet. Add subjects in the Subjects tab first.
         </div>
       ) : (
-        <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            <RowCountBadge count={rows.length} />
+          </div>
+          <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 8 }}>
           <table style={{ borderCollapse: "collapse", background: "var(--bg-card)", minWidth: "100%" }}>
             <thead>
               <tr>
@@ -448,6 +458,7 @@ function ExamTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
@@ -573,7 +584,11 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
       ) : items.length === 0 ? (
         <p style={{ ...grs.muted, textAlign: "center", padding: "24px 0" }}>No exam types yet.</p>
       ) : (
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            <RowCountBadge count={items.length} />
+          </div>
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr>
@@ -603,6 +618,7 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
