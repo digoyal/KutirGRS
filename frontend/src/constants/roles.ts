@@ -4,8 +4,8 @@
  * Keep in sync with backend/app/roles.py.
  */
 
-/** Lowest → highest */
-export const TITLES = [
+/** Day-to-day roles (lowest → highest). SysAdmin is Deploy-only. */
+export const OPERATIONAL_TITLES = [
   "Teacher",
   "Cluster Coordinator",
   "Education Coordinator",
@@ -14,17 +14,24 @@ export const TITLES = [
   "Admin",
 ] as const;
 
-export type RoleTitle = (typeof TITLES)[number];
+export const SYSADMIN = "SysAdmin" as const;
 
-function from(minTitle: RoleTitle): readonly RoleTitle[] {
-  const i = TITLES.indexOf(minTitle);
-  return TITLES.slice(i);
+/** Full assignable list (Admin may create SysAdmin). */
+export const TITLES = [...OPERATIONAL_TITLES, SYSADMIN] as const;
+
+export type RoleTitle = (typeof TITLES)[number];
+export type OperationalTitle = (typeof OPERATIONAL_TITLES)[number];
+
+function from(minTitle: OperationalTitle): readonly OperationalTitle[] {
+  const i = OPERATIONAL_TITLES.indexOf(minTitle);
+  return OPERATIONAL_TITLES.slice(i);
 }
 
-export const ALL_ROLES: readonly RoleTitle[] = TITLES;
+export const ALL_ROLES: readonly OperationalTitle[] = OPERATIONAL_TITLES;
 export const ADMIN_ONLY: readonly RoleTitle[] = ["Admin"];
-export const CC_PLUS: readonly RoleTitle[] = from("Cluster Coordinator");
-export const EC_PLUS: readonly RoleTitle[] = from("Education Coordinator");
+export const SYSADMIN_ONLY: readonly RoleTitle[] = [SYSADMIN];
+export const CC_PLUS: readonly OperationalTitle[] = from("Cluster Coordinator");
+export const EC_PLUS: readonly OperationalTitle[] = from("Education Coordinator");
 
 /** Mutate (Add/Edit/Delete) — Functionality sheet */
 export const MANAGE_STUDENTS = ALL_ROLES;
@@ -38,11 +45,13 @@ export const MANAGE_GEOGRAPHY = EC_PLUS;
 export const MANAGE_LOOKUPS = ADMIN_ONLY;
 export const MANAGE_USERS = CC_PLUS;
 export const MANAGE_COLUMN_CONFIG = ADMIN_ONLY;
+export const MANAGE_DEPLOY = SYSADMIN_ONLY;
 
 /** View restrictions */
 export const VIEW_USERS = CC_PLUS;
 export const VIEW_COLUMN_CONFIG = ADMIN_ONLY;
 export const VIEW_LOOKUPS = ALL_ROLES;
+export const VIEW_DEPLOY = SYSADMIN_ONLY;
 
 export function hasRole(
   title: string | null | undefined,
@@ -53,6 +62,10 @@ export function hasRole(
 
 export function isAdmin(title: string | null | undefined): boolean {
   return title === "Admin";
+}
+
+export function isSysAdmin(title: string | null | undefined): boolean {
+  return title === SYSADMIN;
 }
 
 export function canManageStudents(title: string | null | undefined): boolean {
@@ -96,6 +109,9 @@ export function canManageUsers(title: string | null | undefined): boolean {
 export function canManageColumnConfig(title: string | null | undefined): boolean {
   return hasRole(title, MANAGE_COLUMN_CONFIG);
 }
+export function canManageDeploy(title: string | null | undefined): boolean {
+  return hasRole(title, MANAGE_DEPLOY);
+}
 
 export function canViewUsers(title: string | null | undefined): boolean {
   return hasRole(title, VIEW_USERS);
@@ -106,8 +122,14 @@ export function canViewColumnConfig(title: string | null | undefined): boolean {
 export function canViewLookups(title: string | null | undefined): boolean {
   return hasRole(title, VIEW_LOOKUPS);
 }
+export function canViewDeploy(title: string | null | undefined): boolean {
+  return hasRole(title, VIEW_DEPLOY);
+}
 
-/** Titles the actor may assign (strictly below their own; Admin → all). */
+/**
+ * Titles the actor may assign (strictly below their own).
+ * Admin may assign any title including SysAdmin.
+ */
 export function assignableTitles(actorTitle: string | null | undefined): string[] {
   if (actorTitle === "Admin") return [...TITLES];
   const i = TITLES.indexOf(actorTitle as RoleTitle);

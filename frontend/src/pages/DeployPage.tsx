@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import api from "../api/client";
 import { grs } from "../styles/grs";
+import { useAuth } from "../context/AuthContext";
+import { canViewDeploy } from "../constants/roles";
 
 async function fetchStatus() {
   return (await api.get("/admin/deploy/status")).data as { output: string; success: boolean };
@@ -12,13 +14,17 @@ async function runDeploy() {
 }
 
 export default function DeployPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [log, setLog] = useState<string | null>(null);
   const [deploySuccess, setDeploySuccess] = useState<boolean | null>(null);
 
+  const allowed = canViewDeploy(user?.title);
+
   const { data: status, refetch: refetchStatus } = useQuery({
     queryKey: ["deploy-status"],
     queryFn: fetchStatus,
+    enabled: allowed,
   });
 
   const deployMut = useMutation({
@@ -35,6 +41,10 @@ export default function DeployPage() {
   });
 
   const running = deployMut.isPending;
+
+  if (!allowed) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div style={{ maxWidth: 700, padding: "24px 20px" }}>

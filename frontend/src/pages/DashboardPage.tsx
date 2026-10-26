@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   canViewUsers,
   canViewColumnConfig,
+  canViewDeploy,
   isAdmin as roleIsAdmin,
 } from "../constants/roles";
 import HomePage from "./HomePage";
@@ -20,6 +21,7 @@ export default function DashboardPage() {
 
   function navVisible(item: (typeof navItems)[number]): boolean {
     if (item.adminOnly && !roleIsAdmin(title)) return false;
+    if (item.sysAdminOnly && !canViewDeploy(title)) return false;
     if (item.usersOnly && !canViewUsers(title)) return false;
     if (item.columnConfigOnly && !canViewColumnConfig(title)) return false;
     return true;
@@ -81,6 +83,7 @@ const navItems: {
   divider?: boolean;
   sub?: boolean;
   adminOnly?: boolean;
+  sysAdminOnly?: boolean;
   usersOnly?: boolean;
   columnConfigOnly?: boolean;
 }[] = [
@@ -104,7 +107,7 @@ const navItems: {
   { to: "/lookups", label: "Lookups" }, // all roles may view; mutate Admin-only on page
   { to: "/users", label: "Users", usersOnly: true },
   { to: "/admin/field-config", label: "Column Settings", columnConfigOnly: true },
-  { to: "/admin/deploy", label: "🚀 Deploy", adminOnly: true },
+  { to: "/admin/deploy", label: "🚀 Deploy", sysAdminOnly: true },
   { to: "/import", label: "Import Data", adminOnly: true },
 ];
 

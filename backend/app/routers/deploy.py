@@ -2,7 +2,7 @@ import asyncio
 import subprocess
 import os
 from fastapi import APIRouter, Depends, HTTPException
-from app.auth import require_admin
+from app.auth import require_sysadmin
 
 router = APIRouter(prefix="/admin/deploy", tags=["deploy"])
 
@@ -36,8 +36,8 @@ echo "=== Deploy complete ==="
 
 
 @router.post("")
-async def trigger_deploy(_=Depends(require_admin)):
-    """Run git pull + build + restart. Streams output as text."""
+async def trigger_deploy(_=Depends(require_sysadmin)):
+    """Run git pull + build + restart. Streams output as text. SysAdmin only."""
     try:
         proc = await asyncio.create_subprocess_shell(
             DEPLOY_SCRIPT,
@@ -56,8 +56,8 @@ async def trigger_deploy(_=Depends(require_admin)):
 
 
 @router.get("/status")
-async def deploy_status(_=Depends(require_admin)):
-    """Check git status and current commit."""
+async def deploy_status(_=Depends(require_sysadmin)):
+    """Check git status and current commit. SysAdmin only."""
     try:
         result = subprocess.run(
             f"cd {PROJECT_ROOT} && git log -1 --format='%h %s (%cr)' && git status --short",

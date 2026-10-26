@@ -12,6 +12,7 @@ import { TITLES as ROLE_TITLES } from "../constants/roles";
 export const TITLES = [...ROLE_TITLES];
 
 const ROLE_LEAF: Record<string, "zone" | "district" | "area" | "cluster" | "kutir" | null> = {
+  "SysAdmin":              null,
   "Admin":                 null,
   "Regional Head":         "zone",
   "District Anchor":       "district",

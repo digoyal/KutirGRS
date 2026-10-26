@@ -67,6 +67,15 @@ async def require_admin(user=Depends(get_current_user)):
     return user
 
 
+async def require_sysadmin(user=Depends(get_current_user)):
+    """Deploy and other SysAdmin-only ops — Admin is not sufficient."""
+    from app.roles import SYSADMIN
+
+    if user.title != SYSADMIN:
+        raise HTTPException(status_code=403, detail="SysAdmin access required")
+    return user
+
+
 async def require_any_role(user=Depends(get_current_user)):
     return user
 
@@ -75,6 +84,7 @@ def require_roles(allowed: Collection[str]):
     """Allow callers whose title is in `allowed`, or Admin / superuser.
 
     Prefer sets from app.roles (MANAGE_*, VIEW_*) so gates match docs/role-and-access.md.
+    SysAdmin-only sets never grant via Admin bypass (see role_allowed).
     """
     from app.roles import role_allowed
 
