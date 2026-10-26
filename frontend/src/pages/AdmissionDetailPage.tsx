@@ -184,6 +184,7 @@ export default function AdmissionDetailPage() {
             setForm={setForm}
             mode="view"
             studentName={studentName}
+            studentKutirId={student?.kutir_id}
             currentExamId={exam.id}
           />
 
@@ -230,6 +231,7 @@ export default function AdmissionDetailPage() {
         setForm={setForm}
         mode="edit"
         studentName={studentName}
+        studentKutirId={student?.kutir_id}
         siblingExams={studentAllExams}
         currentExamId={exam.id}
         admitBlockMsg={admitBlockMsg}

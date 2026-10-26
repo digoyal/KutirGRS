@@ -18,16 +18,37 @@ import { listSchools } from "../api/schools";
 import { listKutirs } from "../api/kutirs";
 import {
   listDistricts,
+  listAreas,
+  listClusters,
   listExamCenters,
   listExamCategories,
   listNoExamReasons,
   listNoAdmitReasons,
 } from "../api/geo";
+import type { Kutir } from "../api/kutirs";
+import type { Area, Cluster } from "../api/geo";
 import { viewStyles } from "@parivaar/ui";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
 import { grs } from "../styles/grs";
 import { studentLabel } from "../utils/studentLabel";
+
+/** Student district via kutir.district_id, else kutir → cluster → area → district. */
+function districtIdForKutir(
+  kutirId: number | null | undefined,
+  kutirs: Kutir[],
+  clusters: Cluster[],
+  areas: Area[],
+): number | null {
+  if (!kutirId) return null;
+  const k = kutirs.find((x) => x.id === kutirId);
+  if (!k) return null;
+  if (k.district_id != null) return k.district_id;
+  const c = clusters.find((x) => x.id === k.cluster_id);
+  if (!c) return null;
+  const a = areas.find((x) => x.id === c.area_id);
+  return a?.district_id ?? null;
+}
 import {
   type StageKey,
   StageBadge,
@@ -190,6 +211,8 @@ interface AdmissionFormProps {
   mode: "add" | "edit" | "view";
   /** Display name for edit/view (student cannot be changed). */
   studentName?: string;
+  /** Student's kutir — used to prefill Parivaar District on edit. */
+  studentKutirId?: number | null;
   /**
    * Other exams for this student (edit mode). Used to block a second Admit.
    * Pass the current exam id so it is excluded from the check.
@@ -206,6 +229,7 @@ export function AdmissionForm({
   setForm,
   mode,
   studentName,
+  studentKutirId,
   siblingExams = [],
   currentExamId,
   admitBlockMsg,
@@ -260,11 +284,24 @@ export function AdmissionForm({
     queryKey: ["no-admit-reasons"],
     queryFn: () => listNoAdmitReasons(),
   });
+  const needGeoForDistrict = isAdd || mode === "edit";
   const { data: allKutirsData = [] } = useQuery({
     queryKey: ["kutirs"],
     queryFn: () => listKutirs(),
     staleTime: 5 * 60 * 1000,
-    enabled: isAdd,
+    enabled: needGeoForDistrict,
+  });
+  const { data: allClusters = [] } = useQuery({
+    queryKey: ["all-clusters"],
+    queryFn: () => listClusters(),
+    staleTime: 5 * 60 * 1000,
+    enabled: needGeoForDistrict,
+  });
+  const { data: allAreas = [] } = useQuery({
+    queryKey: ["all-areas"],
+    queryFn: () => listAreas(),
+    staleTime: 5 * 60 * 1000,
+    enabled: needGeoForDistrict,
   });
   const { data: students = [] } = useQuery({
     queryKey: ["students-search", "admissions", search.trim(), kutirFilter],
@@ -301,11 +338,30 @@ export function AdmissionForm({
     [presenceDistricts, user, unscoped],
   );
 
+  function applyParivaarDistrict(districtId: number | null) {
+    if (districtId == null) return;
+    if (!scopedPresenceDistricts.some((d) => d.id === districtId)) return;
+    setExamDistrictFilter(districtId);
+  }
+
   useEffect(() => {
     if (scopedPresenceDistricts.length === 1 && examDistrictFilter === "") {
       setExamDistrictFilter(scopedPresenceDistricts[0].id);
     }
   }, [scopedPresenceDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Edit: prefill Parivaar District from existing exam center, else student's kutir district
+  useEffect(() => {
+    if (mode !== "edit" || examDistrictFilter !== "") return;
+    const center = examCenters.find((c) => c.id === form.exam_center_id);
+    if (center?.district_id != null) {
+      applyParivaarDistrict(center.district_id);
+      return;
+    }
+    applyParivaarDistrict(
+      districtIdForKutir(studentKutirId, allKutirsData, allClusters, allAreas),
+    );
+  }, [mode, form.exam_center_id, studentKutirId, examCenters, allKutirsData, allClusters, allAreas, scopedPresenceDistricts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setField<K extends keyof AdmissionFormState>(key: K, val: AdmissionFormState[K]) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -668,6 +724,20 @@ export function AdmissionForm({
                         onClick={() => {
                           setField("student_id", s.id);
                           setSearch(label);
+                          const did = districtIdForKutir(
+                            s.kutir_id,
+                            allKutirsData,
+                            allClusters,
+                            allAreas,
+                          );
+                          applyParivaarDistrict(did);
+                          // Drop center from another district when student (district) changes
+                          if (did != null && form.exam_center_id != null) {
+                            const cur = examCenters.find((c) => c.id === form.exam_center_id);
+                            if (cur?.district_id != null && cur.district_id !== did) {
+                              setField("exam_center_id", null);
+                            }
+                          }
                         }}
                         style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
                         onMouseEnter={(e) =>
