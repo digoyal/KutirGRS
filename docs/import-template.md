@@ -53,4 +53,5 @@ There is **no States sheet** — districts reference existing `states` rows (Mad
 - **Donors:** `name`, `contact`, `notes`.
 - **Kutir type:** Seva Kutir | Shiksha Kutir | Non-Kutir.
 - **Years:** `school_start_year` / `academic_year` are **integers** (e.g. `2025`). UI display `2025-26` is not used on import.
+- **Admissions / Progress:** resolve students by `first_name` + `last_name` + `kutir_name` only — **no `student_id`**. Progress resolves school by `school_name` only — **no `school_id`**.
 - **Admissions pipeline:** `eligible`, `form_received`, `applied`, `admit_card`, `appeared`, `selected`, `admitted` (+ optional `score_<subject>` columns).

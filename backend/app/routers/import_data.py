@@ -662,26 +662,20 @@ async def _import_exam_type_subjects(rows, db):
 async def _import_admissions(rows, db):
     created = skipped = 0; errors = []
     for r in rows:
-        # Resolve student
-        student_id = _int(r.get("student_id"))
-        if student_id:
-            sid = (await db.execute(
-                text("SELECT id FROM students WHERE id=:i"), {"i": student_id}
-            )).scalar_one_or_none()
-        else:
-            first = _str(r.get("first_name")); last = _str(r.get("last_name"))
-            kutir_name = _str(r.get("kutir_name"))
-            kutir_id = (await db.execute(
-                text("SELECT id FROM kutirs WHERE lower(name)=lower(:n)"), {"n": kutir_name}
-            )).scalar_one_or_none() if kutir_name else None
-            sid = (await db.execute(
-                text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
-                     "AND lower(last_name)=lower(:l) AND kutir_id=:k"),
-                {"f": first, "l": last, "k": kutir_id}
-            )).scalar_one_or_none() if (first and kutir_id) else None
+        # Resolve student by natural key (first_name + last_name + kutir_name)
+        first = _str(r.get("first_name")); last = _str(r.get("last_name"))
+        kutir_name = _str(r.get("kutir_name"))
+        kutir_id = (await db.execute(
+            text("SELECT id FROM kutirs WHERE lower(name)=lower(:n)"), {"n": kutir_name}
+        )).scalar_one_or_none() if kutir_name else None
+        sid = (await db.execute(
+            text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
+                 "AND lower(last_name)=lower(:l) AND kutir_id=:k"),
+            {"f": first, "l": last, "k": kutir_id}
+        )).scalar_one_or_none() if (first and kutir_id) else None
         if not sid:
-            ref = student_id or f"{r.get('first_name')} {r.get('last_name')}"
-            errors.append(f"Student '{ref}' not found — row skipped"); continue
+            ref = f"{first} {last}".strip() or "(unnamed)"
+            errors.append(f"Student '{ref}' (kutir '{kutir_name}') not found — row skipped"); continue
 
         # Required: school_name, school_type, school_start_year
         school_name = _str(r.get("school_name"))
@@ -797,42 +791,28 @@ async def _import_progress(rows, db):
     """Import student_progress records. Unique on (student_id, school_id, academic_year)."""
     created = skipped = 0; errors = []
     for r in rows:
-        # Resolve student — by id or by name+kutir
-        student_id = _int(r.get("student_id"))
-        if student_id:
-            sid = (await db.execute(
-                text("SELECT id FROM students WHERE id=:i"), {"i": student_id}
-            )).scalar_one_or_none()
-        else:
-            first = _str(r.get("first_name")); last = _str(r.get("last_name"))
-            kutir_name = _str(r.get("kutir_name"))
-            kutir_id = (await db.execute(
-                text("SELECT id FROM kutirs WHERE lower(name)=lower(:n)"), {"n": kutir_name}
-            )).scalar_one_or_none() if kutir_name else None
-            sid = (await db.execute(
-                text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
-                     "AND lower(last_name)=lower(:l) AND kutir_id=:k"),
-                {"f": first, "l": last, "k": kutir_id}
-            )).scalar_one_or_none() if (first and kutir_id) else None
+        # Resolve student by natural key (first_name + last_name + kutir_name)
+        first = _str(r.get("first_name")); last = _str(r.get("last_name"))
+        kutir_name = _str(r.get("kutir_name"))
+        kutir_id = (await db.execute(
+            text("SELECT id FROM kutirs WHERE lower(name)=lower(:n)"), {"n": kutir_name}
+        )).scalar_one_or_none() if kutir_name else None
+        sid = (await db.execute(
+            text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
+                 "AND lower(last_name)=lower(:l) AND kutir_id=:k"),
+            {"f": first, "l": last, "k": kutir_id}
+        )).scalar_one_or_none() if (first and kutir_id) else None
         if not sid:
-            ref = student_id or f"{r.get('first_name')} {r.get('last_name')}"
-            errors.append(f"Student '{ref}' not found — row skipped"); continue
+            ref = f"{first} {last}".strip() or "(unnamed)"
+            errors.append(f"Student '{ref}' (kutir '{kutir_name}') not found — row skipped"); continue
 
-        # Resolve school
+        # Resolve school by name only
         school_name = _str(r.get("school_name"))
-        school_id = None
-        if school_name:
-            school_id = (await db.execute(
-                text("SELECT id FROM schools WHERE lower(name)=lower(:n)"), {"n": school_name}
-            )).scalar_one_or_none()
+        school_id = (await db.execute(
+            text("SELECT id FROM schools WHERE lower(name)=lower(:n)"), {"n": school_name}
+        )).scalar_one_or_none() if school_name else None
         if not school_id:
-            school_id_raw = _int(r.get("school_id"))
-            if school_id_raw:
-                school_id = (await db.execute(
-                    text("SELECT id FROM schools WHERE id=:i"), {"i": school_id_raw}
-                )).scalar_one_or_none()
-        if not school_id:
-            errors.append(f"School '{school_name}' not found for student id={sid} — row skipped"); continue
+            errors.append(f"School '{school_name}' not found for student '{ref}' — row skipped"); continue
 
         academic_year = _int(r.get("academic_year"))
         if not academic_year:
