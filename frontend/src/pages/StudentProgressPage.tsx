@@ -164,7 +164,7 @@ export default function StudentProgressPage() {
         const csvValue = (p: StudentProgress): string => {
           switch (meta.key) {
             case "student": { const s = studentMap2.get(p.student_id); return s ? `${(s as any).first_name} ${(s as any).last_name}` : String(p.student_id); }
-            case "class_in_year": return p.class_in_year != null ? `Class ${p.class_in_year}` : "";
+            case "class_in_year": return p.class_in_year != null ? String(p.class_in_year) : "";
             case "school_id": return (p.school ?? schoolMap.get(p.school_id))?.name ?? "";
             case "status": return STATUS_LABELS[p.status as ProgressStatus] ?? p.status;
             case "previous_year_percentage": return p.previous_year_percentage != null ? `${parseFloat(String(p.previous_year_percentage)).toFixed(1)}%` : "";
@@ -176,58 +176,103 @@ export default function StudentProgressPage() {
           switch (meta.key) {
             case "student": {
               const s = studentMap2.get(p.student_id);
+              const name = s ? `${(s as any).first_name} ${(s as any).last_name}` : `#${p.student_id}`;
               return (
-                <Link to={`/students/${p.student_id}`} style={{ color: "var(--badge-purple-fg)", textDecoration: "none", fontWeight: 600 }}>
-                  {s ? `${(s as any).first_name} ${(s as any).last_name}` : `#${p.student_id}`}
+                <Link
+                  to={`/students/${p.student_id}`}
+                  title={name}
+                  style={{
+                    color: "var(--badge-purple-fg)",
+                    textDecoration: "none",
+                    fontWeight: 600,
+                    fontSize: "0.8125rem",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {name}
                 </Link>
               );
             }
             case "class_in_year":
               return (
-                <span style={{ background: "var(--badge-purple-bg)", color: "var(--badge-purple-fg)", borderRadius: 4, padding: "2px 8px", fontSize: "0.8rem", fontWeight: 700 }}>
-                  {p.class_in_year != null ? `Class ${p.class_in_year}` : "—"}
+                <span
+                  style={{
+                    background: "var(--badge-purple-bg)",
+                    color: "var(--badge-purple-fg)",
+                    borderRadius: 4,
+                    padding: "1px 6px",
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {p.class_in_year != null ? p.class_in_year : "—"}
                 </span>
               );
             case "school_id": {
               const school = p.school ?? schoolMap.get(p.school_id);
+              const name = school?.name ?? `School #${p.school_id}`;
               return (
-                <div>
-                  <div style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>{school?.name ?? `School #${p.school_id}`}</div>
-                  {school?.school_type && <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{school.school_type}</div>}
-                </div>
+                <span
+                  title={school?.school_type ? `${name} (${school.school_type})` : name}
+                  style={{
+                    fontSize: "0.8125rem",
+                    color: "var(--text-primary)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {name}
+                </span>
               );
             }
             case "status": {
               const st = p.status as ProgressStatus;
               const b = STATUS_BADGES[st] ?? STATUS_BADGES.enrolled;
+              const detail =
+                st === "transferred" && p.transfer_school
+                  ? p.transfer_school
+                  : st === "dropped_out" && p.exit_reason
+                    ? p.exit_reason
+                    : undefined;
               return (
-                <div>
-                  <span style={{ background: b.bg, color: b.fg, borderRadius: 4, padding: "2px 8px", fontSize: "0.78rem", fontWeight: 600 }}>
-                    {b.prefix}{STATUS_LABELS[st]}
-                  </span>
-                  {st === "transferred" && p.transfer_school && (
-                    <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>{p.transfer_school}</div>
-                  )}
-                  {st === "dropped_out" && p.exit_reason && (
-                    <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>{p.exit_reason}</div>
-                  )}
-                </div>
+                <span
+                  title={detail}
+                  style={{
+                    background: b.bg,
+                    color: b.fg,
+                    borderRadius: 4,
+                    padding: "1px 6px",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {b.prefix}{STATUS_LABELS[st]}
+                </span>
               );
             }
             case "previous_year_percentage":
               return p.previous_year_percentage != null ? (
-                <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ fontVariantNumeric: "tabular-nums", fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
                   {parseFloat(String(p.previous_year_percentage)).toFixed(1)}%
                 </span>
               ) : "—";
             case "remarks":
-              return <span>{p.remarks ?? "—"}</span>;
+              return <span style={{ whiteSpace: "nowrap" }}>{p.remarks ?? "—"}</span>;
             default:
               return null;
           }
         };
-        const tdStyle: React.CSSProperties | undefined =
-          meta.key === "remarks" ? { maxWidth: 180, fontSize: "0.8rem", color: "var(--text-secondary)" } : undefined;
+        const compactTd: React.CSSProperties = {
+          padding: "6px 10px",
+          fontSize: "0.8125rem",
+          whiteSpace: "nowrap",
+          verticalAlign: "middle",
+        };
+        const tdStyle: React.CSSProperties =
+          meta.key === "remarks"
+            ? { ...compactTd, maxWidth: 180, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis" }
+            : compactTd;
         return { key: meta.key, label: meta.label, sortable: true, sortValue, csvValue, render, tdStyle };
       }),
   [orderedMetas, isVisible, studentMap2, schoolMap]);
