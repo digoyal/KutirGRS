@@ -37,6 +37,10 @@ class SheetResult(BaseModel):
 class ImportResponse(BaseModel):
     results: list[SheetResult]
     totals: dict[str, int]
+    filename: str | None = None
+    imported_by: str | None = None
+    created_at: str | None = None
+    id: int | None = None
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1056,23 +1060,100 @@ async def process_workbook(data: bytes, db: AsyncSession) -> list[dict]:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+def _build_totals(results: list[dict]) -> dict[str, int]:
+    totals = {"rows": 0, "created": 0, "skipped": 0, "errors": 0}
+    for r in results:
+        totals["rows"] += r.get("total", 0)
+        totals["created"] += r.get("created", 0)
+        totals["skipped"] += r.get("skipped", 0)
+        totals["errors"] += len(r.get("errors", []))
+    # FE labels "Total Rows" as key "total"
+    totals["total"] = totals["rows"]
+    return totals
+
+
+async def _save_import_log(
+    db: AsyncSession,
+    *,
+    filename: str | None,
+    imported_by: str | None,
+    results: list[dict],
+    totals: dict[str, int],
+) -> dict:
+    """Persist run to import_logs; returns id + created_at (ISO)."""
+    import json
+    row = (await db.execute(text("""
+        INSERT INTO import_logs (filename, imported_by, results, totals)
+        VALUES (:fn, :by, CAST(:res AS jsonb), CAST(:tot AS jsonb))
+        RETURNING id, created_at
+    """), {
+        "fn": filename,
+        "by": imported_by,
+        "res": json.dumps(results),
+        "tot": json.dumps(totals),
+    })).one()
+    await db.commit()
+    created = row[1]
+    return {
+        "id": row[0],
+        "created_at": created.isoformat() if hasattr(created, "isoformat") else str(created),
+    }
+
+
 @router.post("/upload", response_model=ImportResponse)
 async def upload_import(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_admin),
+    user=Depends(require_admin),
 ):
     if not file.filename or not file.filename.endswith((".xlsx", ".xlsm")):
         raise HTTPException(400, "Please upload an .xlsx file")
     data = await file.read()
     results = await process_workbook(data, db)
-    totals = {"rows": 0, "created": 0, "skipped": 0, "errors": 0}
-    for r in results:
-        totals["rows"]    += r.get("total", 0)
-        totals["created"] += r.get("created", 0)
-        totals["skipped"] += r.get("skipped", 0)
-        totals["errors"]  += len(r.get("errors", []))
-    return {"results": results, "totals": totals}
+    totals = _build_totals(results)
+    meta = await _save_import_log(
+        db,
+        filename=file.filename,
+        imported_by=getattr(user, "username", None),
+        results=results,
+        totals=totals,
+    )
+    return {
+        "results": results,
+        "totals": totals,
+        "filename": file.filename,
+        "imported_by": getattr(user, "username", None),
+        "created_at": meta["created_at"],
+        "id": meta["id"],
+    }
+
+
+@router.get("/last", response_model=ImportResponse)
+async def get_last_import(
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """Most recent completed import (for Import page after navigate away)."""
+    row = (await db.execute(text("""
+        SELECT id, filename, imported_by, results, totals, created_at
+        FROM import_logs
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    """))).one_or_none()
+    if not row:
+        raise HTTPException(404, "No import has been run yet")
+    totals = dict(row[4] or {})
+    if "total" not in totals and "rows" in totals:
+        totals["total"] = totals["rows"]
+    created = row[5]
+    return {
+        "id": row[0],
+        "filename": row[1],
+        "imported_by": row[2],
+        "results": row[3] or [],
+        "totals": totals,
+        "created_at": created.isoformat() if hasattr(created, "isoformat") else str(created),
+    }
 
 
 @router.get("/template")

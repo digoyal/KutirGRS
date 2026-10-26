@@ -11,11 +11,16 @@ export interface SheetResult {
 export interface ImportResponse {
   results: SheetResult[];
   totals: {
-    total: number;
+    total?: number;
+    rows?: number;
     created: number;
     skipped: number;
     errors: number;
   };
+  filename?: string | null;
+  imported_by?: string | null;
+  created_at?: string | null;
+  id?: number | null;
 }
 
 export async function uploadImportFile(file: File): Promise<ImportResponse> {
@@ -25,6 +30,18 @@ export async function uploadImportFile(file: File): Promise<ImportResponse> {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data;
+}
+
+/** Most recent completed import, or null if none yet. */
+export async function fetchLastImport(): Promise<ImportResponse | null> {
+  try {
+    const res = await api.get<ImportResponse>("/import/last");
+    return res.data;
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status === 404) return null;
+    throw err;
+  }
 }
 
 export function getTemplateUrl(): string {

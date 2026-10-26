@@ -1,6 +1,14 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
-import { uploadImportFile, downloadTemplate, resetData, type SheetResult, type DeleteDataResponse } from "../api/import";
+import {
+  uploadImportFile,
+  downloadTemplate,
+  resetData,
+  fetchLastImport,
+  type SheetResult,
+  type DeleteDataResponse,
+  type ImportResponse,
+} from "../api/import";
 
 const SHEET_GUIDE = [
   { name: "0_Users",              note: "App users (Admin / District Head / Regional Head etc.)" },
@@ -337,39 +345,74 @@ function DeleteDataSection() {
   );
 }
 
+function applyImportResponse(
+  resp: ImportResponse,
+  setResults: (r: SheetResult[] | null) => void,
+  setTotals: (t: Record<string, number> | null) => void,
+  setMeta: (m: { filename?: string | null; imported_by?: string | null; created_at?: string | null } | null) => void,
+) {
+  const t = resp.totals ?? {};
+  setResults(resp.results);
+  setTotals({
+    total: t.total ?? t.rows ?? 0,
+    created: t.created ?? 0,
+    skipped: t.skipped ?? 0,
+    errors: t.errors ?? 0,
+  });
+  setMeta({
+    filename: resp.filename,
+    imported_by: resp.imported_by,
+    created_at: resp.created_at,
+  });
+}
+
 export default function ImportDataPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SheetResult[] | null>(null);
   const [totals, setTotals] = useState<Record<string, number> | null>(null);
+  const [lastMeta, setLastMeta] = useState<{
+    filename?: string | null;
+    imported_by?: string | null;
+    created_at?: string | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const last = await fetchLastImport();
+        if (cancelled || !last) return;
+        applyImportResponse(last, setResults, setTotals, setLastMeta);
+      } catch {
+        /* leave empty if fetch fails */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
     setFile(f);
-    setResults(null);
-    setTotals(null);
     setError(null);
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     const f = e.dataTransfer.files[0];
-    if (f) { setFile(f); setResults(null); setTotals(null); setError(null); }
+    if (f) { setFile(f); setError(null); }
   }
 
   async function handleUpload() {
     if (!file) return;
     setLoading(true);
     setError(null);
-    setResults(null);
-    setTotals(null);
     try {
       const resp = await uploadImportFile(file);
-      setResults(resp.results);
-      setTotals(resp.totals);
+      applyImportResponse(resp, setResults, setTotals, setLastMeta);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
@@ -475,13 +518,11 @@ export default function ImportDataPage() {
               style={s.btnSecondary}
               onClick={() => {
                 setFile(null);
-                setResults(null);
-                setTotals(null);
                 setError(null);
                 if (fileInput.current) fileInput.current.value = "";
               }}
             >
-              Clear
+              Clear file
             </button>
           )}
         </div>
@@ -502,13 +543,22 @@ export default function ImportDataPage() {
         )}
       </div>
 
-      {/* Results */}
+      {/* Results — last completed import (persisted server-side) */}
       {results && totals && (
         <div style={s.card}>
           <div style={s.stepTitle}>
             <span style={s.stepNum}>✓</span>
-            Import Results
+            Last Import Results
           </div>
+          {lastMeta && (lastMeta.filename || lastMeta.created_at || lastMeta.imported_by) && (
+            <p style={{ ...s.stepDesc, marginBottom: 12 }}>
+              {lastMeta.filename ? <strong>{lastMeta.filename}</strong> : "Import"}
+              {lastMeta.imported_by ? ` · by ${lastMeta.imported_by}` : ""}
+              {lastMeta.created_at
+                ? ` · ${new Date(lastMeta.created_at).toLocaleString("en-IN")}`
+                : ""}
+            </p>
+          )}
 
           {/* Totals */}
           <div style={s.totalsRow}>
