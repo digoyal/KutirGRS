@@ -34,14 +34,14 @@ Processed in this order only:
 | 11 | `11_Areas` | Districts |
 | 12 | `12_Schools` | Districts (optional); school type as text |
 | 13 | `13_ExamCenters` | Districts (optional) |
-| 14 | `14_Clusters` | Areas |
+| 14 | `14_Clusters` | Areas (+ `district_name` to scope area) |
 | 15 | `15_ExamTypes` | SchoolTypes (`school_types` CSV) |
 | 16 | `16_SubjectsByExamType` | ExamTypes + Subjects |
-| 17 | `17_Kutirs` | Clusters, Districts, Donors, Users |
-| 18 | `18_Students` | Kutirs, Categories |
-| 19 | `19_Admissions` | Students, Schools, lookups, ExamCenters |
-| 20 | `20_Progress` | Students, Schools |
-| 21 | `21_KutirVisits` | Kutirs, Users |
+| 17 | `17_Kutirs` | Clusters (+ `district_name` / optional `area_name`), Districts, Donors, Users |
+| 18 | `18_Students` | Kutirs (hierarchical), Categories |
+| 19 | `19_Admissions` | Students (via hierarchical kutir), Schools, lookups, ExamCenters |
+| 20 | `20_Progress` | Students (via hierarchical kutir), Schools |
+| 21 | `21_KutirVisits` | Kutirs (hierarchical), Users |
 
 There is **no States sheet** — districts reference existing `states` rows (Madhya Pradesh, Jharkhand, Chhattisgarh).
 
@@ -52,6 +52,10 @@ There is **no States sheet** — districts reference existing `states` rows (Mad
 - **Schools / ExamCenters:** `street`, `city`, `district_name`, `state`, `pincode` (not a free-text `address`).
 - **Donors:** `name`, `contact`, `notes`.
 - **Kutir type:** Seva Kutir | Shiksha Kutir | Non-Kutir.
+- **Parent-scoped names (not globally unique):** cluster names are unique **within a district**; kutir names are unique **within a cluster**. Import never resolves cluster/kutir by name alone.
+  - **Clusters:** `name` + `area_name` + `district_name`.
+  - **Kutirs:** `name` + `cluster_name` + `district_name` (optional `area_name` to disambiguate).
+  - **Students / Admissions / Progress / KutirVisits:** require `district_name` + `cluster_name` + `kutir_name` (optional `area_name`).
 - **Years:** `school_start_year` / `academic_year` are **integers** (e.g. `2025`). UI display `2025-26` is not used on import.
-- **Admissions / Progress:** resolve students by `first_name` + `last_name` + `kutir_name` only — **no `student_id`**. Progress resolves school by `school_name` only — **no `school_id`**.
+- **Admissions / Progress:** resolve students by `first_name` + `last_name` + hierarchical kutir key — **no `student_id`**. Progress resolves school by `school_name` only — **no `school_id`**.
 - **Admissions pipeline:** `eligible`, `form_received`, `applied`, `admit_card`, `appeared`, `selected`, `admitted` (+ optional `score_<subject>` columns).

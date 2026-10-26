@@ -102,6 +102,116 @@ def _result(created, skipped, errors):
         "errors": [f"{m} (×{c})" if c > 1 else m for m, c in cnt.items()],
     }
 
+
+# ── Hierarchical geo resolve (names are parent-scoped, not globally unique) ──
+# Cluster unique within district (via area→district); kutir unique within cluster.
+
+async def _resolve_area_id(
+    db,
+    *,
+    area_name: str,
+    district_name: str,
+) -> tuple[int | None, str | None]:
+    if not area_name:
+        return None, "Empty area_name"
+    if not district_name:
+        return None, f"Area '{area_name}' needs district_name (areas are unique within a district)"
+    rows = (await db.execute(text("""
+        SELECT a.id
+        FROM areas a
+        JOIN districts d ON d.id = a.district_id
+        WHERE lower(a.name) = lower(:a) AND lower(d.name) = lower(:d)
+    """), {"a": area_name, "d": district_name})).scalars().all()
+    if len(rows) == 0:
+        return None, f"Area '{area_name}' not found in district '{district_name}'"
+    if len(rows) > 1:
+        return None, f"Ambiguous area '{area_name}' in district '{district_name}' ({len(rows)} matches)"
+    return rows[0], None
+
+
+async def _resolve_cluster_id(
+    db,
+    *,
+    cluster_name: str,
+    district_name: str,
+    area_name: str = "",
+) -> tuple[int | None, str | None]:
+    """Cluster by name within a district (optional area_name to disambiguate)."""
+    if not cluster_name:
+        return None, "Empty cluster_name"
+    if not district_name:
+        return None, (
+            f"Cluster '{cluster_name}' needs district_name "
+            "(same cluster name may exist in other districts)"
+        )
+    sql = """
+        SELECT c.id
+        FROM clusters c
+        JOIN areas a ON a.id = c.area_id
+        JOIN districts d ON d.id = a.district_id
+        WHERE lower(c.name) = lower(:c) AND lower(d.name) = lower(:d)
+    """
+    params: dict[str, Any] = {"c": cluster_name, "d": district_name}
+    if area_name:
+        sql += " AND lower(a.name) = lower(:a)"
+        params["a"] = area_name
+    rows = (await db.execute(text(sql), params)).scalars().all()
+    if len(rows) == 0:
+        scope = f"district '{district_name}'" + (f" / area '{area_name}'" if area_name else "")
+        return None, f"Cluster '{cluster_name}' not found in {scope}"
+    if len(rows) > 1:
+        return None, (
+            f"Ambiguous cluster '{cluster_name}' in district '{district_name}' "
+            f"({len(rows)} matches) — also set area_name"
+        )
+    return rows[0], None
+
+
+async def _resolve_kutir_id(
+    db,
+    *,
+    kutir_name: str,
+    cluster_name: str = "",
+    district_name: str = "",
+    area_name: str = "",
+) -> tuple[int | None, str | None]:
+    """Kutir by name within cluster; cluster scoped by district (+ optional area)."""
+    if not kutir_name:
+        return None, "Empty kutir_name"
+    if not cluster_name or not district_name:
+        return None, (
+            f"Kutir '{kutir_name}' needs district_name and cluster_name "
+            "(kutir names are unique within a cluster, not globally)"
+        )
+    sql = """
+        SELECT k.id
+        FROM kutirs k
+        JOIN clusters c ON c.id = k.cluster_id
+        JOIN areas a ON a.id = c.area_id
+        JOIN districts d ON d.id = a.district_id
+        WHERE lower(k.name) = lower(:k)
+          AND lower(c.name) = lower(:c)
+          AND lower(d.name) = lower(:d)
+    """
+    params: dict[str, Any] = {"k": kutir_name, "c": cluster_name, "d": district_name}
+    if area_name:
+        sql += " AND lower(a.name) = lower(:a)"
+        params["a"] = area_name
+    rows = (await db.execute(text(sql), params)).scalars().all()
+    if len(rows) == 0:
+        scope = f"cluster '{cluster_name}' / district '{district_name}'"
+        if area_name:
+            scope = f"area '{area_name}' / " + scope
+        return None, f"Kutir '{kutir_name}' not found under {scope}"
+    if len(rows) > 1:
+        return None, (
+            f"Ambiguous kutir '{kutir_name}' under cluster '{cluster_name}' / "
+            f"district '{district_name}' ({len(rows)} matches)"
+            + ("" if area_name else " — also set area_name")
+        )
+    return rows[0], None
+
+
 # ── Sheet parsers (all async, receive db session) ────────────────────────────
 
 async def _import_users(rows, db):
@@ -301,14 +411,14 @@ async def _import_areas(rows, db):
 async def _import_clusters(rows, db):
     created = skipped = 0; errors = []
     for r in rows:
-        raw_name = _str(r.get("name")); area_name = _str(r.get("area_name"))
+        raw_name = _str(r.get("name"))
+        area_name = _str(r.get("area_name"))
+        district_name = _str(r.get("district_name"))
         if not raw_name:
             errors.append("Empty name — row skipped"); continue
-        area_id = (await db.execute(
-            text("SELECT id FROM areas WHERE lower(name)=lower(:n)"), {"n": area_name}
-        )).scalar_one_or_none()
-        if not area_id:
-            errors.append(f"Area '{area_name}' not found for cluster '{raw_name}'"); continue
+        area_id, err = await _resolve_area_id(db, area_name=area_name, district_name=district_name)
+        if err:
+            errors.append(f"{err} — cluster '{raw_name}' skipped"); continue
         username = _str(r.get("userid"))
         uid = None
         if username:
@@ -473,23 +583,24 @@ async def _import_kutirs(rows, db):
         name = _str(r.get("name"))
         if not name:
             errors.append("Empty name — row skipped"); continue
+        cluster_name = _str(r.get("cluster_name"))
+        dist_name = _str(r.get("district_name"))
+        area_name = _str(r.get("area_name"))
+        cluster_id, err = await _resolve_cluster_id(
+            db, cluster_name=cluster_name, district_name=dist_name, area_name=area_name,
+        )
+        if err:
+            errors.append(f"{err} — kutir '{name}' skipped"); continue
+        # Unique within cluster (not globally)
         exists = (await db.execute(
-            text("SELECT id FROM kutirs WHERE lower(name)=lower(:n) LIMIT 1"), {"n": name}
+            text("SELECT id FROM kutirs WHERE lower(name)=lower(:n) AND cluster_id=:c"),
+            {"n": name, "c": cluster_id},
         )).scalar_one_or_none()
         if exists:
             skipped += 1; continue
-        cluster_name = _str(r.get("cluster_name"))
-        cluster_id = (await db.execute(
-            text("SELECT id FROM clusters WHERE lower(name)=lower(:n) LIMIT 1"), {"n": cluster_name}
-        )).scalar_one_or_none()
-        if not cluster_id:
-            errors.append(f"Cluster '{cluster_name}' not found for kutir '{name}'"); continue
-        dist_name = _str(r.get("district_name"))
-        dist_id = None
-        if dist_name:
-            dist_id = (await db.execute(
-                text("SELECT id FROM districts WHERE lower(name)=lower(:n) LIMIT 1"), {"n": dist_name}
-            )).scalar_one_or_none()
+        dist_id = (await db.execute(
+            text("SELECT id FROM districts WHERE lower(name)=lower(:n) LIMIT 1"), {"n": dist_name}
+        )).scalar_one_or_none() if dist_name else None
         ktype = KUTIR_TYPE_MAP.get(_str(r.get("kutir_type", "")).lower(), "Seva Kutir")
         donor_name = _str(r.get("donor_name"))
         donor_id = None
@@ -499,19 +610,19 @@ async def _import_kutirs(rows, db):
             )).scalar_one_or_none()
             if not donor_id:
                 errors.append(f"Donor '{donor_name}' not found — kutir '{name}' imported without donor")
-        await db.execute(text("""
+        kutir_id = (await db.execute(text("""
             INSERT INTO kutirs (name, kutir_type, cluster_id, district_id, street,
                                 state, pincode, donor_id, enrollment_5th, enrollment_8th,
                                 created_at, updated_at)
             VALUES (:n, :kt, :cl, :di, :sr, :sa, :pi, :do, :e5, :e8, now(), now())
+            RETURNING id
         """), {"n": name, "kt": ktype, "cl": cluster_id, "di": dist_id,
                "sr": _str(r.get("street")) or None,
                "sa": _state(r.get("state")),
                "pi": _str(r.get("pincode")) or None,
                "do": donor_id,
                "e5": _int(r.get("enrollment_5th")),
-               "e8": _int(r.get("enrollment_8th"))})
-        kutir_id = (await db.execute(text("SELECT id FROM kutirs WHERE lower(name)=lower(:n) LIMIT 1"), {"n": name})).scalar_one_or_none()
+               "e8": _int(r.get("enrollment_8th"))})).scalar_one()
         created += 1
         username = _str(r.get("userid"))
         if username:
@@ -534,31 +645,37 @@ async def _import_students(rows, db):
         first = _str(r.get("first_name")); last = _str(r.get("last_name"))
         if not first:
             errors.append("Empty first_name — row skipped"); continue
-        kutir_name = _str(r.get("kutir_name"))
-        kutir_id = (await db.execute(
-            text("SELECT id FROM kutirs WHERE lower(name)=lower(:n)"), {"n": kutir_name}
-        )).scalar_one_or_none()
-        if not kutir_id:
-            errors.append(f"Kutir '{kutir_name}' not found for student '{first} {last}'"); continue
-        exists = (await db.execute(
+        kutir_id, err = await _resolve_kutir_id(
+            db,
+            kutir_name=_str(r.get("kutir_name")),
+            cluster_name=_str(r.get("cluster_name")),
+            district_name=_str(r.get("district_name")),
+            area_name=_str(r.get("area_name")),
+        )
+        if err:
+            errors.append(f"{err} — student '{first} {last}' skipped"); continue
+        # May be multiple duplicates already — take any one id for skip check
+        exists_rows = (await db.execute(
             text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
-                 "AND lower(last_name)=lower(:l) AND kutir_id=:k"),
+                 "AND lower(last_name)=lower(:l) AND kutir_id=:k LIMIT 1"),
             {"f": first, "l": last, "k": kutir_id}
-        )).scalar_one_or_none()
-        if exists:
+        )).scalars().all()
+        if exists_rows:
             skipped += 1; continue
         cat_name = _str(r.get("category_name"))
         cat_id = None
         if cat_name:
-            cat_id = (await db.execute(
-                text("SELECT id FROM categories WHERE lower(name)=lower(:n)"), {"n": cat_name}
-            )).scalar_one_or_none()
+            cat_rows = (await db.execute(
+                text("SELECT id FROM categories WHERE lower(name)=lower(:n) LIMIT 1"), {"n": cat_name}
+            )).scalars().all()
+            cat_id = cat_rows[0] if cat_rows else None
         subcat_name = _str(r.get("sub_category_name"))
         subcat_id = None
         if subcat_name:
-            subcat_id = (await db.execute(
-                text("SELECT id FROM sub_categories WHERE lower(name)=lower(:n)"), {"n": subcat_name}
-            )).scalar_one_or_none()
+            sub_rows = (await db.execute(
+                text("SELECT id FROM sub_categories WHERE lower(name)=lower(:n) LIMIT 1"), {"n": subcat_name}
+            )).scalars().all()
+            subcat_id = sub_rows[0] if sub_rows else None
         gender = _str(r.get("gender", "Boy"))
         if gender not in ("Boy", "Girl"):
             gender = "Boy"
@@ -666,17 +783,24 @@ async def _import_exam_type_subjects(rows, db):
 async def _import_admissions(rows, db):
     created = skipped = 0; errors = []
     for r in rows:
-        # Resolve student by natural key (first_name + last_name + kutir_name)
+        # Resolve student by natural key + hierarchical kutir (district → cluster → kutir)
         first = _str(r.get("first_name")); last = _str(r.get("last_name"))
         kutir_name = _str(r.get("kutir_name"))
-        kutir_id = (await db.execute(
-            text("SELECT id FROM kutirs WHERE lower(name)=lower(:n)"), {"n": kutir_name}
-        )).scalar_one_or_none() if kutir_name else None
-        sid = (await db.execute(
+        kutir_id, kerr = await _resolve_kutir_id(
+            db,
+            kutir_name=kutir_name,
+            cluster_name=_str(r.get("cluster_name")),
+            district_name=_str(r.get("district_name")),
+            area_name=_str(r.get("area_name")),
+        )
+        if kerr:
+            errors.append(f"{kerr} — admissions row skipped"); continue
+        sid_rows = (await db.execute(
             text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
-                 "AND lower(last_name)=lower(:l) AND kutir_id=:k"),
+                 "AND lower(last_name)=lower(:l) AND kutir_id=:k LIMIT 1"),
             {"f": first, "l": last, "k": kutir_id}
-        )).scalar_one_or_none() if (first and kutir_id) else None
+        )).scalars().all() if first else []
+        sid = sid_rows[0] if sid_rows else None
         if not sid:
             ref = f"{first} {last}".strip() or "(unnamed)"
             errors.append(f"Student '{ref}' (kutir '{kutir_name}') not found — row skipped"); continue
@@ -795,26 +919,35 @@ async def _import_progress(rows, db):
     """Import student_progress records. Unique on (student_id, school_id, academic_year)."""
     created = skipped = 0; errors = []
     for r in rows:
-        # Resolve student by natural key (first_name + last_name + kutir_name)
+        # Resolve student by natural key + hierarchical kutir
         first = _str(r.get("first_name")); last = _str(r.get("last_name"))
         kutir_name = _str(r.get("kutir_name"))
-        kutir_id = (await db.execute(
-            text("SELECT id FROM kutirs WHERE lower(name)=lower(:n)"), {"n": kutir_name}
-        )).scalar_one_or_none() if kutir_name else None
-        sid = (await db.execute(
+        kutir_id, kerr = await _resolve_kutir_id(
+            db,
+            kutir_name=kutir_name,
+            cluster_name=_str(r.get("cluster_name")),
+            district_name=_str(r.get("district_name")),
+            area_name=_str(r.get("area_name")),
+        )
+        if kerr:
+            errors.append(f"{kerr} — progress row skipped"); continue
+        sid_rows = (await db.execute(
             text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
-                 "AND lower(last_name)=lower(:l) AND kutir_id=:k"),
+                 "AND lower(last_name)=lower(:l) AND kutir_id=:k LIMIT 1"),
             {"f": first, "l": last, "k": kutir_id}
-        )).scalar_one_or_none() if (first and kutir_id) else None
+        )).scalars().all() if first else []
+        sid = sid_rows[0] if sid_rows else None
         if not sid:
             ref = f"{first} {last}".strip() or "(unnamed)"
             errors.append(f"Student '{ref}' (kutir '{kutir_name}') not found — row skipped"); continue
+        ref = f"{first} {last}".strip() or "(unnamed)"
 
         # Resolve school by name only
         school_name = _str(r.get("school_name"))
-        school_id = (await db.execute(
-            text("SELECT id FROM schools WHERE lower(name)=lower(:n)"), {"n": school_name}
-        )).scalar_one_or_none() if school_name else None
+        sch_rows = (await db.execute(
+            text("SELECT id FROM schools WHERE lower(name)=lower(:n) LIMIT 1"), {"n": school_name}
+        )).scalars().all() if school_name else []
+        school_id = sch_rows[0] if sch_rows else None
         if not school_id:
             errors.append(f"School '{school_name}' not found for student '{ref}' — row skipped"); continue
 
@@ -823,11 +956,11 @@ async def _import_progress(rows, db):
             errors.append(f"Missing academic_year for student id={sid} — row skipped"); continue
 
         # Skip duplicates
-        exists = (await db.execute(
-            text("SELECT id FROM student_progress WHERE student_id=:s AND school_id=:sc AND academic_year=:y"),
+        exists_rows = (await db.execute(
+            text("SELECT id FROM student_progress WHERE student_id=:s AND school_id=:sc AND academic_year=:y LIMIT 1"),
             {"s": sid, "sc": school_id, "y": academic_year}
-        )).scalar_one_or_none()
-        if exists:
+        )).scalars().all()
+        if exists_rows:
             skipped += 1; continue
 
         status = _str(r.get("status", "enrolled"))
@@ -870,11 +1003,15 @@ async def _import_kutir_visits(rows, db):
         kutir_name = _str(r.get("kutir_name"))
         if not kutir_name:
             errors.append("Empty kutir_name — row skipped"); continue
-        kutir_id = (await db.execute(
-            text("SELECT id FROM kutirs WHERE lower(name)=lower(:n) LIMIT 1"), {"n": kutir_name}
-        )).scalar_one_or_none()
-        if not kutir_id:
-            errors.append(f"Kutir '{kutir_name}' not found — row skipped"); continue
+        kutir_id, kerr = await _resolve_kutir_id(
+            db,
+            kutir_name=kutir_name,
+            cluster_name=_str(r.get("cluster_name")),
+            district_name=_str(r.get("district_name")),
+            area_name=_str(r.get("area_name")),
+        )
+        if kerr:
+            errors.append(f"{kerr} — visit row skipped"); continue
 
         visit_date = _date(r.get("visit_date"))
         if not visit_date:
