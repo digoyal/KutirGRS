@@ -1082,7 +1082,10 @@ export function AdmissionForm({
               </label>
               <select
                 value={form.school_type}
-                onChange={(e) => setField("school_type", e.target.value)}
+                onChange={(e) => {
+                  setField("school_type", e.target.value);
+                  setField("admitted_school_id", null);
+                }}
                 style={selStyles}
               >
                 <option value="">-- select --</option>
@@ -1105,7 +1108,13 @@ export function AdmissionForm({
                     e.target.value === "" ? null : Number(e.target.value),
                   )
                 }
-                style={selStyles}
+                disabled={!form.school_type}
+                style={{
+                  ...selStyles,
+                  ...(!form.school_type
+                    ? { opacity: 0.6, cursor: "not-allowed" }
+                    : {}),
+                }}
               >
                 <option value="">-- select --</option>
                 {filteredGrsSchools.map((sc) => (
