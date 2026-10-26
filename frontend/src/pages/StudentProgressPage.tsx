@@ -13,6 +13,7 @@ import { listKutirs } from "../api/kutirs";
 import { listStudents } from "../api/students";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
+import { hasGlobalDataScope } from "../constants/roles";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { GeoFilterBar } from "../components/GeoFilterBar";
@@ -44,7 +45,7 @@ const STORAGE_KEY = "progress_filter_state";
 export default function StudentProgressPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = user?.title === "Admin";
+  const unscoped = hasGlobalDataScope(user?.title);
   const qc = useQueryClient();
 
   useBfcacheReload();
@@ -125,9 +126,9 @@ export default function StudentProgressPage() {
   const studentMap2  = useMemo(() => new Map(allStudents.map((s: any) => [s.id, s])),  [allStudents]);
   const schoolMap    = useMemo(() => new Map(schools.map((s: any) => [s.id, s])),      [schools]);
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
-  const scopedClusters = scopeClusters(allClusters, user, isAdmin);
-  const scopedKutirs = scopeKutirs(allKutirs, user, isAdmin);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedClusters = scopeClusters(allClusters, user, unscoped);
+  const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 
   useGeoFilterAutoSelect({
     scopedDistricts,
@@ -136,7 +137,7 @@ export default function StudentProgressPage() {
     filterCluster,
     setFilterDistrict,
     setFilterCluster,
-    isAdmin,
+    unscoped,
     clusterMode: "scoped-non-admin",
   });
 

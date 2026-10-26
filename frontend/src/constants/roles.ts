@@ -4,7 +4,7 @@
  * Keep in sync with backend/app/roles.py.
  */
 
-/** Day-to-day roles (lowest → highest). SysAdmin is Deploy-only. */
+/** Day-to-day roles (lowest → highest). SysAdmin is Deploy + global data. */
 export const OPERATIONAL_TITLES = [
   "Teacher",
   "Cluster Coordinator",
@@ -27,11 +27,12 @@ function from(minTitle: OperationalTitle): readonly OperationalTitle[] {
   return OPERATIONAL_TITLES.slice(i);
 }
 
-export const ALL_ROLES: readonly OperationalTitle[] = OPERATIONAL_TITLES;
+/** Day-to-day entities: operational roles + SysAdmin (global data). */
+export const ALL_ROLES: readonly RoleTitle[] = [...OPERATIONAL_TITLES, SYSADMIN];
 export const ADMIN_ONLY: readonly RoleTitle[] = ["Admin"];
 export const SYSADMIN_ONLY: readonly RoleTitle[] = [SYSADMIN];
-export const CC_PLUS: readonly OperationalTitle[] = from("Cluster Coordinator");
-export const EC_PLUS: readonly OperationalTitle[] = from("Education Coordinator");
+export const CC_PLUS: readonly RoleTitle[] = [...from("Cluster Coordinator"), SYSADMIN];
+export const EC_PLUS: readonly RoleTitle[] = [...from("Education Coordinator"), SYSADMIN];
 
 /** Mutate (Add/Edit/Delete) — Functionality sheet */
 export const MANAGE_STUDENTS = ALL_ROLES;
@@ -66,6 +67,11 @@ export function isAdmin(title: string | null | undefined): boolean {
 
 export function isSysAdmin(title: string | null | undefined): boolean {
   return title === SYSADMIN;
+}
+
+/** Unrestricted geo / list / picker scope (Admin or SysAdmin). */
+export function hasGlobalDataScope(title: string | null | undefined): boolean {
+  return title === "Admin" || title === SYSADMIN;
 }
 
 export function canManageStudents(title: string | null | undefined): boolean {

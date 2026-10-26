@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 
-# Day-to-day roles (lowest → highest). SysAdmin is separate (Deploy only).
+# Day-to-day roles (lowest → highest). SysAdmin is separate (Deploy + global data).
 OPERATIONAL_TITLES: list[str] = [
     "Teacher",
     "Cluster Coordinator",
@@ -29,11 +29,12 @@ def _from(min_title: str) -> frozenset[str]:
     return frozenset(OPERATIONAL_TITLES[i:])
 
 
-ALL_ROLES: frozenset[str] = frozenset(OPERATIONAL_TITLES)
+# SysAdmin has global data access (all rows) for day-to-day entities; not Admin-only menus.
+ALL_ROLES: frozenset[str] = frozenset(OPERATIONAL_TITLES) | {SYSADMIN}
 ADMIN_ONLY: frozenset[str] = frozenset({"Admin"})
 SYSADMIN_ONLY: frozenset[str] = frozenset({SYSADMIN})
-CC_PLUS: frozenset[str] = _from("Cluster Coordinator")
-EC_PLUS: frozenset[str] = _from("Education Coordinator")
+CC_PLUS: frozenset[str] = _from("Cluster Coordinator") | {SYSADMIN}
+EC_PLUS: frozenset[str] = _from("Education Coordinator") | {SYSADMIN}
 
 # ── Mutate (Add/Edit/Delete) ──────────────────────────────────────────────────
 MANAGE_STUDENTS: frozenset[str] = ALL_ROLES
@@ -60,6 +61,11 @@ def title_index(title: str | None) -> int:
     if title and title in TITLES:
         return TITLES.index(title)
     return -1
+
+
+def has_global_data_scope(title: str | None, *, is_superuser: bool = False) -> bool:
+    """Unrestricted geo/row scope (Admin, SysAdmin, superuser)."""
+    return bool(is_superuser) or title in ("Admin", SYSADMIN)
 
 
 def role_allowed(title: str | None, allowed: Collection[str], *, is_superuser: bool = False) -> bool:

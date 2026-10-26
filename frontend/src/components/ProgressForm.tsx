@@ -16,6 +16,7 @@ import { listSchools, type School } from "../api/schools";
 import { listKutirs } from "../api/kutirs";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
+import { hasGlobalDataScope } from "../constants/roles";
 import { ViewField, viewStyles } from "@parivaar/ui";
 import {
   STATUS_LABELS,
@@ -79,7 +80,7 @@ export function ProgressForm({
   const readOnly = mode === "view";
   const isAdd = mode === "add";
   const { user } = useAuth();
-  const isAdmin = user?.title === "Admin";
+  const unscoped = hasGlobalDataScope(user?.title);
 
   const [search, setSearch] = useState("");
   const [modalDistrict, setModalDistrict] = useState<number | "">("");
@@ -117,17 +118,17 @@ export function ProgressForm({
   });
 
   const scopedDistricts =
-    isAdmin || !user
+    unscoped || !user
       ? allDistricts
       : allDistricts.filter((d) => user.district_ids.includes(d.id));
   const scopedClusters =
-    isAdmin || !user
+    unscoped || !user
       ? allClusters
       : user.cluster_ids.length > 0
         ? allClusters.filter((c) => user.cluster_ids.includes(c.id))
         : allClusters;
   const scopedKutirs =
-    isAdmin || !user
+    unscoped || !user
       ? allKutirs
       : user.kutir_ids.length > 0
         ? allKutirs.filter((k) => user.kutir_ids.includes(k.id))

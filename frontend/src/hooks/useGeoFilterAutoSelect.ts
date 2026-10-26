@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { FilterId, NamedId } from "../utils/geoFilters";
 
 export type ClusterAutoSelectMode =
-  /** Progress/Students/Admissions/Visits: single scoped cluster when !isAdmin */
+  /** Progress/Students/Admissions/Visits: single scoped cluster when !unscoped */
   | "scoped-non-admin"
   /** Kutirs: single option in the district-filtered cluster list (any role) */
   | "filtered"
@@ -22,7 +22,8 @@ export function useGeoFilterAutoSelect(opts: {
   filterCluster: FilterId;
   setFilterDistrict: (id: FilterId) => void;
   setFilterCluster: (id: FilterId) => void;
-  isAdmin: boolean;
+  /** True for Admin / SysAdmin (unrestricted geo). */
+  unscoped: boolean;
   clusterMode?: ClusterAutoSelectMode;
   /** Visits: skip district auto when storage restored a district key (incl. "") */
   skipDistrictAuto?: boolean;
@@ -36,7 +37,7 @@ export function useGeoFilterAutoSelect(opts: {
     filterCluster,
     setFilterDistrict,
     setFilterCluster,
-    isAdmin,
+    unscoped,
     clusterMode = "scoped-non-admin",
     skipDistrictAuto = false,
     skipClusterAuto = false,
@@ -52,7 +53,7 @@ export function useGeoFilterAutoSelect(opts: {
   useEffect(() => {
     if (skipClusterAuto || clusterMode === "none") return;
     if (clusterMode === "scoped-non-admin") {
-      if (scopedClusters.length === 1 && filterCluster === "" && !isAdmin) {
+      if (scopedClusters.length === 1 && filterCluster === "" && !unscoped) {
         setFilterCluster(scopedClusters[0].id);
       }
     } else if (clusterMode === "filtered") {

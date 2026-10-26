@@ -55,18 +55,19 @@ export function defaultsFromUser(user: GeoScopedUser | null | undefined): GeoFil
 export function scopeDistricts<T extends NamedId>(
   all: T[],
   user: GeoScopedUser | null | undefined,
-  isAdmin: boolean,
+  /** True for Admin / SysAdmin (unrestricted). */
+  unscoped: boolean,
 ): T[] {
-  if (isAdmin || !user) return all;
+  if (unscoped || !user) return all;
   return all.filter((d) => user.district_ids.includes(d.id));
 }
 
 export function scopeClusters<T extends NamedId>(
   all: T[],
   user: GeoScopedUser | null | undefined,
-  isAdmin: boolean,
+  unscoped: boolean,
 ): T[] {
-  if (isAdmin || !user) return all;
+  if (unscoped || !user) return all;
   return user.cluster_ids.length > 0
     ? all.filter((c) => user.cluster_ids.includes(c.id))
     : all;
@@ -75,9 +76,9 @@ export function scopeClusters<T extends NamedId>(
 export function scopeKutirs<T extends NamedId>(
   all: T[],
   user: GeoScopedUser | null | undefined,
-  isAdmin: boolean,
+  unscoped: boolean,
 ): T[] {
-  if (isAdmin || !user) return all;
+  if (unscoped || !user) return all;
   return user.kutir_ids.length > 0
     ? all.filter((k) => user.kutir_ids.includes(k.id))
     : all;

@@ -12,7 +12,7 @@ import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { KUTIRS_FIELDS } from "../constants/kutirsFields";
-import { canManageKutirs as roleCanManageKutirs, isAdmin as roleIsAdmin } from "../constants/roles";
+import { canManageKutirs as roleCanManageKutirs, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
   clustersForDistrict,
@@ -27,7 +27,7 @@ export default function KutirsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = roleIsAdmin(user?.title);
+  const unscoped = hasGlobalDataScope(user?.title);
   const canManageKutirs = roleCanManageKutirs(user?.title);
 
   useBfcacheReload();
@@ -48,8 +48,8 @@ export default function KutirsPage() {
   const areaMap    = new Map(allAreas.map((a) => [a.id, a]));
   const clusterMap = new Map(allClusters.map((c) => [c.id, c]));
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
-  const scopedClusters = scopeClusters(allClusters, user, isAdmin);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedClusters = scopeClusters(allClusters, user, unscoped);
   const filterClusters = clustersForDistrict(scopedClusters, areaMap, filterDistrict);
 
   useGeoFilterAutoSelect({
@@ -59,7 +59,7 @@ export default function KutirsPage() {
     filterCluster,
     setFilterDistrict,
     setFilterCluster,
-    isAdmin,
+    unscoped,
     clusterMode: "filtered",
   });
 

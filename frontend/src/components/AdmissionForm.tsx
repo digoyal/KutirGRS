@@ -25,6 +25,7 @@ import {
 } from "../api/geo";
 import { viewStyles } from "@parivaar/ui";
 import { useAuth } from "../context/AuthContext";
+import { hasGlobalDataScope } from "../constants/roles";
 import { grs } from "../styles/grs";
 import {
   type StageKey,
@@ -212,7 +213,7 @@ export function AdmissionForm({
   const readOnly = mode === "view";
   const isAdd = mode === "add";
   const { user } = useAuth();
-  const isAdmin = !user || user.title === "Admin";
+  const unscoped = !user || hasGlobalDataScope(user.title);
 
   const [search, setSearch] = useState("");
   const [kutirFilter, setKutirFilter] = useState<number | "">("");
@@ -277,11 +278,11 @@ export function AdmissionForm({
   });
 
   const kutirs = useMemo(() => {
-    if (isAdmin) return allKutirsData;
+    if (unscoped) return allKutirsData;
     return user!.kutir_ids.length > 0
       ? allKutirsData.filter((k) => user!.kutir_ids.includes(k.id))
       : allKutirsData;
-  }, [allKutirsData, user, isAdmin]);
+  }, [allKutirsData, user, unscoped]);
 
   useEffect(() => {
     if (!isAdd) return;
@@ -289,14 +290,14 @@ export function AdmissionForm({
   }, [isAdd, kutirs.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scopeByUser = (list: typeof allDistricts) => {
-    if (isAdmin) return list;
+    if (unscoped) return list;
     return user!.district_ids?.length > 0
       ? list.filter((d) => user!.district_ids.includes(d.id))
       : list;
   };
   const scopedPresenceDistricts = useMemo(
     () => scopeByUser(presenceDistricts),
-    [presenceDistricts, user, isAdmin],
+    [presenceDistricts, user, unscoped],
   );
 
   useEffect(() => {

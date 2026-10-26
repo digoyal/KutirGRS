@@ -9,6 +9,7 @@ import { ViewField, ViewSection, viewStyles } from "@parivaar/ui";
 import { type KutirCreate, type KutirDetail } from "../api/kutirs";
 import { listZones, listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
+import { hasGlobalDataScope } from "../constants/roles";
 import { grs } from "../styles/grs";
 
 const KUTIR_TYPES = ["Seva Kutir", "Shiksha Kutir", "Non-Kutir"];
@@ -62,7 +63,7 @@ export function KutirForm({
   const readOnly = mode === "view";
   const isAdd = mode === "add";
   const { user } = useAuth();
-  const isAdmin = user?.title === "Admin";
+  const unscoped = hasGlobalDataScope(user?.title);
 
   const [selZone, setSelZone] = useState<number | null>(null);
   const [selDistrict, setSelDistrict] = useState<number | null>(null);
@@ -84,11 +85,11 @@ export function KutirForm({
   });
 
   const scopedDistricts =
-    isAdmin || !user
+    unscoped || !user
       ? allDistricts
       : allDistricts.filter((d) => user.district_ids.includes(d.id));
   const scopedClusters =
-    isAdmin || !user
+    unscoped || !user
       ? allClusters
       : user.cluster_ids.length > 0
         ? allClusters.filter((c) => user.cluster_ids.includes(c.id))

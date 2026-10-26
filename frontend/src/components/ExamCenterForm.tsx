@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ViewField, ViewSection, viewStyles } from "@parivaar/ui";
 import { listDistricts } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
+import { hasGlobalDataScope } from "../constants/roles";
 import { grs } from "../styles/grs";
 
 const STATES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"];
@@ -52,7 +53,7 @@ export function ExamCenterForm({
   const readOnly = mode === "view";
   const isAdd = mode === "add";
   const { user } = useAuth();
-  const isAdmin = user?.title === "Admin";
+  const unscoped = hasGlobalDataScope(user?.title);
 
   const { data: allDistricts = [] } = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
@@ -60,7 +61,7 @@ export function ExamCenterForm({
   });
 
   const scopedDistricts =
-    isAdmin || !user
+    unscoped || !user
       ? allDistricts
       : allDistricts.filter((d) => user.district_ids.includes(d.id));
 

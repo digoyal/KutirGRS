@@ -5,7 +5,7 @@ import { listStates, listZones, listDistricts, listAreas, listClusters, createZo
 import { grs } from "../styles/grs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
-import { canManageGeography, isAdmin as roleIsAdmin } from "../constants/roles";
+import { canManageGeography, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { GrsModal } from "../components/GrsModal";
 import { GrsTabs } from "../components/GrsTabs";
@@ -40,11 +40,12 @@ export default function GeoPage() {
   // Matrix: Geography mutate = Education Coordinator+. Within that, keep the
   // existing hierarchy rule: a role may only mutate levels BELOW its assignment.
   const geoOk = canManageGeography(role);
+  const globalScope = hasGlobalDataScope(role);
   const canWrite: Record<Tab, boolean> = {
-    zones:     geoOk && roleIsAdmin(role),
-    districts: geoOk && roleIsAdmin(role),
-    areas:     geoOk && ["Admin", "Regional Head", "District Anchor"].includes(role),
-    clusters:  geoOk && ["Admin", "Regional Head", "District Anchor", "Education Coordinator"].includes(role),
+    zones:     geoOk && globalScope,
+    districts: geoOk && globalScope,
+    areas:     geoOk && (globalScope || ["Regional Head", "District Anchor"].includes(role)),
+    clusters:  geoOk && (globalScope || ["Regional Head", "District Anchor", "Education Coordinator"].includes(role)),
   };
 
   const { data: states = [] }    = useQuery({ queryKey: ["states"],          queryFn: listStates });

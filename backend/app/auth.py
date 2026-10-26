@@ -144,9 +144,12 @@ async def _get_assigned_ids(title: str, user_id: int, db: AsyncSession):
 
 async def get_user_kutir_scope(user, db: AsyncSession) -> Optional[set[int]]:
     """
-    Return the set of kutir_ids the user may access, or None for unrestricted (Admin).
+    Return the set of kutir_ids the user may access, or None for unrestricted
+    (Admin / SysAdmin / superuser).
     """
-    if user.is_admin:
+    from app.roles import has_global_data_scope
+
+    if has_global_data_scope(user.title, is_superuser=bool(user.is_superuser)):
         return None
 
     from app.models.geo import Cluster, District, Area
@@ -239,7 +242,9 @@ def require_cluster_in_geo_scope(
 
 
 async def get_user_geo_scope(user, db: AsyncSession) -> GeoScope:
-    if user.is_admin:
+    from app.roles import has_global_data_scope
+
+    if has_global_data_scope(user.title, is_superuser=bool(user.is_superuser)):
         return GeoScope()  # all None = unrestricted
 
     from app.models.geo import Cluster, Area, District

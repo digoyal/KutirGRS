@@ -8,7 +8,7 @@ Roles (left → right, lowest → highest for day-to-day ops):
 
 Teacher · Cluster Coordinator · Education Coordinator · District Anchor · Regional Head · Admin
 
-**SysAdmin** is a separate ops role (not in the day-to-day hierarchy above). **Admin may create SysAdmin users.** SysAdmin’s product power is **Deploy** only (menu + API); Admin does **not** see or call Deploy.
+**SysAdmin** is a separate ops role (not in the day-to-day hierarchy above). **Admin may create SysAdmin users.** SysAdmin is the only role that can **Deploy** (menu + API); Admin does **not** see or call Deploy. For **data**, SysAdmin is unrestricted (same as Admin): all districts/clusters/kutirs/students/admissions/progress/visits/users/geography — no assignment filter.
 
 ---
 
@@ -16,28 +16,28 @@ Teacher · Cluster Coordinator · Education Coordinator · District Anchor · Re
 
 | Menu item | Action | Teacher | Cluster Coordinator | Education Coordinator | District Anchor | Regional Head | Admin | SysAdmin |
 |-----------|--------|---------|---------------------|----------------------|-----------------|---------------|-------|----------|
-| Students | Add/Edit/Delete | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Students | View | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Kutirs | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | — |
-| Kutirs | View | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Progress | Add/Edit/Delete | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Progress | View | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Admissions | Add/Edit/Delete | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Admissions | View | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Kutir Visits | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | — |
-| Kutir Visits | View | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Govt. Res. Schools | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | — |
-| Govt. Res. Schools | View | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Exam Centers | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | — |
-| Exam Centers | View | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Geography (zone, district, area, cluster) | Add/Edit/Delete | No | No | Yes | Yes | Yes | Yes | — |
-| Geography | View | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Lookups (categories, exam types, etc.) | Add/Edit/Delete | No | No | No | No | No | Yes | — |
-| Lookups | View | Yes | Yes | Yes | Yes | Yes | Yes | — |
-| Users | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | — |
-| Users | View | No | Yes | Yes | Yes | Yes | Yes | — |
-| Column Config | Add/Edit/Delete | No | No | No | No | No | Yes | — |
-| Column Config | View | No | No | No | No | No | Yes | — |
+| Students | Add/Edit/Delete | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Students | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Kutirs | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | Yes |
+| Kutirs | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Progress | Add/Edit/Delete | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Progress | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Admissions | Add/Edit/Delete | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Admissions | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Kutir Visits | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | Yes |
+| Kutir Visits | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Govt. Res. Schools | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | Yes |
+| Govt. Res. Schools | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Exam Centers | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | Yes |
+| Exam Centers | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Geography (zone, district, area, cluster) | Add/Edit/Delete | No | No | Yes | Yes | Yes | Yes | Yes |
+| Geography | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Lookups (categories, exam types, etc.) | Add/Edit/Delete | No | No | No | No | No | Yes | No |
+| Lookups | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Users | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | Yes |
+| Users | View | No | Yes | Yes | Yes | Yes | Yes | Yes |
+| Column Config | Add/Edit/Delete | No | No | No | No | No | Yes | No |
+| Column Config | View | No | No | No | No | No | Yes | No |
 | Deploy | View / Run | No | No | No | No | No | No | Yes |
 
 **View-only examples (by design):** Teacher can view Kutirs / Visits / Schools / Exam Centers / Geography but not mutate them; Teacher cannot view Users or Column Config at all; only Admin may change Lookups and Column Config; only SysAdmin may Deploy.
@@ -48,18 +48,18 @@ Teacher · Cluster Coordinator · Education Coordinator · District Anchor · Re
 
 | Entity | Teacher | Cluster Coordinator | Education Coordinator | District Anchor | Regional Head | Admin | SysAdmin |
 |--------|---------|---------------------|----------------------|-----------------|---------------|-------|----------|
-| Students | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | — |
-| Kutirs | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | — |
-| Progress | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | — |
-| Admissions | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | — |
-| Kutir Visits | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | — |
-| Govt. Res. Schools | All | All | All | All | All | All | — |
-| Exam Centers | All | All | All | All | All | All | — |
-| Geography | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | — |
-| Lookups | All | All | All | All | All | All | — |
-| Users | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | — |
+| Students | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | All |
+| Kutirs | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | All |
+| Progress | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | All |
+| Admissions | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | All |
+| Kutir Visits | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | All |
+| Govt. Res. Schools | All | All | All | All | All | All | All |
+| Exam Centers | All | All | All | All | All | All | All |
+| Geography | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | All |
+| Lookups | All | All | All | All | All | All | All |
+| Users | Assigned Kutir Only | Assigned Cluster Only | Assigned Area Only | Assigned District Only | Assigned Zone Only | All | All |
 
-SysAdmin has no day-to-day data scope in this matrix (Deploy-only).
+SysAdmin data scope is **All** (unrestricted geo); Deploy remains SysAdmin-only. Lookups / Column Config **mutate** stay Admin-only.
 
 Schools, Exam Centers, and Lookups are **global catalogs** (all roles see all rows); mutation rights still follow the Functionality sheet.
 

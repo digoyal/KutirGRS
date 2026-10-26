@@ -16,6 +16,7 @@ import {
   listSubCategories,
 } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
+import { hasGlobalDataScope } from "../constants/roles";
 import { grs } from "../styles/grs";
 
 const DOCS: { key: keyof StudentFormState; label: string }[] = [
@@ -140,7 +141,7 @@ export function StudentForm({
   const readOnly = mode === "view";
   const isAdd = mode === "add";
   const { user } = useAuth();
-  const isAdmin = user?.title === "Admin";
+  const unscoped = hasGlobalDataScope(user?.title);
 
   const [selDistrict, setSelDistrict] = useState<number | null>(null);
   const [selCluster, setSelCluster] = useState<number | null>(null);
@@ -177,17 +178,17 @@ export function StudentForm({
   const areaMap = useMemo(() => new Map(allAreas.map((a) => [a.id, a])), [allAreas]);
 
   const scopedDistricts =
-    isAdmin || !user
+    unscoped || !user
       ? allDistricts
       : allDistricts.filter((d) => user.district_ids.includes(d.id));
   const scopedClusters =
-    isAdmin || !user
+    unscoped || !user
       ? allClusters
       : user.cluster_ids.length > 0
         ? allClusters.filter((c) => user.cluster_ids.includes(c.id))
         : allClusters;
   const scopedKutirs =
-    isAdmin || !user
+    unscoped || !user
       ? allKutirs
       : user.kutir_ids.length > 0
         ? allKutirs.filter((k) => user.kutir_ids.includes(k.id))

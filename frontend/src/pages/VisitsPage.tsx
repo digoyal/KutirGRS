@@ -14,7 +14,7 @@ import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { VISITS_FIELDS } from "../constants/visitsFields";
-import { canManageVisits as roleCanManageVisits, isAdmin as roleIsAdmin } from "../constants/roles";
+import { canManageVisits as roleCanManageVisits, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { scopeClusters, scopeDistricts, type FilterId } from "../utils/geoFilters";
 
@@ -43,7 +43,7 @@ function workbookColor(wc: string | null) {
 export default function VisitsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = roleIsAdmin(user?.title);
+  const unscoped = hasGlobalDataScope(user?.title);
   const canManageVisits = roleCanManageVisits(user?.title);
 
   useBfcacheReload();
@@ -86,8 +86,8 @@ export default function VisitsPage() {
     return new Set(user.kutir_ids ?? []);
   }, [isTeacher, user]);
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
-  const scopedClusters = scopeClusters(allClusters, user, isAdmin);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedClusters = scopeClusters(allClusters, user, unscoped);
 
   useGeoFilterAutoSelect({
     scopedDistricts,
@@ -96,7 +96,7 @@ export default function VisitsPage() {
     filterCluster,
     setFilterDistrict,
     setFilterCluster,
-    isAdmin,
+    unscoped,
     clusterMode: "scoped-non-admin",
     skipDistrictAuto: saved?.district != null,
     skipClusterAuto: saved?.cluster != null,

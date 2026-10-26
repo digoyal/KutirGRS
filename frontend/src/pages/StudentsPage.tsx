@@ -21,6 +21,7 @@ import {
   scopeKutirs,
   type FilterId,
 } from "../utils/geoFilters";
+import { hasGlobalDataScope } from "../constants/roles";
 
 const STORAGE_KEY = "students_filter_state";
 
@@ -33,7 +34,7 @@ function docCount(s: Student) {
 export default function StudentsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const isAdmin = user?.title === "Admin";
+  const unscoped = hasGlobalDataScope(user?.title);
   const navigate = useNavigate();
 
   useBfcacheReload();
@@ -91,9 +92,9 @@ export default function StudentsPage() {
   const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
 
   const kutirMap = new Map(allKutirs.map(k => [k.id, k]));
-  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
-  const scopedClusters = scopeClusters(allClusters, user, isAdmin);
-  const scopedKutirs = scopeKutirs(allKutirs, user, isAdmin);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedClusters = scopeClusters(allClusters, user, unscoped);
+  const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 
   useGeoFilterAutoSelect({
     scopedDistricts,
@@ -102,7 +103,7 @@ export default function StudentsPage() {
     filterCluster,
     setFilterDistrict,
     setFilterCluster,
-    isAdmin,
+    unscoped,
     clusterMode: "scoped-non-admin",
   });
 

@@ -9,6 +9,7 @@ import { ViewField, ViewSection, viewStyles } from "@parivaar/ui";
 import { type SchoolCreate } from "../api/schools";
 import { listDistricts } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
+import { hasGlobalDataScope } from "../constants/roles";
 import { grs } from "../styles/grs";
 
 const SCHOOL_TYPES = ["EMRS", "JNV", "KSP", "MRS", "GNV", "KGBV", "SportsBoys", "SportsGirls", "Other"];
@@ -50,7 +51,7 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
   });
 
   const scopedDistricts = useMemo(() => {
-    if (!user || user.title === "Admin") return districts;
+    if (!user || hasGlobalDataScope(user.title)) return districts;
     return user.district_ids?.length > 0
       ? districts.filter((d) => user.district_ids.includes(d.id))
       : districts;

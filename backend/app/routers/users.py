@@ -5,7 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.auth import get_current_user, hash_password
-from app.roles import TITLES, MANAGE_USERS, VIEW_USERS, role_allowed, title_index
+from app.roles import (
+    TITLES,
+    MANAGE_USERS,
+    VIEW_USERS,
+    role_allowed,
+    title_index,
+    has_global_data_scope,
+)
 from app.models.users import User, user_zones, user_districts, user_areas, user_clusters, user_kutirs
 from app.schemas.users import UserCreate, UserUpdate, UserOut
 
@@ -13,7 +20,12 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 
 def _is_admin_or_super(user: User) -> bool:
+    """Admin (or superuser) for privilege escalation / assign-any-title — not SysAdmin."""
     return user.title == "Admin" or bool(user.is_superuser)
+
+
+def _sees_all_users(user: User) -> bool:
+    return has_global_data_scope(user.title, is_superuser=bool(user.is_superuser))
 
 
 def _assert_can_assign_title(actor: User, title: Optional[str]) -> None:
@@ -129,6 +141,7 @@ async def _attach_geo(db: AsyncSession, user: User) -> dict:
 # ── Role → which M2M tables are active ───────────────────────────────────────
 
 ROLE_ACTIVE = {
+    "SysAdmin":              set(),  # global data scope — no geo assignment
     "Admin":                 set(),
     "Regional Head":         {"zones"},
     "District Anchor":       {"districts"},
@@ -166,8 +179,8 @@ async def list_users(
     _assert_can_view_users(current_user)
     result = await db.execute(q)
     users = result.scalars().all()
-    # Non-admins only see users with roles strictly below their own level (plus themselves)
-    if current_user.title != "Admin" and not current_user.is_superuser:
+    # Scoped managers only see roles strictly below their own (plus themselves)
+    if not _sees_all_users(current_user):
         my_index = title_index(current_user.title)
         assignable = set(TITLES[:my_index]) if my_index > 0 else set()
         users = [u for u in users if u.title in assignable or u.id == current_user.id]

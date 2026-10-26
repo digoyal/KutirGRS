@@ -7,6 +7,7 @@ import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { createProgress, listProgress, listExams, type StudentProgress, type StudentExam } from "../api/admissions";
 import { grs } from "../styles/grs";
 import { useAuth } from "../context/AuthContext";
+import { hasGlobalDataScope } from "../constants/roles";
 import { GeoFilterBar } from "../components/GeoFilterBar";
 import { scopeDistricts, scopeKutirs, type FilterId } from "../utils/geoFilters";
 
@@ -37,7 +38,7 @@ const btnPrimary: React.CSSProperties = {
 export default function NewYearSetupPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const isAdmin = user?.title === "Admin";
+  const unscoped = hasGlobalDataScope(user?.title);
   const [year, setYear] = useState(CURRENT_YEAR);
   const [filterDistrict, setFilterDistrict] = useState<FilterId>("");
   const [filterKutir, setFilterKutir] = useState<FilterId>("");
@@ -98,8 +99,8 @@ export default function NewYearSetupPage() {
             .map(e => [e.student_id, e.admitted_school_id as number])
   );
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
-  const scopedKutirs = scopeKutirs(allKutirs, user, isAdmin);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 
   // Auto-select single assigned district for non-admin users
   useEffect(() => {

@@ -6,6 +6,7 @@ import type { StudentExam } from "../api/admissions";
 import { listStudents } from "../api/students";
 import { listSchools } from "../api/schools";
 import { useAuth } from "../context/AuthContext";
+import { hasGlobalDataScope } from "../constants/roles";
 import { listKutirs } from "../api/kutirs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
@@ -35,7 +36,7 @@ export default function AdmissionsPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = user?.title === "Admin";
+  const unscoped = hasGlobalDataScope(user?.title);
 
   useBfcacheReload();
 
@@ -114,9 +115,9 @@ export default function AdmissionsPage() {
   const areaMap         = new Map(allAreas.map(a => [a.id, a]));
   const clusterMap      = new Map(allClusters.map(c => [c.id, c]));
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, isAdmin);
-  const scopedClusters = scopeClusters(allClusters, user, isAdmin);
-  const scopedKutirs = scopeKutirs(allKutirs, user, isAdmin);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedClusters = scopeClusters(allClusters, user, unscoped);
+  const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 
   useGeoFilterAutoSelect({
     scopedDistricts,
@@ -125,7 +126,7 @@ export default function AdmissionsPage() {
     filterCluster,
     setFilterDistrict,
     setFilterCluster,
-    isAdmin,
+    unscoped,
     clusterMode: "scoped-non-admin",
   });
 
