@@ -344,6 +344,12 @@ export function AdmissionForm({
     setExamDistrictFilter(districtId);
   }
 
+  function applySchoolDistrict(districtId: number | null) {
+    if (districtId == null) return;
+    if (!allDistricts.some((d) => d.id === districtId)) return;
+    setSchoolDistrictFilter(districtId);
+  }
+
   useEffect(() => {
     if (scopedPresenceDistricts.length === 1 && examDistrictFilter === "") {
       setExamDistrictFilter(scopedPresenceDistricts[0].id);
@@ -362,6 +368,21 @@ export function AdmissionForm({
       districtIdForKutir(studentKutirId, allKutirsData, allClusters, allAreas),
     );
   }, [mode, form.exam_center_id, studentKutirId, examCenters, allKutirsData, allClusters, allAreas, scopedPresenceDistricts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Edit: prefill GRS School District from admitted school, else student's kutir district
+  useEffect(() => {
+    if (mode !== "edit" || schoolDistrictFilter !== "") return;
+    const school = schools.find((s) => s.id === form.admitted_school_id) as
+      | { district_id?: number | null }
+      | undefined;
+    if (school?.district_id != null) {
+      applySchoolDistrict(school.district_id);
+      return;
+    }
+    applySchoolDistrict(
+      districtIdForKutir(studentKutirId, allKutirsData, allClusters, allAreas),
+    );
+  }, [mode, form.admitted_school_id, studentKutirId, schools, allKutirsData, allClusters, allAreas, allDistricts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setField<K extends keyof AdmissionFormState>(key: K, val: AdmissionFormState[K]) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -731,11 +752,20 @@ export function AdmissionForm({
                             allAreas,
                           );
                           applyParivaarDistrict(did);
+                          applySchoolDistrict(did);
                           // Drop center from another district when student (district) changes
                           if (did != null && form.exam_center_id != null) {
                             const cur = examCenters.find((c) => c.id === form.exam_center_id);
                             if (cur?.district_id != null && cur.district_id !== did) {
                               setField("exam_center_id", null);
+                            }
+                          }
+                          if (did != null && form.admitted_school_id != null) {
+                            const sch = schools.find((x) => x.id === form.admitted_school_id) as
+                              | { district_id?: number | null }
+                              | undefined;
+                            if (sch?.district_id != null && sch.district_id !== did) {
+                              setField("admitted_school_id", null);
                             }
                           }
                         }}
