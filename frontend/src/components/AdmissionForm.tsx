@@ -659,33 +659,28 @@ export function AdmissionForm({
                     background: "var(--bg-card)",
                   }}
                 >
-                  {filteredStudents.map((s) => (
-                    <div
-                      key={s.id}
-                      onClick={() => {
-                        setField("student_id", s.id);
-                        setSearch(`${s.first_name} ${s.last_name}`);
-                      }}
-                      style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "var(--badge-blue-bg)")
-                      }
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                    >
-                      {s.first_name} {s.last_name}
-                      {s.father_name ? (
-                        <span
-                          style={{
-                            color: "var(--text-secondary)",
-                            fontSize: "0.8rem",
-                            marginLeft: 6,
-                          }}
-                        >
-                          s/o {s.father_name}
-                        </span>
-                      ) : null}
-                    </div>
-                  ))}
+                  {filteredStudents.map((s) => {
+                    const name = `${s.first_name} ${s.last_name}`.trim();
+                    const label = s.father_name?.trim()
+                      ? `${name} (${s.father_name.trim()})`
+                      : name;
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          setField("student_id", s.id);
+                          setSearch(label);
+                        }}
+                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = "var(--badge-blue-bg)")
+                        }
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                      >
+                        {label}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
