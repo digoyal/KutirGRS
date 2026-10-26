@@ -265,9 +265,15 @@ export function AdmissionForm({
     enabled: isAdd,
   });
   const { data: students = [] } = useQuery({
-    queryKey: ["students-names"],
-    queryFn: () => listStudents({ name_only: true }),
-    enabled: isAdd,
+    queryKey: ["students-search", "admissions", search.trim(), kutirFilter],
+    queryFn: () =>
+      listStudents({
+        name_only: true,
+        search: search.trim(),
+        limit: 100,
+        ...(kutirFilter !== "" ? { kutir_id: Number(kutirFilter) } : {}),
+      }),
+    enabled: isAdd && search.trim().length >= 1,
   });
 
   const kutirs = useMemo(() => {
@@ -342,18 +348,8 @@ export function AdmissionForm({
   ).sort();
   const subjects = subjectsForExamType(examTypeSubjects, form.exam_type_id);
 
-  const filteredStudents = students.filter((s) => {
-    const matchSearch =
-      `${s.first_name} ${s.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
-      (s.father_name != null && s.father_name.toLowerCase().includes(search.toLowerCase()));
-    const matchKutir = kutirFilter === "" || s.kutir_id === Number(kutirFilter);
-    return matchSearch && matchKutir;
-  });
-
-  useEffect(() => {
-    if (!isAdd) return;
-    if (filteredStudents.length === 1 && search) setField("student_id", filteredStudents[0].id);
-  }, [isAdd, filteredStudents.length, search]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Server already filters by search (+ kutir when selected); keep list as-is for the picker.
+  const filteredStudents = students;
 
   const filteredExamCenters =
     examDistrictFilter === ""
