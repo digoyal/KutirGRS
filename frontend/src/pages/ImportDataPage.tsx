@@ -414,8 +414,17 @@ export default function ImportDataPage() {
       const resp = await uploadImportFile(file);
       applyImportResponse(resp, setResults, setTotals, setLastMeta);
     } catch (err: unknown) {
+      const ax = err as {
+        response?: { data?: { detail?: string } };
+        message?: string;
+        code?: string;
+      };
+      const detail = ax.response?.data?.detail;
       const msg =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        (typeof detail === "string" && detail) ||
+        (ax.message === "Network Error"
+          ? "Network Error — API may have failed or timed out. Check that :8001 is up and try again."
+          : ax.message) ||
         (err instanceof Error ? err.message : "Upload failed");
       setError(msg);
     } finally {

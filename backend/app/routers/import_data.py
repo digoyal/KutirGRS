@@ -1108,13 +1108,16 @@ async def upload_import(
 ):
     if not file.filename or not file.filename.endswith((".xlsx", ".xlsm")):
         raise HTTPException(400, "Please upload an .xlsx file")
+    # Capture before process_workbook: many commits can expire the User ORM
+    # instance; lazy-refreshing username afterward raises MissingGreenlet.
+    imported_by = user.username
     data = await file.read()
     results = await process_workbook(data, db)
     totals = _build_totals(results)
     meta = await _save_import_log(
         db,
         filename=file.filename,
-        imported_by=getattr(user, "username", None),
+        imported_by=imported_by,
         results=results,
         totals=totals,
     )
@@ -1122,7 +1125,7 @@ async def upload_import(
         "results": results,
         "totals": totals,
         "filename": file.filename,
-        "imported_by": getattr(user, "username", None),
+        "imported_by": imported_by,
         "created_at": meta["created_at"],
         "id": meta["id"],
     }
