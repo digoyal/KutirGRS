@@ -193,34 +193,32 @@ export function StudentForm({
         ? allKutirs.filter((k) => user.kutir_ids.includes(k.id))
         : allKutirs;
 
-  // Auto-populate district/cluster when scoped to single option (add)
+  // Auto-select district when scoped to one (add). Cluster/kutir follow in
+  // separate effects so they still run after areas/clusters arrive (first-load race).
   useEffect(() => {
     if (!isAdd) return;
-    if (scopedDistricts.length === 1 && !selDistrict) {
-      const d = scopedDistricts[0].id;
-      setSelDistrict(d);
-      const clustersForDistrict = scopedClusters.filter(
-        (c) => areaMap.get(c.area_id)?.district_id === d,
-      );
-      if (clustersForDistrict.length === 1) setSelCluster(clustersForDistrict[0].id);
+    if (scopedDistricts.length === 1 && selDistrict == null) {
+      setSelDistrict(scopedDistricts[0].id);
     }
-  }, [isAdd, scopedDistricts.length, scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAdd, scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!isAdd || !selDistrict) return;
+    if (!isAdd || selDistrict == null) return;
     const clustersForDistrict = scopedClusters.filter(
       (c) => areaMap.get(c.area_id)?.district_id === selDistrict,
     );
-    if (clustersForDistrict.length === 1) setSelCluster(clustersForDistrict[0].id);
-  }, [isAdd, selDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (clustersForDistrict.length === 1 && selCluster !== clustersForDistrict[0].id) {
+      setSelCluster(clustersForDistrict[0].id);
+    }
+  }, [isAdd, selDistrict, scopedClusters.length, allAreas.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!isAdd || !selCluster) return;
+    if (!isAdd || selCluster == null) return;
     const kutirForCluster = scopedKutirs.filter((k) => k.cluster_id === selCluster);
-    if (kutirForCluster.length === 1) {
+    if (kutirForCluster.length === 1 && form.kutir_id !== kutirForCluster[0].id) {
       setForm((f) => ({ ...f, kutir_id: kutirForCluster[0].id }));
     }
-  }, [isAdd, selCluster]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAdd, selCluster, scopedKutirs.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Seed geo cascade from kutir_id (edit)
   useEffect(() => {
@@ -296,7 +294,9 @@ export function StudentForm({
                   setForm((f) => ({ ...f, kutir_id: null }));
                 }}
               >
-                {(isAdmin || !isAdd) && <option value="">— any —</option>}
+                {/* Always include "" so a null selDistrict isn’t shown as the first
+                    district while Cluster stays disabled (first-load quirk). */}
+                <option value="">{isAdd ? "— Select —" : "— any —"}</option>
                 {districtSource.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}

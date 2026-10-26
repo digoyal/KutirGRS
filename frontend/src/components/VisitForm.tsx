@@ -278,23 +278,21 @@ export function VisitForm({
     setForm((prev) => ({ ...prev, [key]: val }));
   }
 
-  // Auto-select district/cluster when only one option (add mode)
+  // Auto-select district/cluster when only one option (add mode).
+  // Cluster effect deps include areas/clusters so first load isn’t skipped.
   useEffect(() => {
     if (mode !== "add") return;
     if (scopedDistricts.length === 1 && filterDistrict === "") {
-      const d = scopedDistricts[0].id;
-      setFilterDistrict(d);
-      const cls = scopedClusters.filter((c) => areaMap.get(c.area_id)?.district_id === d);
-      if (cls.length === 1) setFilterCluster(cls[0].id);
+      setFilterDistrict(scopedDistricts[0].id);
     }
-  }, [mode, scopedDistricts.length, scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (mode !== "add" || filterDistrict === "") return;
     if (modalFilterClusters.length === 1 && filterCluster === "") {
       setFilterCluster(modalFilterClusters[0].id);
     }
-  }, [mode, filterDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, filterDistrict, modalFilterClusters.length, allAreas.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Seed district/cluster from form.kutir_id (edit/view)
   useEffect(() => {

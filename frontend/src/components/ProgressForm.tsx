@@ -169,15 +169,9 @@ export function ProgressForm({
   useEffect(() => {
     if (!isAdd) return;
     if (scopedDistricts.length === 1 && modalDistrict === "") {
-      const d = scopedDistricts[0].id;
-      setModalDistrict(d);
-      const cls = scopedClusters.filter(
-        (c: { id: number }) =>
-          areaDistrictMap.get(clusterAreaMap.get(c.id) ?? -1) === d,
-      );
-      if (cls.length === 1) setModalCluster(cls[0].id);
+      setModalDistrict(scopedDistricts[0].id);
     }
-  }, [isAdd, scopedDistricts.length, scopedClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAdd, scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isAdd || modalDistrict === "") return;
@@ -186,7 +180,7 @@ export function ProgressForm({
         areaDistrictMap.get(clusterAreaMap.get(c.id) ?? -1) === modalDistrict,
     );
     if (cls.length === 1 && modalCluster === "") setModalCluster(cls[0].id);
-  }, [isAdd, modalDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAdd, modalDistrict, scopedClusters.length, allAreas.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: rawStudents = [] } = useQuery<StudentMin[]>({
     queryKey: ["students-search", search],
