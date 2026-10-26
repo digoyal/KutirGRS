@@ -444,9 +444,6 @@ async def _import_clusters(rows, db):
         district_name = _str(r.get("district_name"))
         if not raw_name:
             errors.append("Empty name — row skipped"); continue
-        area_id, err = await _resolve_area_id(db, area_name=area_name, district_name=district_name)
-        if err:
-            errors.append(f"{err} — cluster '{raw_name}' skipped"); continue
         username = _str(r.get("userid"))
         uid = None
         if username:
@@ -455,28 +452,60 @@ async def _import_clusters(rows, db):
             )).scalar_one_or_none()
             if not uid:
                 errors.append(f"User '{username}' not found — clusters will be created without user assignment")
+
+        area_id = None
+        if area_name:
+            area_id, err = await _resolve_area_id(
+                db, area_name=area_name, district_name=district_name,
+            )
+            if err:
+                errors.append(f"{err} — cluster '{raw_name}' skipped"); continue
+
         for name in [n.strip() for n in raw_name.split(",") if n.strip()]:
+            # Name-only (or incomplete parents): skip if exactly one existing match
+            if area_id is None:
+                exists_id, cerr = await _resolve_cluster_id(
+                    db, cluster_name=name, district_name=district_name, area_name="",
+                )
+                if exists_id:
+                    skipped += 1
+                    if uid:
+                        await db.execute(
+                            text("INSERT INTO user_clusters (user_id, cluster_id) VALUES (:u, :c) ON CONFLICT DO NOTHING"),
+                            {"u": uid, "c": exists_id},
+                        )
+                    continue
+                if cerr and cerr.startswith("Ambiguous"):
+                    errors.append(f"{cerr} — cluster '{name}' skipped"); continue
+                # Not found and no area → cannot create
+                errors.append(
+                    f"Cluster '{name}' not found — set area_name"
+                    + (" (and district_name if needed)" if not district_name else "")
+                    + " to create"
+                )
+                continue
+
             exists = (await db.execute(
                 text("SELECT id FROM clusters WHERE lower(name)=lower(:n) AND area_id=:a"),
-                {"n": name, "a": area_id}
+                {"n": name, "a": area_id},
             )).scalar_one_or_none()
             if exists:
                 skipped += 1
                 if uid:
                     await db.execute(
                         text("INSERT INTO user_clusters (user_id, cluster_id) VALUES (:u, :c) ON CONFLICT DO NOTHING"),
-                        {"u": uid, "c": exists}
+                        {"u": uid, "c": exists},
                     )
                 continue
             cluster_id = (await db.execute(
                 text("INSERT INTO clusters (name, area_id, created_at, updated_at) VALUES (:n, :a, now(), now()) RETURNING id"),
-                {"n": name, "a": area_id}
+                {"n": name, "a": area_id},
             )).scalar_one_or_none()
             created += 1
             if uid:
                 await db.execute(
                     text("INSERT INTO user_clusters (user_id, cluster_id) VALUES (:u, :c) ON CONFLICT DO NOTHING"),
-                    {"u": uid, "c": cluster_id}
+                    {"u": uid, "c": cluster_id},
                 )
     return _result(created, skipped, errors)
 
