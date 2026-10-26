@@ -18,6 +18,7 @@ import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersisted
 import { ADMISSIONS_FIELDS } from "../constants/admissionsFields";
 import { listDistricts, listAreas, listClusters, listExamCenters, listExamCategories } from "../api/geo";
 import { STAGES, StageBadge, pipelineStage } from "../components/admissions-pipeline";
+import { studentLabel } from "../utils/studentLabel";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
   defaultsFromUser,
@@ -188,19 +189,20 @@ export default function AdmissionsPage() {
       key: "student", label: "Student", sortable: true,
       sortValue: (exam) => {
         const s = studentMap[exam.student_id];
-        return s ? `${s.first_name} ${s.last_name}`.toLowerCase() : "";
+        return studentLabel(s).toLowerCase();
       },
       render: (exam) => {
         const s = studentMap[exam.student_id];
+        const label = studentLabel(s, `#${exam.student_id}`);
         return s ? (
           <Link to={`/students/${s.id}`} style={{ color: "var(--text-primary)", textDecoration: "none", fontWeight: 500, fontSize: 13 }}>
-            {s.first_name} {s.last_name}
+            {label}
           </Link>
-        ) : `#${exam.student_id}`;
+        ) : label;
       },
       csvValue: (exam) => {
         const s = studentMap[exam.student_id];
-        return s ? `${s.first_name} ${s.last_name}` : String(exam.student_id);
+        return studentLabel(s, String(exam.student_id));
       },
       tdStyle: { whiteSpace: "nowrap" },
     },

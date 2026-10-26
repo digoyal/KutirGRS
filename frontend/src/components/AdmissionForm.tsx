@@ -27,6 +27,7 @@ import { viewStyles } from "@parivaar/ui";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
 import { grs } from "../styles/grs";
+import { studentLabel } from "../utils/studentLabel";
 import {
   type StageKey,
   StageBadge,
@@ -660,10 +661,7 @@ export function AdmissionForm({
                   }}
                 >
                   {filteredStudents.map((s) => {
-                    const name = `${s.first_name} ${s.last_name}`.trim();
-                    const label = s.father_name?.trim()
-                      ? `${name} (${s.father_name.trim()})`
-                      : name;
+                    const label = studentLabel(s);
                     return (
                       <div
                         key={s.id}

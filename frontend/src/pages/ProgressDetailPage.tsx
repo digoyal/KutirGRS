@@ -10,6 +10,7 @@ import {
   type ProgressFormState,
 } from "../components/ProgressForm";
 import { grs } from "../styles/grs";
+import { studentLabel } from "../utils/studentLabel";
 
 export default function ProgressDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -102,11 +103,9 @@ export default function ProgressDetailPage() {
   if (!record) return <div style={{ padding: 28 }}>Record not found.</div>;
 
   const student = studentMap.get(record.student_id) as
-    | { first_name: string; last_name: string }
+    | { first_name: string; last_name: string; father_name?: string | null }
     | undefined;
-  const studentName = student
-    ? `${student.first_name} ${student.last_name}`
-    : `Student #${record.student_id}`;
+  const studentName = studentLabel(student, `Student #${record.student_id}`);
   const schoolName =
     (record.school ?? schools.find((s) => s.id === record.school_id))?.name ?? "—";
 

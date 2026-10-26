@@ -21,6 +21,7 @@ import {
 } from "../components/AdmissionForm";
 import { grs } from "../styles/grs";
 import { formatAcademicYear } from "../utils/academicYear";
+import { studentLabel } from "../utils/studentLabel";
 
 const NAVY_BG = "#1e3a5f";
 const NAVY_TEXT = "#ffffff";
@@ -87,9 +88,7 @@ export default function AdmissionDetailPage() {
   if (isLoading) return <p style={{ color: "var(--text-secondary)", padding: 24 }}>Loading…</p>;
   if (!exam) return <p style={{ color: "var(--danger)", padding: 24 }}>Admission not found.</p>;
 
-  const studentName = student
-    ? `${student.first_name} ${student.last_name}`
-    : `Student #${exam.student_id}`;
+  const studentName = studentLabel(student, `Student #${exam.student_id}`);
   const schoolRequired = admissionSchoolFieldsRequired(form);
   const canSave = !schoolRequired || (!!form.school_type && !!form.admitted_school_id);
 

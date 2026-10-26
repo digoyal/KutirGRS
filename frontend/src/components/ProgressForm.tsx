@@ -24,6 +24,7 @@ import {
   STATUS_BADGES,
 } from "../constants/progressStatus";
 import { formatAcademicYear } from "../utils/academicYear";
+import { studentLabel } from "../utils/studentLabel";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -278,26 +279,29 @@ export function ProgressForm({
                   overflowY: "auto",
                 }}
               >
-                {students.map((s) => (
-                  <div
-                    key={s.id}
-                    onClick={() => {
-                      set("student_id", s.id);
-                      setSearch(`${s.first_name} ${s.last_name}`);
-                      const school = admittedSchoolMap[s.id];
-                      if (school) set("school_id", school);
-                    }}
-                    style={{
-                      padding: "8px 12px",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                      background:
-                        form.student_id === s.id ? "var(--badge-blue-bg)" : "var(--bg-card)",
-                    }}
-                  >
-                    {s.first_name} {s.last_name}
-                  </div>
-                ))}
+                {students.map((s) => {
+                  const label = studentLabel(s);
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => {
+                        set("student_id", s.id);
+                        setSearch(label);
+                        const school = admittedSchoolMap[s.id];
+                        if (school) set("school_id", school);
+                      }}
+                      style={{
+                        padding: "8px 12px",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                        background:
+                          form.student_id === s.id ? "var(--badge-blue-bg)" : "var(--bg-card)",
+                      }}
+                    >
+                      {label}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

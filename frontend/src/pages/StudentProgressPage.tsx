@@ -23,6 +23,7 @@ import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { PROGRESS_FIELDS } from "../constants/progressFields";
+import { studentLabel } from "../utils/studentLabel";
 import {
   PROGRESS_STATUSES,
   STATUS_LABELS,
@@ -153,7 +154,7 @@ export default function StudentProgressPage() {
       .map((meta): Col<StudentProgress> => {
         const sortValue = (p: StudentProgress): string | number => {
           switch (meta.key) {
-            case "student": { const s = studentMap2.get(p.student_id); return s ? `${(s as any).first_name} ${(s as any).last_name}`.toLowerCase() : ""; }
+            case "student": { const s = studentMap2.get(p.student_id); return studentLabel(s as any).toLowerCase(); }
             case "class_in_year": return p.class_in_year ?? -1;
             case "school_id": return (schoolMap.get(p.school_id)?.name ?? "").toLowerCase();
             case "previous_year_percentage": return p.previous_year_percentage ?? -1;
@@ -164,7 +165,7 @@ export default function StudentProgressPage() {
         };
         const csvValue = (p: StudentProgress): string => {
           switch (meta.key) {
-            case "student": { const s = studentMap2.get(p.student_id); return s ? `${(s as any).first_name} ${(s as any).last_name}` : String(p.student_id); }
+            case "student": { const s = studentMap2.get(p.student_id); return studentLabel(s as any, String(p.student_id)); }
             case "class_in_year": return p.class_in_year != null ? String(p.class_in_year) : "";
             case "school_id": return (p.school ?? schoolMap.get(p.school_id))?.name ?? "";
             case "status": return STATUS_LABELS[p.status as ProgressStatus] ?? p.status;
@@ -177,7 +178,7 @@ export default function StudentProgressPage() {
           switch (meta.key) {
             case "student": {
               const s = studentMap2.get(p.student_id);
-              const name = s ? `${(s as any).first_name} ${(s as any).last_name}` : `#${p.student_id}`;
+              const name = studentLabel(s as any, `#${p.student_id}`);
               return (
                 <Link
                   to={`/students/${p.student_id}`}
