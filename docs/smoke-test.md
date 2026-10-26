@@ -2,7 +2,7 @@
 
 Run after **any substantial change** — auth, roles, deploy, dependencies, shared UI, or sizable API/UI work. Skip for tiny typo / docs-only edits.
 
-Local defaults: API `http://localhost:8001/api/v1`, Vite `http://localhost:5173`. Admin from `backend/.env` (`ADMIN_PASSWORD`; username usually `admin`). Do not print secrets. No Playwright required.
+Local defaults: API `http://localhost:8001/api/v1`, Vite `http://localhost:5173`. Login **`admin` / `admin`** — keep `backend/.env` `ADMIN_PASSWORD=admin` in sync; startup creates admin only if missing and does **not** rehash on every start. If login fails, check API `:8001` is up (`/docs`) before assuming a bad password. Do not print secrets. No Playwright required.
 
 ## Build
 

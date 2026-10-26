@@ -38,6 +38,10 @@ from app.routers.deploy import router as deploy_router
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # Create admin once when missing; never rehash an existing user on restart.
+    from app.bootstrap_admin import ensure_admin_user
+
+    await ensure_admin_user()
     yield
     await engine.dispose()
 

@@ -32,6 +32,10 @@ print(f'  bcrypt {bcrypt.__version__}')
 "
 
 # 4. Start the FastAPI server on port 8001
+# Parent shells sometimes export ALLOWED_ORIGINS as an unquoted [a,b] list that
+# used to crash pydantic-settings; clear the override so .env / defaults win.
+unset ALLOWED_ORIGINS
 echo "→ Starting KutirGRS v2 API on http://localhost:8001 ..."
 echo "  API docs: http://localhost:8001/docs"
+echo "  Local login: admin / value of ADMIN_PASSWORD in .env (default admin)"
 venv/bin/uvicorn app.main:app --reload --port 8001
