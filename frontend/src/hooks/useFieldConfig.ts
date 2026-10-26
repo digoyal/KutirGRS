@@ -6,6 +6,10 @@ export interface FieldMeta {
   label: string;
   hideable: boolean;
   defaultVisible: boolean;
+  /** When false, list/config/export only — not used on Add/Edit/View forms. */
+  form?: boolean;
+  /** Optional form-only label; list/Column Config/export keep using `label`. */
+  formLabel?: string;
 }
 
 export interface FieldConfigEntry {

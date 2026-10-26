@@ -17,6 +17,7 @@ import {
 } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
+import { studentFieldLabel } from "../constants/studentsFields";
 import { grs } from "../styles/grs";
 
 const DOCS: { key: keyof StudentFormState; label: string }[] = [
@@ -244,15 +245,21 @@ export function StudentForm({
     ? kutirSource.filter((k) => k.cluster_id === selCluster)
     : kutirSource;
 
+  /**
+   * Pass `label` for form-only fields (not in STUDENTS_FIELDS).
+   * Otherwise label comes from studentFieldLabel(key).
+   */
   function textField(
-    label: string,
     key: keyof StudentFormState,
-    opts?: { type?: string; required?: boolean },
+    opts?: { type?: string; required?: boolean; label?: string },
   ) {
     const raw = form[key];
     const display =
       typeof raw === "boolean" ? String(raw) : ((raw as string | null | undefined) ?? null);
-    const fieldLabel = `${label}${opts?.required ? " *" : ""}`;
+    const fieldLabel =
+      opts?.label != null
+        ? `${opts.label}${opts.required ? " *" : ""}`
+        : studentFieldLabel(String(key), { required: opts?.required });
     if (readOnly) {
       return <ViewField label={fieldLabel}>{display || null}</ViewField>;
     }
@@ -279,7 +286,7 @@ export function StudentForm({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
             <ViewField label="District">{locationLabels?.district}</ViewField>
             <ViewField label="Cluster">{locationLabels?.cluster}</ViewField>
-            <ViewField label="Kutir">{locationLabels?.kutir}</ViewField>
+            <ViewField label={studentFieldLabel("kutir_id")}>{locationLabels?.kutir}</ViewField>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
@@ -326,7 +333,7 @@ export function StudentForm({
               </select>
             </div>
             <div>
-              <label style={grs.fieldLabel}>Kutir</label>
+              <label style={grs.fieldLabel}>{studentFieldLabel("kutir_id")}</label>
               <select
                 style={grs.select}
                 value={form.kutir_id ?? ""}
@@ -350,15 +357,15 @@ export function StudentForm({
       <section style={sec}>
         <div style={secTitle}>Personal Info</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-          {textField("First Name", "first_name", { required: true })}
-          {textField("Last Name", "last_name", { required: true })}
+          {textField("first_name", { required: true, label: "First Name" })}
+          {textField("last_name", { required: true, label: "Last Name" })}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           {readOnly ? (
-            <ViewField label="Gender">{form.gender || null}</ViewField>
+            <ViewField label={studentFieldLabel("gender")}>{form.gender || null}</ViewField>
           ) : (
             <div>
-              <label style={grs.fieldLabel}>Gender</label>
+              <label style={grs.fieldLabel}>{studentFieldLabel("gender")}</label>
               <select
                 style={grs.select}
                 value={form.gender}
@@ -369,7 +376,7 @@ export function StudentForm({
               </select>
             </div>
           )}
-          {textField("Date of Birth", "dob", { type: "date" })}
+          {textField("dob", { type: "date" })}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           {readOnly ? (
@@ -421,28 +428,28 @@ export function StudentForm({
           )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {textField("Phone", "phone")}
-          {textField("Email", "email", { type: "email" })}
+          {textField("phone")}
+          {textField("email", { type: "email" })}
         </div>
       </section>
 
       <section style={sec}>
         <div style={secTitle}>Family</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-          {textField("Father's Name", "father_name")}
-          {textField("Mother's Name", "mother_name")}
+          {textField("father_name")}
+          {textField("mother_name")}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {textField("Alt Contact Name", "alt_contact_name")}
-          {textField("Alt Contact Phone", "alt_contact_phone")}
+          {textField("alt_contact_name")}
+          {textField("alt_contact_phone")}
         </div>
       </section>
 
       <section style={sec}>
         <div style={secTitle}>Address</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {textField("Street", "street")}
-          {textField("Pincode", "pincode")}
+          {textField("street", { label: "Street" })}
+          {textField("pincode", { label: "Pincode" })}
         </div>
       </section>
 

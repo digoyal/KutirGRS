@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { ViewField, ViewSection } from "@parivaar/ui";
 import { UserForm, EMPTY_USER_FORM, type UserFormState } from "../components/UserForm";
 import { canManageUsers, assignableTitles as titlesAssignableTo } from "../constants/roles";
+import { userFieldLabel } from "../constants/usersFields";
 import { grs } from "../styles/grs";
 
 function namesFor(ids: number[], items: { id: number; name: string }[] | undefined): string {
@@ -236,10 +237,10 @@ export default function UserDetailPage() {
         <>
           <ViewSection title="Account">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-              <ViewField label="Username">{u.username}</ViewField>
-              <ViewField label="Role">{u.title}</ViewField>
+              <ViewField label={userFieldLabel("username")}>{u.username}</ViewField>
+              <ViewField label={userFieldLabel("title")}>{u.title}</ViewField>
             </div>
-            <ViewField label="Status">
+            <ViewField label={userFieldLabel("is_active")}>
               <span
                 style={{
                   ...grs.badge,
@@ -259,8 +260,8 @@ export default function UserDetailPage() {
               <ViewField label="Last Name">{u.last_name}</ViewField>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <ViewField label="Phone">{u.phone}</ViewField>
-              <ViewField label="Email">{u.email}</ViewField>
+              <ViewField label={userFieldLabel("phone")}>{u.phone}</ViewField>
+              <ViewField label={userFieldLabel("email")}>{u.email}</ViewField>
             </div>
           </ViewSection>
 

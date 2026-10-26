@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listExamCenters, listDistricts, deleteExamCenter } from "../api/geo";
@@ -9,12 +9,62 @@ import { GeoFilterBar } from "../components/GeoFilterBar";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
-import { EXAM_CENTERS_FIELDS } from "../constants/examCentersFields";
+import { EXAM_CENTERS_FIELDS, EXAM_CENTERS_FIELD_KEYS } from "../constants/examCentersFields";
 import { canManageExamCenters } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import type { FilterId } from "../utils/geoFilters";
 
 const STORAGE_KEY = "exam_centers_filter_state";
+
+type EnrichedCenter = Awaited<ReturnType<typeof listExamCenters>>[number] & { districtName: string };
+
+type CenterColRenderer = {
+  render?: (r: EnrichedCenter) => ReactNode;
+  csvValue?: (r: EnrichedCenter) => string;
+  sortValue?: (r: EnrichedCenter) => string | number;
+  tdStyle?: CSSProperties;
+  sortable?: boolean;
+};
+
+function examCenterColRenderers(): Record<string, CenterColRenderer> {
+  const renderers: Record<string, CenterColRenderer> = {
+    name: { sortable: true },
+    street: {
+      sortable: true,
+      render: (r) => r.street || "—",
+      csvValue: (r) => r.street || "",
+    },
+    city: {
+      sortable: true,
+      render: (r) => r.city || "—",
+      csvValue: (r) => r.city || "",
+    },
+    districtName: {
+      sortable: true,
+      render: (r) => r.districtName || "—",
+      csvValue: (r) => r.districtName || "",
+    },
+    state: {
+      sortable: true,
+      render: (r) => r.state || "—",
+      csvValue: (r) => r.state || "",
+    },
+    pincode: {
+      sortable: true,
+      render: (r) => r.pincode || "—",
+      csvValue: (r) => r.pincode || "",
+      tdStyle: { fontVariantNumeric: "tabular-nums" },
+    },
+  };
+  if (import.meta.env.DEV) {
+    for (const key of EXAM_CENTERS_FIELD_KEYS) {
+      if (!(key in renderers)) {
+        throw new Error(`ExamCentersPage missing renderer for EXAM_CENTERS_FIELDS key: ${key}`);
+      }
+    }
+  }
+  return renderers;
+}
 
 export default function ExamCentersPage() {
   const qc = useQueryClient();
@@ -46,24 +96,29 @@ export default function ExamCentersPage() {
     persistFilters(STORAGE_KEY, { district: filterDistrict });
   }
 
-  const enriched = centers
+  const enriched: EnrichedCenter[] = centers
     .filter(c => filterDistrict === "" || c.district_id === filterDistrict)
     .map(c => ({ ...c, districtName: districtMap[c.district_id ?? 0] ?? "" }));
 
-  const allColumns: Col<typeof enriched[0]>[] = [
-    { key: "name",         label: "Name",     sortable: true },
-    { key: "street",       label: "Street",   sortable: true, render: r => r.street || "—" },
-    { key: "city",         label: "City",     sortable: true, render: r => r.city || "—" },
-    { key: "districtName", label: "District", sortable: true, render: r => r.districtName || "—" },
-    { key: "state",        label: "State",    sortable: true, render: r => r.state || "—" },
-    { key: "pincode",      label: "Pincode",  sortable: true, render: r => r.pincode || "—", tdStyle: { fontVariantNumeric: "tabular-nums" } },
-  ];
-
+  // List columns, labels, visibility, order, and CSV headers all come from EXAM_CENTERS_FIELDS.
   const { isVisible, orderedMetas } = useFieldConfig("examcenters", EXAM_CENTERS_FIELDS);
-  const columns = useMemo(() => {
-    const colByKey = new Map(allColumns.map(c => [c.key, c]));
-    return orderedMetas.filter(m => isVisible(m.key)).map(m => colByKey.get(m.key)).filter((c): c is NonNullable<typeof c> => c != null);
-  }, [allColumns, orderedMetas, isVisible]);
+  const columns = useMemo<Col<EnrichedCenter>[]>(() => {
+    const renderers = examCenterColRenderers();
+    return orderedMetas
+      .filter((m) => isVisible(m.key))
+      .map((meta): Col<EnrichedCenter> => {
+        const r = renderers[meta.key] ?? {};
+        return {
+          key: meta.key,
+          label: meta.label,
+          sortable: r.sortable ?? true,
+          render: r.render,
+          csvValue: r.csvValue,
+          sortValue: r.sortValue,
+          tdStyle: r.tdStyle,
+        };
+      });
+  }, [orderedMetas, isVisible]);
 
   return (
     <div style={{ padding: "24px 28px", maxWidth: 1100 }}>

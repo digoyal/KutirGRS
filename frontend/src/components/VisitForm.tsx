@@ -15,6 +15,7 @@ import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { ViewField, viewStyles } from "@parivaar/ui";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
+import { visitFieldLabel } from "../constants/visitsFields";
 import { grs } from "../styles/grs";
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace(
@@ -22,16 +23,17 @@ const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v
   "",
 );
 
-const RATING_FIELDS: [keyof KutirVisitCreate, string][] = [
-  ["cleanliness", "Cleanliness"],
-  ["hindi_proficiency", "Hindi Proficiency"],
-  ["english_proficiency", "English Proficiency"],
-  ["maths_proficiency", "Math Proficiency"],
-  ["evs_proficiency", "EVS Proficiency (class 5 only)"],
-  ["reasoning_proficiency", "Reasoning Proficiency (class 5 only)"],
-  ["material_management", "Material Management"],
-  ["staff_behavior", "Kutir Staff Behavior"],
-  ["kutir_performance", "Kutir Performance"],
+/** Rating keys — labels from VISITS_FIELDS via visitFieldLabel. */
+const RATING_FIELD_KEYS: (keyof KutirVisitCreate)[] = [
+  "cleanliness",
+  "hindi_proficiency",
+  "english_proficiency",
+  "maths_proficiency",
+  "evs_proficiency",
+  "reasoning_proficiency",
+  "material_management",
+  "staff_behavior",
+  "kutir_performance",
 ];
 
 const REGISTER_FIELDS: [keyof KutirVisitCreate, string][] = [
@@ -365,9 +367,9 @@ export function VisitForm({
 
         <ViewSectionHead label="Visit Info" />
         <div style={detailGrid}>
-          <span style={detailLabel}>Kutir</span>
+          <span style={detailLabel}>{visitFieldLabel("kutir_id")}</span>
           <span style={detailValue}>{resolvedKutirName}</span>
-          <span style={detailLabel}>Visit Date</span>
+          <span style={detailLabel}>{visitFieldLabel("visit_date")}</span>
           <span style={detailValue}>
             {form.visit_date
               ? new Date(form.visit_date).toLocaleDateString("en-IN", {
@@ -406,7 +408,7 @@ export function VisitForm({
           <span style={{ ...detailValue, textAlign: "center" as const }}>{form.regular_students_evening ?? "—"}</span>
         </div>
         <div style={detailGrid}>
-          <span style={detailLabel}>App vs. Registered Students</span>
+          <span style={detailLabel}>{visitFieldLabel("physical_vs_registered")}</span>
           <span style={detailValue}>
             <span
               style={{
@@ -430,7 +432,7 @@ export function VisitForm({
 
         <ViewSectionHead label="Implementation" />
         <div style={detailGrid}>
-          <span style={detailLabel}>Follows Timetable</span>
+          <span style={detailLabel}>{visitFieldLabel("follow_timetable")}</span>
           <span style={detailValue}>{form.follow_timetable ? "✓ Yes" : "✗ No"}</span>
           <span style={detailLabel}>Monthly Teaching Plan</span>
           <span style={{ ...detailValue, display: "flex", gap: 10, flexWrap: "wrap" as const }}>
@@ -522,9 +524,9 @@ export function VisitForm({
 
         <ViewSectionHead label="Workbook & Books" />
         <div style={detailGrid}>
-          <span style={detailLabel}>Workbook %</span>
+          <span style={detailLabel}>{visitFieldLabel("workbook_percentage")}</span>
           <span style={detailValue}>{form.workbook_percentage}%</span>
-          <span style={detailLabel}>Workbook Status</span>
+          <span style={detailLabel}>{visitFieldLabel("workbook_completion")}</span>
           <span style={{ ...detailValue, color: workbookColor(form.workbook_completion) }}>
             {form.workbook_completion}
           </span>
@@ -563,19 +565,13 @@ export function VisitForm({
 
         <ViewSectionHead label="Ratings (1 = Poor, 5 = Excellent)" />
         <div>
-          {RATING_FIELDS.map(([key, label]) => (
-            <div
+          {RATING_FIELD_KEYS.map((key) => (
+            <RatingRow
               key={key}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "5px 0",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              <span style={detailLabel}>{label}</span>
-              <StarRating value={(form[key] as number) ?? 0} readOnly />
-            </div>
+              label={visitFieldLabel(key)}
+              value={(form[key] as number) ?? 0}
+              readOnly
+            />
           ))}
         </div>
 
@@ -584,11 +580,11 @@ export function VisitForm({
             <ViewSectionHead label="Remarks" />
             {form.grs_prep_remarks && (
               <div style={{ marginBottom: 10 }}>
-                <ViewField label="GRS Preparation">{form.grs_prep_remarks}</ViewField>
+                <ViewField label={visitFieldLabel("grs_prep_remarks")}>{form.grs_prep_remarks}</ViewField>
               </div>
             )}
             {form.final_remarks && (
-              <ViewField label="Final Remarks">{form.final_remarks}</ViewField>
+              <ViewField label={visitFieldLabel("final_remarks")}>{form.final_remarks}</ViewField>
             )}
           </>
         )}
@@ -640,7 +636,7 @@ export function VisitForm({
           </select>
         </div>
         <div>
-          <label style={grs.fieldLabel}>Kutir *</label>
+          <label style={grs.fieldLabel}>{visitFieldLabel("kutir_id", { required: true })}</label>
           <select
             value={form.kutir_id || ""}
             onChange={(e) => set("kutir_id", Number(e.target.value))}
@@ -657,7 +653,7 @@ export function VisitForm({
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 10 }}>
         <div style={{ flex: 1 }}>
-          <label style={grs.fieldLabel}>Visit Date *</label>
+          <label style={grs.fieldLabel}>{visitFieldLabel("visit_date", { required: true })}</label>
           <input
             type="date"
             value={form.visit_date}
@@ -796,7 +792,7 @@ export function VisitForm({
       >
         <SectionHead label="Implementation" />
         <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "4px 0" }}>
-          <span style={{ ...grs.fieldLabel, margin: 0, minWidth: 180 }}>Follows Timetable</span>
+          <span style={{ ...grs.fieldLabel, margin: 0, minWidth: 180 }}>{visitFieldLabel("follow_timetable")}</span>
           <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, cursor: "pointer" }}>
             <input
               type="checkbox"
@@ -917,7 +913,7 @@ export function VisitForm({
         <SectionHead label="Registers & Materials" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div>
-            <label style={grs.fieldLabel}>App vs. Registered Students</label>
+            <label style={grs.fieldLabel}>{visitFieldLabel("physical_vs_registered")}</label>
             <select
               value={form.physical_vs_registered}
               onChange={(e) =>
@@ -930,7 +926,7 @@ export function VisitForm({
             </select>
           </div>
           <div>
-            <label style={grs.fieldLabel}>Workbook % Complete</label>
+            <label style={grs.fieldLabel}>{visitFieldLabel("workbook_percentage")}</label>
             <input
               type="number"
               min={0}
@@ -941,7 +937,7 @@ export function VisitForm({
             />
           </div>
           <div>
-            <label style={grs.fieldLabel}>Workbook Completion</label>
+            <label style={grs.fieldLabel}>{visitFieldLabel("workbook_completion")}</label>
             <select
               value={form.workbook_completion}
               onChange={(e) =>
@@ -955,7 +951,7 @@ export function VisitForm({
             </select>
           </div>
           <div>
-            <label style={grs.fieldLabel}>Book Availability</label>
+            <label style={grs.fieldLabel}>{visitFieldLabel("book_availability")}</label>
             <select
               value={form.book_availability}
               onChange={(e) =>
@@ -983,10 +979,10 @@ export function VisitForm({
 
         <SectionHead label="Ratings (1 = Poor, 5 = Excellent)" />
         <div>
-          {RATING_FIELDS.map(([key, label]) => (
+          {RATING_FIELD_KEYS.map((key) => (
             <RatingRow
               key={key}
-              label={label}
+              label={visitFieldLabel(key)}
               value={(form[key] as number) ?? 3}
               onChange={(v) => set(key, v as never)}
             />
@@ -995,7 +991,7 @@ export function VisitForm({
 
         <SectionHead label="Remarks & Photo" />
         <div>
-          <label style={grs.fieldLabel}>GRS Preparation Remarks</label>
+          <label style={grs.fieldLabel}>{visitFieldLabel("grs_prep_remarks")}</label>
           <textarea
             value={form.grs_prep_remarks ?? ""}
             onChange={(e) => set("grs_prep_remarks", e.target.value || null)}
@@ -1004,7 +1000,7 @@ export function VisitForm({
           />
         </div>
         <div style={{ marginTop: 10 }}>
-          <label style={grs.fieldLabel}>Final Remarks</label>
+          <label style={grs.fieldLabel}>{visitFieldLabel("final_remarks")}</label>
           <textarea
             value={form.final_remarks ?? ""}
             onChange={(e) => set("final_remarks", e.target.value || null)}
@@ -1013,7 +1009,7 @@ export function VisitForm({
           />
         </div>
         <div style={{ marginTop: 10 }}>
-          <label style={grs.fieldLabel}>Visit Photo</label>
+          <label style={grs.fieldLabel}>{visitFieldLabel("visit_photo")}</label>
           {existingPhoto && !photoFile && (
             <div style={{ marginBottom: 8 }}>
               <img

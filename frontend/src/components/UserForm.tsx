@@ -8,6 +8,7 @@ import { listZones, listDistricts, listAreas, listClusters, type Zone, type Dist
 import { listKutirs, type Kutir } from "../api/kutirs";
 import { grs } from "../styles/grs";
 import { TITLES as ROLE_TITLES } from "../constants/roles";
+import { userFieldLabel } from "../constants/usersFields";
 
 export const TITLES = [...ROLE_TITLES];
 
@@ -145,7 +146,7 @@ export function UserForm({
       {/* Username + Password */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div>
-          <label style={grs.fieldLabel}>Username *</label>
+          <label style={grs.fieldLabel}>{userFieldLabel("username", { required: true })}</label>
           <input style={grs.input} value={form.username}
             onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
             disabled={isEdit} />
@@ -157,7 +158,7 @@ export function UserForm({
         </div>
       </div>
 
-      {/* First + Last Name */}
+      {/* First + Last Name (list uses composite "name"; keep form-only labels) */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div>
           <label style={grs.fieldLabel}>First Name</label>
@@ -174,12 +175,12 @@ export function UserForm({
       {/* Phone + Email */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div>
-          <label style={grs.fieldLabel}>Phone</label>
+          <label style={grs.fieldLabel}>{userFieldLabel("phone")}</label>
           <input style={grs.input} value={form.phone ?? ""}
             onChange={e => setForm(f => ({ ...f, phone: e.target.value || null }))} />
         </div>
         <div>
-          <label style={grs.fieldLabel}>Email</label>
+          <label style={grs.fieldLabel}>{userFieldLabel("email")}</label>
           <input style={grs.input} type="email" value={form.email ?? ""}
             onChange={e => setForm(f => ({ ...f, email: e.target.value || null }))} />
         </div>
@@ -187,7 +188,7 @@ export function UserForm({
 
       {/* Role */}
       <div>
-        <label style={grs.fieldLabel}>Role</label>
+        <label style={grs.fieldLabel}>{userFieldLabel("title")}</label>
         <select style={grs.select} value={form.title} onChange={e => handleRoleChange(e.target.value)}>
           {assignableTitles.map(t => <option key={t}>{t}</option>)}
         </select>
@@ -360,11 +361,13 @@ export function UserForm({
         </div>
       )}
 
-      {/* Active toggle */}
+      {/* Status (is_active) toggle */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input type="checkbox" id="is_active" checked={form.is_active}
           onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} />
-        <label htmlFor="is_active" style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>Active</label>
+        <label htmlFor="is_active" style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>
+          {userFieldLabel("is_active")}
+        </label>
       </div>
     </div>
   );

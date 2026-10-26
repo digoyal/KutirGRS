@@ -10,6 +10,7 @@ import { type SchoolCreate } from "../api/schools";
 import { listDistricts } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
+import { schoolFieldLabel } from "../constants/schoolsFields";
 import { grs } from "../styles/grs";
 
 const SCHOOL_TYPES = ["EMRS", "JNV", "KSP", "MRS", "GNV", "KGBV", "SportsBoys", "SportsGirls", "Other"];
@@ -97,7 +98,7 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
         <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8, marginBottom: 8 }}>
             {field(
-              "Type",
+              schoolFieldLabel("school_type"),
               form.school_type,
               <select
                 style={grs.select}
@@ -110,7 +111,7 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
               </select>,
             )}
             {field(
-              "Name *",
+              schoolFieldLabel("name", { required: true }),
               form.name,
               <input
                 style={grs.input}
@@ -121,7 +122,7 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
             )}
           </div>
           {field(
-            "Street / Address",
+            schoolFieldLabel("street"),
             form.street,
             <input
               style={grs.input}
@@ -137,7 +138,7 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
         <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
             {field(
-              "City / Block",
+              schoolFieldLabel("city"),
               form.city,
               <input
                 style={grs.input}
@@ -146,7 +147,7 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
               />,
             )}
             {field(
-              "District",
+              schoolFieldLabel("district"),
               districtName ?? districts.find((d) => d.id === form.district_id)?.name,
               <select
                 style={grs.select}
@@ -166,7 +167,7 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {field(
-              "State",
+              schoolFieldLabel("state"),
               form.state,
               <select
                 style={grs.select}
@@ -179,7 +180,7 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
               </select>,
             )}
             {field(
-              "Pincode",
+              schoolFieldLabel("pincode"),
               form.pincode,
               <input
                 style={grs.input}

@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listKutirs, deleteKutir } from "../api/kutirs";
+import { listKutirs, deleteKutir, type Kutir } from "../api/kutirs";
 import { useAuth } from "../context/AuthContext";
 import { listClusters, listAreas, listDistricts } from "../api/geo";
 import { GrsTable } from "../components/GrsTable";
@@ -11,7 +11,7 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
-import { KUTIRS_FIELDS } from "../constants/kutirsFields";
+import { KUTIRS_FIELDS, KUTIRS_FIELD_KEYS } from "../constants/kutirsFields";
 import { canManageKutirs as roleCanManageKutirs, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
@@ -22,6 +22,83 @@ import {
 } from "../utils/geoFilters";
 
 const STORAGE_KEY = "kutirs_filter_state";
+
+type KutirColRenderer = {
+  render?: (r: Kutir) => ReactNode;
+  csvValue?: (r: Kutir) => string;
+  sortValue?: (r: Kutir) => string | number;
+  sortable?: boolean;
+};
+
+function teacherLabel(t: { first_name?: string | null; last_name?: string | null; username: string }) {
+  return [t.first_name, t.last_name].filter(Boolean).join(" ") || t.username;
+}
+
+function kutirColRenderers(clusterMap: Map<number, { id: number; name: string }>): Record<string, KutirColRenderer> {
+  const renderers: Record<string, KutirColRenderer> = {
+    name: {
+      sortable: true,
+      render: (r) => (
+        <Link to={`/kutirs/${r.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
+          {r.name}
+        </Link>
+      ),
+      csvValue: (r) => r.name,
+    },
+    kutir_type: { sortable: true },
+    cluster_id: {
+      sortable: true,
+      sortValue: (r) => clusterMap.get(r.cluster_id)?.name ?? "",
+      render: (r) => (
+        <span style={{ fontSize: "0.82rem" }}>{clusterMap.get(r.cluster_id)?.name ?? "—"}</span>
+      ),
+      csvValue: (r) => clusterMap.get(r.cluster_id)?.name ?? "",
+    },
+    street: {
+      sortable: false,
+      render: (r) => r.street ?? "—",
+      csvValue: (r) => r.street ?? "",
+    },
+    state: { sortable: true },
+    pincode: {
+      sortable: true,
+      render: (r) => r.pincode ?? "—",
+      csvValue: (r) => r.pincode ?? "",
+    },
+    enrollment_5th: {
+      sortable: true,
+      render: (r) => r.enrollment_5th ?? "—",
+      csvValue: (r) => String(r.enrollment_5th ?? ""),
+    },
+    enrollment_8th: {
+      sortable: true,
+      render: (r) => r.enrollment_8th ?? "—",
+      csvValue: (r) => String(r.enrollment_8th ?? ""),
+    },
+    teachers: {
+      sortable: true,
+      sortValue: (r) => r.teachers?.length ?? 0,
+      render: (r) => {
+        const list = r.teachers;
+        if (!list?.length) return "—";
+        return (
+          <span style={{ fontSize: "0.82rem" }}>
+            {list.map(teacherLabel).join(", ")}
+          </span>
+        );
+      },
+      csvValue: (r) => (r.teachers ?? []).map(teacherLabel).join("; "),
+    },
+  };
+  if (import.meta.env.DEV) {
+    for (const key of KUTIRS_FIELD_KEYS) {
+      if (!(key in renderers)) {
+        throw new Error(`KutirsPage missing renderer for KUTIRS_FIELDS key: ${key}`);
+      }
+    }
+  }
+  return renderers;
+}
 
 export default function KutirsPage() {
   const qc = useQueryClient();
@@ -45,8 +122,8 @@ export default function KutirsPage() {
   const { data: allAreas = [] }     = useQuery({ queryKey: ["all-areas"],     queryFn: () => listAreas() });
   const { data: allClusters = [] }  = useQuery({ queryKey: ["all-clusters"],  queryFn: () => listClusters() });
 
-  const areaMap    = new Map(allAreas.map((a) => [a.id, a]));
-  const clusterMap = new Map(allClusters.map((c) => [c.id, c]));
+  const areaMap    = useMemo(() => new Map(allAreas.map((a) => [a.id, a])), [allAreas]);
+  const clusterMap = useMemo(() => new Map(allClusters.map((c) => [c.id, c])), [allClusters]);
 
   const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
@@ -85,32 +162,24 @@ export default function KutirsPage() {
     });
   }
 
-  type KutirRow = typeof displayed[0];
-
-  const allColumns: Col<KutirRow>[] = [
-    { key: "name", label: "Name", sortable: true,
-      render: r => <Link to={`/kutirs/${r.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>{r.name}</Link>,
-      csvValue: r => r.name },
-    { key: "kutir_type", label: "Type", sortable: true },
-    { key: "cluster_id", label: "Cluster", sortable: true,
-      sortValue: r => clusterMap.get(r.cluster_id)?.name ?? "",
-      render: r => <span style={{ fontSize: "0.82rem" }}>{clusterMap.get(r.cluster_id)?.name ?? "—"}</span>,
-      csvValue: r => clusterMap.get(r.cluster_id)?.name ?? "" },
-    { key: "street", label: "Street", sortable: false, render: r => r.street ?? "—", csvValue: r => r.street ?? "" },
-    { key: "state", label: "State", sortable: true },
-    { key: "pincode", label: "Pincode", sortable: true, render: r => r.pincode ?? "—", csvValue: r => r.pincode ?? "" },
-    { key: "enrollment_5th", label: "5th Enroll", sortable: true, render: r => r.enrollment_5th ?? "—", csvValue: r => String(r.enrollment_5th ?? "") },
-    { key: "enrollment_8th", label: "8th Enroll", sortable: true, render: r => r.enrollment_8th ?? "—", csvValue: r => String(r.enrollment_8th ?? "") },
-  ];
-
+  // List columns, labels, visibility, order, and CSV headers all come from KUTIRS_FIELDS.
   const { isVisible, orderedMetas } = useFieldConfig("kutirs", KUTIRS_FIELDS);
-  const columns = useMemo(() => {
-    const colByKey = new Map(allColumns.map(c => [c.key, c]));
+  const columns = useMemo<Col<Kutir>[]>(() => {
+    const renderers = kutirColRenderers(clusterMap);
     return orderedMetas
-      .filter(m => isVisible(m.key))
-      .map(m => colByKey.get(m.key))
-      .filter((c): c is NonNullable<typeof c> => c != null);
-  }, [allColumns, orderedMetas, isVisible]);
+      .filter((m) => isVisible(m.key))
+      .map((meta): Col<Kutir> => {
+        const r = renderers[meta.key] ?? {};
+        return {
+          key: meta.key,
+          label: meta.label,
+          sortable: r.sortable ?? true,
+          render: r.render,
+          csvValue: r.csvValue,
+          sortValue: r.sortValue,
+        };
+      });
+  }, [orderedMetas, isVisible, clusterMap]);
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>

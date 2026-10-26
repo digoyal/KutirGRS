@@ -25,6 +25,7 @@ import {
 } from "../constants/progressStatus";
 import { formatAcademicYear } from "../utils/academicYear";
 import { studentLabel } from "../utils/studentLabel";
+import { progressFieldLabel } from "../constants/progressFields";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -262,7 +263,7 @@ export function ProgressForm({
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>Student *</label>
+            <label style={labelStyle}>{progressFieldLabel("student", { required: true })}</label>
             <input
               style={inp}
               placeholder="Type name to search…"
@@ -311,7 +312,7 @@ export function ProgressForm({
       {!isAdd && (
         readOnly ? (
           <div style={{ marginBottom: 14 }}>
-            <ViewField label="Student">
+            <ViewField label={progressFieldLabel("student")}>
               {form.student_id ? (
                 <Link
                   to={`/students/${form.student_id}`}
@@ -328,7 +329,7 @@ export function ProgressForm({
           </div>
         ) : (
           <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>Student</label>
+            <label style={labelStyle}>{progressFieldLabel("student")}</label>
             <div style={{ ...inp, color: "var(--text-secondary)", background: "var(--bg-input)" }}>
               {studentName ?? `Student #${form.student_id}`}
             </div>
@@ -341,7 +342,7 @@ export function ProgressForm({
           <ViewField label={yearLabel} style={{ flex: 1 }}>
             {formatAcademicYear(form.academic_year)}
           </ViewField>
-          <ViewField label="Class" style={{ flex: 1 }}>
+          <ViewField label={progressFieldLabel("class_in_year")} style={{ flex: 1 }}>
             {form.class_in_year != null ? `Class ${form.class_in_year}` : null}
           </ViewField>
         </div>
@@ -362,7 +363,7 @@ export function ProgressForm({
             </select>
           </div>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>{isAdd ? "Class *" : "Class"}</label>
+            <label style={labelStyle}>{progressFieldLabel("class_in_year", { required: isAdd })}</label>
             <select
               style={inp}
               value={form.class_in_year ?? ""}
@@ -383,10 +384,10 @@ export function ProgressForm({
 
       {readOnly ? (
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <ViewField label="School *" style={{ flex: 2 }}>
+          <ViewField label={progressFieldLabel("school_id", { required: true })} style={{ flex: 2 }}>
             {schoolName}
           </ViewField>
-          <ViewField label="Marks %" style={{ flex: 1 }}>
+          <ViewField label={progressFieldLabel("previous_year_percentage")} style={{ flex: 1 }}>
             {form.previous_year_percentage != null
               ? `${parseFloat(String(form.previous_year_percentage)).toFixed(1)}%`
               : null}
@@ -395,7 +396,7 @@ export function ProgressForm({
       ) : (
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <div style={{ flex: 2 }}>
-            <label style={labelStyle}>School *</label>
+            <label style={labelStyle}>{progressFieldLabel("school_id", { required: true })}</label>
             <select
               style={inp}
               value={form.school_id || ""}
@@ -410,7 +411,7 @@ export function ProgressForm({
             </select>
           </div>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Marks %</label>
+            <label style={labelStyle}>{progressFieldLabel("previous_year_percentage")}</label>
             <input
               type="number"
               min={0}
@@ -431,7 +432,7 @@ export function ProgressForm({
 
       <div style={{ marginBottom: 14 }}>
         {readOnly ? (
-          <ViewField label="Status">
+          <ViewField label={progressFieldLabel("status")}>
             <span
               style={{
                 background: badge.bg,
@@ -458,7 +459,7 @@ export function ProgressForm({
           </ViewField>
         ) : (
           <>
-            <label style={labelStyle}>Status</label>
+            <label style={labelStyle}>{progressFieldLabel("status")}</label>
             <select
               style={inp}
               value={currentStatus}
@@ -500,12 +501,12 @@ export function ProgressForm({
 
       <div style={{ marginBottom: 14 }}>
         {readOnly ? (
-          <ViewField label="Remarks" valueStyle={{ ...viewVal, whiteSpace: "pre-wrap" }}>
+          <ViewField label={progressFieldLabel("remarks")} valueStyle={{ ...viewVal, whiteSpace: "pre-wrap" }}>
             {form.remarks}
           </ViewField>
         ) : (
           <>
-            <label style={labelStyle}>Remarks</label>
+            <label style={labelStyle}>{progressFieldLabel("remarks")}</label>
             <textarea
               style={{ ...inp, resize: "vertical" }}
               rows={2}

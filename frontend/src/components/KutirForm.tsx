@@ -10,6 +10,7 @@ import { type KutirCreate, type KutirDetail } from "../api/kutirs";
 import { listZones, listDistricts, listAreas, listClusters } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
+import { kutirFieldLabel } from "../constants/kutirsFields";
 import { grs } from "../styles/grs";
 
 const KUTIR_TYPES = ["Seva Kutir", "Shiksha Kutir", "Non-Kutir"];
@@ -145,22 +146,22 @@ export function KutirForm({
             <ViewField label="Zone">{locationLabels?.zone}</ViewField>
             <ViewField label="District">{locationLabels?.district}</ViewField>
             <ViewField label="Area">{locationLabels?.area}</ViewField>
-            <ViewField label="Cluster">{locationLabels?.cluster}</ViewField>
+            <ViewField label={kutirFieldLabel("cluster_id")}>{locationLabels?.cluster}</ViewField>
           </div>
         </ViewSection>
 
         <ViewSection title="Details">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-            <ViewField label="Name *">{form.name || null}</ViewField>
-            <ViewField label="Type">{form.kutir_type || null}</ViewField>
+            <ViewField label={kutirFieldLabel("name", { required: true })}>{form.name || null}</ViewField>
+            <ViewField label={kutirFieldLabel("kutir_type")}>{form.kutir_type || null}</ViewField>
           </div>
-          <ViewField label="State">{form.state}</ViewField>
+          <ViewField label={kutirFieldLabel("state")}>{form.state}</ViewField>
         </ViewSection>
 
         <ViewSection title="Enrollment">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <ViewField label="5th Grade">{form.enrollment_5th}</ViewField>
-            <ViewField label="8th Grade">{form.enrollment_8th}</ViewField>
+            <ViewField label={kutirFieldLabel("enrollment_5th")}>{form.enrollment_5th}</ViewField>
+            <ViewField label={kutirFieldLabel("enrollment_8th")}>{form.enrollment_8th}</ViewField>
           </div>
         </ViewSection>
 
@@ -250,7 +251,7 @@ export function KutirForm({
             </select>
           </div>
           <div>
-            <label style={grs.fieldLabel}>Cluster *</label>
+            <label style={grs.fieldLabel}>{kutirFieldLabel("cluster_id", { required: true })}</label>
             <select
               style={grs.select}
               value={form.cluster_id || ""}
@@ -272,7 +273,7 @@ export function KutirForm({
         <div style={secTitle}>Details</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           <div>
-            <label style={grs.fieldLabel}>Name *</label>
+            <label style={grs.fieldLabel}>{kutirFieldLabel("name", { required: true })}</label>
             <input
               style={grs.input}
               value={form.name}
@@ -281,7 +282,7 @@ export function KutirForm({
             />
           </div>
           <div>
-            <label style={grs.fieldLabel}>Type</label>
+            <label style={grs.fieldLabel}>{kutirFieldLabel("kutir_type")}</label>
             <select
               style={grs.select}
               value={form.kutir_type}
@@ -294,7 +295,7 @@ export function KutirForm({
           </div>
         </div>
         <div>
-          <label style={grs.fieldLabel}>State</label>
+          <label style={grs.fieldLabel}>{kutirFieldLabel("state")}</label>
           <select
             style={grs.select}
             value={form.state ?? "Madhya Pradesh"}
@@ -311,7 +312,7 @@ export function KutirForm({
         <div style={secTitle}>Enrollment</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div>
-            <label style={grs.fieldLabel}>5th Grade</label>
+            <label style={grs.fieldLabel}>{kutirFieldLabel("enrollment_5th")}</label>
             <input
               style={grs.input}
               type="number"
@@ -323,7 +324,7 @@ export function KutirForm({
             />
           </div>
           <div>
-            <label style={grs.fieldLabel}>8th Grade</label>
+            <label style={grs.fieldLabel}>{kutirFieldLabel("enrollment_8th")}</label>
             <input
               style={grs.input}
               type="number"

@@ -1,31 +1,71 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listUsers, deleteUser, type User } from "../api/users";
 import { useAuth } from "../context/AuthContext";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
-import { USERS_FIELDS } from "../constants/usersFields";
+import { USERS_FIELDS, USERS_FIELD_KEYS } from "../constants/usersFields";
 import { canManageUsers } from "../constants/roles";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { grs } from "../styles/grs";
 
-const COLS: Col<User>[] = [
-  { key: "username", label: "Username", sortable: true, render: u => <strong>{u.username}</strong> },
-  { key: "name",     label: "Name",     render: u => [u.first_name, u.last_name].filter(Boolean).join(" ") || "—" },
-  { key: "title",    label: "Role",     sortable: true, render: u => u.title ?? "—" },
-  { key: "phone",    label: "Phone",    render: u => u.phone ?? "—" },
-  {
-    key: "is_active", label: "Status", sortable: true,
-    render: u => (
-      <span style={{ ...grs.badge, background: u.is_active ? "var(--badge-active-bg)" : "var(--badge-inactive-bg)", color: u.is_active ? "var(--badge-active-fg)" : "var(--badge-inactive-fg)" }}>
-        {u.is_active ? "Active" : "Inactive"}
-      </span>
-    ),
-  },
-  { key: "email", label: "Email", render: u => u.email ?? "—", csvValue: u => u.email ?? "" },
-];
+type UserColRenderer = {
+  render?: (u: User) => ReactNode;
+  csvValue?: (u: User) => string;
+  sortValue?: (u: User) => string | number;
+  sortable?: boolean;
+};
+
+function userColRenderers(): Record<string, UserColRenderer> {
+  const renderers: Record<string, UserColRenderer> = {
+    username: {
+      sortable: true,
+      render: (u) => <strong>{u.username}</strong>,
+    },
+    name: {
+      render: (u) => [u.first_name, u.last_name].filter(Boolean).join(" ") || "—",
+      csvValue: (u) => [u.first_name, u.last_name].filter(Boolean).join(" "),
+      sortValue: (u) => [u.first_name, u.last_name].filter(Boolean).join(" ").toLowerCase(),
+    },
+    title: {
+      sortable: true,
+      render: (u) => u.title ?? "—",
+      csvValue: (u) => u.title ?? "",
+    },
+    phone: {
+      render: (u) => u.phone ?? "—",
+      csvValue: (u) => u.phone ?? "",
+    },
+    is_active: {
+      sortable: true,
+      render: (u) => (
+        <span style={{
+          ...grs.badge,
+          background: u.is_active ? "var(--badge-active-bg)" : "var(--badge-inactive-bg)",
+          color: u.is_active ? "var(--badge-active-fg)" : "var(--badge-inactive-fg)",
+        }}>
+          {u.is_active ? "Active" : "Inactive"}
+        </span>
+      ),
+      csvValue: (u) => (u.is_active ? "Active" : "Inactive"),
+      sortValue: (u) => (u.is_active ? 1 : 0),
+    },
+    email: {
+      render: (u) => u.email ?? "—",
+      csvValue: (u) => u.email ?? "",
+    },
+  };
+  if (import.meta.env.DEV) {
+    for (const key of USERS_FIELD_KEYS) {
+      if (!(key in renderers)) {
+        throw new Error(`UsersPage missing renderer for USERS_FIELDS key: ${key}`);
+      }
+    }
+  }
+  return renderers;
+}
 
 export default function UsersPage() {
   const qc = useQueryClient();
@@ -44,10 +84,23 @@ export default function UsersPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
   });
 
+  // List columns, labels, visibility, order, and CSV headers all come from USERS_FIELDS.
   const { isVisible, orderedMetas } = useFieldConfig("users", USERS_FIELDS);
-  const columns = useMemo(() => {
-    const colByKey = new Map(COLS.map(c => [c.key, c]));
-    return orderedMetas.filter(m => isVisible(m.key)).map(m => colByKey.get(m.key)).filter((c): c is NonNullable<typeof c> => c != null);
+  const columns = useMemo<Col<User>[]>(() => {
+    const renderers = userColRenderers();
+    return orderedMetas
+      .filter((m) => isVisible(m.key))
+      .map((meta): Col<User> => {
+        const r = renderers[meta.key] ?? {};
+        return {
+          key: meta.key,
+          label: meta.label,
+          sortable: r.sortable ?? true,
+          render: r.render,
+          csvValue: r.csvValue,
+          sortValue: r.sortValue,
+        };
+      });
   }, [orderedMetas, isVisible]);
 
   return (

@@ -10,17 +10,22 @@ import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
 import { GeoFilterBar } from "../components/GeoFilterBar";
 import { scopeDistricts, scopeKutirs, type FilterId } from "../utils/geoFilters";
+import { studentLabel } from "../utils/studentLabel";
 
 const CURRENT_YEAR = new Date().getFullYear();
+/** Base New Class options (1–12). Extra values from defaults are merged per render so they display. */
+const CLASS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+/** Unpaginated fetch for bulk setup (API defaults to 25). */
+const BULK_LIMIT = 5000;
 
 interface RowState {
   student_id: number;
   first_name: string;
   last_name: string;
+  father_name: string | null;
   class_in_year: number | null;
   school_id: number | null;
   previous_year_percentage: string;
-  exists: boolean;   // already has a record for this year
 }
 
 const inp: React.CSSProperties = {
@@ -34,6 +39,23 @@ const btnPrimary: React.CSSProperties = {
   borderRadius: 6, padding: "7px 18px", fontWeight: 600, fontSize: "0.875rem",
   cursor: "pointer",
 };
+
+/** Prior Progress class → New Class = that + 1 (always when source exists; do not drop for option list). */
+function bumpClass(prev: number | null | undefined): number | null {
+  if (prev == null || Number.isNaN(Number(prev))) return null;
+  return Number(prev) + 1;
+}
+
+/** Admitted exam `admission_class` (5 or 8) used as-is when no usable prior Progress class. */
+function classFromAdmission(admissionClass: number | null | undefined): number | null {
+  if (admissionClass == null || Number.isNaN(Number(admissionClass))) return null;
+  return Number(admissionClass);
+}
+
+function classSelectOptions(selected: number | null): number[] {
+  if (selected == null || CLASS_OPTIONS.includes(selected)) return CLASS_OPTIONS;
+  return [...CLASS_OPTIONS, selected].sort((a, b) => a - b);
+}
 
 export default function NewYearSetupPage() {
   const qc = useQueryClient();
@@ -72,32 +94,48 @@ export default function NewYearSetupPage() {
     queryFn: () => listClusters(),
   });
   const { data: existingProgress = [] } = useQuery<StudentProgress[]>({
-    queryKey: ["progress", year],
-    queryFn: () => listProgress({ academic_year: year }),
+    queryKey: ["progress", year, "bulk"],
+    queryFn: () => listProgress({ academic_year: year, limit: BULK_LIMIT }),
   });
   const { data: prevProgress = [] } = useQuery<StudentProgress[]>({
-    queryKey: ["progress", year - 1],
-    queryFn: () => listProgress({ academic_year: year - 1 }),
+    queryKey: ["progress", year - 1, "bulk"],
+    queryFn: () => listProgress({ academic_year: year - 1, limit: BULK_LIMIT }),
   });
-  const { data: allExams = [] } = useQuery<StudentExam[]>({
-    queryKey: ["all-exams"],
-    queryFn: () => listExams(),
+  // Broader progress for class/school defaults when year-1 row is missing or class_in_year null
+  const { data: recentProgress = [] } = useQuery<StudentProgress[]>({
+    queryKey: ["progress", "bulk-recent"],
+    queryFn: () => listProgress({ limit: BULK_LIMIT }),
+  });
+  // admitted=true skips server pagination — full Admitted set for inclusion
+  const { data: admittedExams = [] } = useQuery<StudentExam[]>({
+    queryKey: ["exams", "admitted"],
+    queryFn: () => listExams({ admitted: true }),
   });
 
   const kutirMap = new Map(allKutirs.map(k => [k.id, k]));
   const areaMap = new Map(allAreas.map(a => [a.id, a]));
   const clusterMap = new Map(allClusters.map(c => [c.id, c]));
+  const schoolMap = new Map(schools.map(s => [s.id, s]));
 
-  // Set of student IDs with at least one admitted exam record
-  const admittedStudentIds = new Set(allExams.filter(e => e.admitted).map(e => e.student_id));
+  // Inclusion = prior-year Progress ∪ Admitted (deduped below)
+  const admittedStudentIds = new Set(admittedExams.map(e => e.student_id));
+  const prevProgressStudentIds = new Set(prevProgress.map(p => p.student_id));
 
-  // Map: student_id → school_id from last year's progress record
-  const prevSchoolMap = new Map(prevProgress.map(p => [p.student_id, p.school_id]));
-  // Map: student_id → admitted_school_id from admitted exam record
-  const admittedSchoolMap = new Map(
-    allExams.filter(e => e.admitted && e.admitted_school_id != null)
-            .map(e => [e.student_id, e.admitted_school_id as number])
-  );
+  // Map: student_id → last year's progress (inclusion / preferred source)
+  const prevByStudent = new Map(prevProgress.map(p => [p.student_id, p]));
+  // Latest Progress before target year with a class (any status) — for enrolled gaps
+  const priorClassSourceByStudent = new Map<number, StudentProgress>();
+  for (const p of recentProgress) {
+    if (p.academic_year >= year) continue;
+    if (p.class_in_year == null) continue;
+    const cur = priorClassSourceByStudent.get(p.student_id);
+    if (!cur || p.academic_year > cur.academic_year) priorClassSourceByStudent.set(p.student_id, p);
+  }
+  // Prefer the admitted exam row (one admitted per student in product rules)
+  const admittedByStudent = new Map<number, StudentExam>();
+  for (const e of admittedExams) {
+    if (!admittedByStudent.has(e.student_id)) admittedByStudent.set(e.student_id, e);
+  }
 
   const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
   const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
@@ -109,11 +147,13 @@ export default function NewYearSetupPage() {
 
   // Rebuild rows whenever filters or students change
   useEffect(() => {
-    const defaultSchool = schools.find(s => s.name.toLowerCase().includes("local govt"));
-    const existingSet = new Set(existingProgress.map(p => p.student_id));
+    // Already have Progress for the selected target year — omit from list entirely
+    const alreadyForTargetYear = new Set(existingProgress.map(p => p.student_id));
     const filtered = allStudents.filter(s => {
       if (!s.kutir_id) return false;
-      if (!admittedStudentIds.has(s.id)) return false;
+      if (alreadyForTargetYear.has(s.id)) return false;
+      // Union: prior Progress OR Admitted; Set dedupes overlap
+      if (!prevProgressStudentIds.has(s.id) && !admittedStudentIds.has(s.id)) return false;
       if (filterKutir !== "" && s.kutir_id !== filterKutir) return false;
       if (filterDistrict !== "") {
         const kutir = kutirMap.get(s.kutir_id);
@@ -126,17 +166,29 @@ export default function NewYearSetupPage() {
       return true;
     });
 
-    setRows(filtered.map(s => ({
-      student_id: s.id,
-      first_name: s.first_name,
-      last_name: s.last_name,
-      class_in_year: null,
-      school_id: prevSchoolMap.get(s.id) ?? admittedSchoolMap.get(s.id) ?? defaultSchool?.id ?? null,
-      previous_year_percentage: "",
-      exists: existingSet.has(s.id),
-    })));
+    setRows(filtered.map(s => {
+      const prev = prevByStudent.get(s.id);
+      const priorWithClass = priorClassSourceByStudent.get(s.id);
+      const adm = admittedByStudent.get(s.id);
+      // 1) year-1 Progress class → +1
+      // 2) else latest earlier Progress with class → +1
+      // 3) else admission_class as-is (nullable on exam — may still be blank)
+      const class_in_year =
+        bumpClass(prev?.class_in_year) ??
+        bumpClass(priorWithClass?.class_in_year) ??
+        classFromAdmission(adm?.admission_class);
+      return {
+        student_id: s.id,
+        first_name: s.first_name,
+        last_name: s.last_name,
+        father_name: s.father_name ?? null,
+        class_in_year,
+        school_id: prev?.school_id ?? priorWithClass?.school_id ?? adm?.admitted_school_id ?? null,
+        previous_year_percentage: "",
+      };
+    }));
     setResult(null);
-  }, [allStudents, filterDistrict, filterKutir, existingProgress, prevProgress, schools, allExams]);
+  }, [allStudents, filterDistrict, filterKutir, existingProgress, prevProgress, recentProgress, schools, admittedExams, year]);
 
   function updateRow(idx: number, field: keyof RowState, value: unknown) {
     setRows(prev => {
@@ -147,9 +199,9 @@ export default function NewYearSetupPage() {
   }
 
   async function handleSave() {
-    const toCreate = rows.filter(r => !r.exists && r.class_in_year && r.school_id);
+    const toCreate = rows.filter(r => r.class_in_year && r.school_id);
     if (toCreate.length === 0) {
-      setError("No complete rows to save. Fill in Class and School for at least one student.");
+      setError("No complete rows to save. Fill in New Class for at least one student (School comes from prior progress / admission).");
       return;
     }
     setSaving(true);
@@ -171,6 +223,7 @@ export default function NewYearSetupPage() {
         });
         created++;
       } catch {
+        // Safety: API may still reject duplicates if row appeared after list load
         skipped++;
       }
     }
@@ -179,13 +232,13 @@ export default function NewYearSetupPage() {
     qc.invalidateQueries({ queryKey: ["progress"] });
   }
 
-  const readyCount = rows.filter(r => !r.exists && r.class_in_year && r.school_id).length;
+  const readyCount = rows.filter(r => r.class_in_year && r.school_id).length;
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
-      <h2 style={{ margin: "0 0 4px", color: "var(--text-primary)" }}>New Year Setup</h2>
+      <h2 style={{ margin: "0 0 4px", color: "var(--text-primary)" }}>Bulk Progress Update</h2>
       <p style={{ margin: "0 0 20px", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-        Bulk-create initial progress records for the start of an academic year. Status is set to <strong>Enrolled</strong> automatically.
+        Bulk-create initial progress records for the start of an academic year. Status is set to <strong>Enrolled</strong> automatically. Use Progress menu for all other changes.
       </p>
 
       {/* Filters */}
@@ -229,7 +282,6 @@ export default function NewYearSetupPage() {
       {rows.length > 0 && (
         <div style={{ display: "flex", gap: 16, marginBottom: 12, fontSize: "0.82rem", color: "var(--text-secondary)" }}>
           <span><strong style={{ color: "var(--text-primary)" }}>{rows.length}</strong> students shown</span>
-          <span><strong style={{ color: "var(--text-primary)" }}>{rows.filter(r => r.exists).length}</strong> already have records</span>
           <span><strong style={{ color: "var(--badge-purple-fg)" }}>{readyCount}</strong> ready to save</span>
         </div>
       )}
@@ -255,65 +307,52 @@ export default function NewYearSetupPage() {
             <thead>
               <tr style={{ background: "var(--badge-purple-bg)" }}>
                 <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border)" }}>Student</th>
-                <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border)", width: 110 }}>Class *</th>
+                <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border)", width: 110 }}>New Class *</th>
                 <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border)" }}>School *</th>
-                <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border)", width: 130 }}>Prev Year %</th>
+                <th style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid var(--border)", width: 150 }}>Prev Year Marks %</th>
 
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, idx) => (
-                <tr key={r.student_id} style={{ background: idx % 2 === 0 ? "var(--bg-card)" : "var(--badge-purple-bg)", opacity: r.exists ? 0.5 : 1 }}>
+              {rows.map((r, idx) => {
+                const school = r.school_id != null ? schoolMap.get(r.school_id) : undefined;
+                const schoolText = school
+                  ? `${school.name} (${school.school_type})`
+                  : r.school_id != null
+                    ? `School #${r.school_id}`
+                    : "—";
+                return (
+                <tr key={r.student_id} style={{ background: idx % 2 === 0 ? "var(--bg-card)" : "var(--badge-purple-bg)" }}>
                   <td style={{ padding: "6px 12px", borderBottom: "1px solid var(--border)", fontWeight: 600, color: "var(--text-primary)" }}>
-                    <span>{r.first_name} {r.last_name}</span>
-                    {r.exists && (
-                      <span style={{ marginLeft: 8, background: "var(--status-success-bg)", color: "var(--status-success-fg)", borderRadius: 4, padding: "2px 8px", fontSize: "0.75rem", fontWeight: 600 }}>✓ Done</span>
-                    )}
+                    <span>{studentLabel(r)}</span>
                   </td>
                   <td style={{ padding: "4px 12px", borderBottom: "1px solid var(--border)" }}>
-                    {r.exists ? (
-                      <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>—</span>
-                    ) : (
-                      <select
-                        style={inp}
-                        value={r.class_in_year ?? ""}
-                        onChange={e => updateRow(idx, "class_in_year", e.target.value === "" ? null : Number(e.target.value))}
-                      >
-                        <option value="">—</option>
-                        {[5, 8].map(c => <option key={c} value={c}>Class {c}</option>)}
-                      </select>
-                    )}
+                    <select
+                      style={inp}
+                      value={r.class_in_year ?? ""}
+                      onChange={e => updateRow(idx, "class_in_year", e.target.value === "" ? null : Number(e.target.value))}
+                    >
+                      <option value="">—</option>
+                      {classSelectOptions(r.class_in_year).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={{ padding: "6px 12px", borderBottom: "1px solid var(--border)", color: "var(--text-primary)" }}>
+                    <span style={{ fontSize: "0.85rem" }}>{schoolText}</span>
                   </td>
                   <td style={{ padding: "4px 12px", borderBottom: "1px solid var(--border)" }}>
-                    {r.exists ? (
-                      <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>—</span>
-                    ) : (
-                      <select
-                        style={inp}
-                        value={r.school_id ?? ""}
-                        onChange={e => updateRow(idx, "school_id", e.target.value === "" ? null : Number(e.target.value))}
-                      >
-                        <option value="">— select —</option>
-                        {schools.map(s => <option key={s.id} value={s.id}>{s.name} ({s.school_type})</option>)}
-                      </select>
-                    )}
+                    <input
+                      type="number" min={0} max={100} step={0.1}
+                      style={inp}
+                      placeholder="optional"
+                      value={r.previous_year_percentage}
+                      onChange={e => updateRow(idx, "previous_year_percentage", e.target.value)}
+                    />
                   </td>
-                  <td style={{ padding: "4px 12px", borderBottom: "1px solid var(--border)" }}>
-                    {r.exists ? (
-                      <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>—</span>
-                    ) : (
-                      <input
-                        type="number" min={0} max={100} step={0.1}
-                        style={inp}
-                        placeholder="optional"
-                        value={r.previous_year_percentage}
-                        onChange={e => updateRow(idx, "previous_year_percentage", e.target.value)}
-                      />
-                    )}
-                  </td>
-
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

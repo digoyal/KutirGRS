@@ -9,6 +9,7 @@ import { ViewField, ViewSection, viewStyles } from "@parivaar/ui";
 import { listDistricts } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
+import { examCenterFieldLabel } from "../constants/examCentersFields";
 import { grs } from "../styles/grs";
 
 const STATES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"];
@@ -103,7 +104,7 @@ export function ExamCenterForm({
       {wrapSection(
         "Details",
         field(
-          "Name *",
+          examCenterFieldLabel("name", { required: true }),
           form.name,
           <input
             style={grs.input}
@@ -119,7 +120,7 @@ export function ExamCenterForm({
         <>
           <div style={{ marginBottom: 8 }}>
             {field(
-              "Street",
+              examCenterFieldLabel("street"),
               form.street || null,
               <input
                 style={grs.input}
@@ -130,7 +131,7 @@ export function ExamCenterForm({
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
             {field(
-              "City",
+              examCenterFieldLabel("city"),
               form.city || null,
               <input
                 style={grs.input}
@@ -139,7 +140,7 @@ export function ExamCenterForm({
               />,
             )}
             {field(
-              "District *",
+              examCenterFieldLabel("districtName", { required: true }),
               districtName ?? allDistricts.find((d) => d.id === form.district_id)?.name,
               <select
                 style={grs.select}
@@ -159,7 +160,7 @@ export function ExamCenterForm({
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {field(
-              "State",
+              examCenterFieldLabel("state"),
               form.state || null,
               <select
                 style={grs.select}
@@ -172,7 +173,7 @@ export function ExamCenterForm({
               </select>,
             )}
             {field(
-              "Pincode",
+              examCenterFieldLabel("pincode"),
               form.pincode || null,
               <input
                 style={grs.input}

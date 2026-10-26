@@ -332,6 +332,17 @@ async def admission_funnel(
     )
 
 
+def _require_admission_class_when_admitted(admitted: bool, admission_class) -> None:
+    """Class (5 or 8) is required whenever admitted is true — FE and Bulk Progress rely on it."""
+    if not admitted:
+        return
+    if admission_class not in (5, 8):
+        raise HTTPException(
+            400,
+            "Class is required when admitting (must be 5 or 8).",
+        )
+
+
 @router.post("/student-exams", response_model=StudentExamOut, status_code=201, tags=["Student Exams"])
 async def create_exam(
     data: StudentExamCreate,
@@ -343,6 +354,7 @@ async def create_exam(
     exam_data = data.model_dump(exclude={"scores"})
     # Prevent double-admission: student can only be admitted to one school
     if exam_data.get("admitted"):
+        _require_admission_class_when_admitted(True, exam_data.get("admission_class"))
         existing_admitted = await db.execute(
             select(StudentExam).where(
                 StudentExam.student_id == exam_data["student_id"],
@@ -397,6 +409,10 @@ async def update_exam(
     await _require_student_in_scope(db, obj.student_id, scope, detail="StudentExam not found")
     update = data.model_dump(exclude_unset=True)
     scores = update.pop("scores", None)
+
+    final_admitted = update["admitted"] if "admitted" in update else obj.admitted
+    final_class = update["admission_class"] if "admission_class" in update else obj.admission_class
+    _require_admission_class_when_admitted(bool(final_admitted), final_class)
 
     # Prevent double-admission: if setting admitted=True, ensure no other record is admitted
     if update.get("admitted") is True:

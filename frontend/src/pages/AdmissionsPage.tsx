@@ -15,7 +15,7 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
-import { ADMISSIONS_FIELDS } from "../constants/admissionsFields";
+import { ADMISSIONS_FIELDS, ADMISSIONS_FIELD_KEYS } from "../constants/admissionsFields";
 import { listDistricts, listAreas, listClusters, listExamCenters, listExamCategories } from "../api/geo";
 import { STAGES, StageBadge, pipelineStage } from "../components/admissions-pipeline";
 import { studentLabel } from "../utils/studentLabel";
@@ -143,9 +143,10 @@ export default function AdmissionsPage() {
     });
   }
 
+  // Labels come from ADMISSIONS_FIELDS via orderedMetas; renderers are keyed only.
   const allColumns = useMemo((): Col<StudentExam>[] => [
     {
-      key: "district", label: "District", sortable: true,
+      key: "district", label: "", sortable: true,
       sortValue: (exam) => {
         const s = studentMap[exam.student_id];
         const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
@@ -170,7 +171,7 @@ export default function AdmissionsPage() {
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
     },
     {
-      key: "kutir", label: "Kutir", sortable: true,
+      key: "kutir", label: "", sortable: true,
       sortValue: (exam) => {
         const s = studentMap[exam.student_id];
         return s?.kutir_id != null ? (kutirMap2.get(s.kutir_id)?.name ?? "") : "";
@@ -186,7 +187,7 @@ export default function AdmissionsPage() {
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
     },
     {
-      key: "student", label: "Student", sortable: true,
+      key: "student", label: "", sortable: true,
       sortValue: (exam) => {
         const s = studentMap[exam.student_id];
         return studentLabel(s).toLowerCase();
@@ -207,14 +208,21 @@ export default function AdmissionsPage() {
       tdStyle: { whiteSpace: "nowrap" },
     },
     {
-      key: "gender", label: "Gender", sortable: true,
+      key: "admission_class", label: "", sortable: true,
+      sortValue: (exam) => exam.admission_class ?? -1,
+      render: (exam) => exam.admission_class != null ? String(exam.admission_class) : "—",
+      csvValue: (exam) => exam.admission_class != null ? String(exam.admission_class) : "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" },
+    },
+    {
+      key: "gender", label: "", sortable: true,
       sortValue: (exam) => studentMap[exam.student_id]?.gender ?? "",
       render: (exam) => studentMap[exam.student_id]?.gender ?? "—",
       csvValue: (exam) => studentMap[exam.student_id]?.gender ?? "",
       tdStyle: { fontSize: 12, color: "var(--text-secondary)" },
     },
     {
-      key: "school", label: "School", sortable: true,
+      key: "school", label: "", sortable: true,
       sortValue: (exam) => {
         const sc = exam.school_id != null ? schoolMap[exam.school_id] : null;
         return sc?.name ?? exam.school_type ?? "";
@@ -236,7 +244,7 @@ export default function AdmissionsPage() {
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
     },
     {
-      key: "stage", label: "Stage", sortable: true,
+      key: "stage", label: "", sortable: true,
       sortValue: (exam) => pipelineStage(exam),
       render: (exam) => <StageBadge exam={exam} />,
       csvValue: (exam) => {
@@ -245,33 +253,33 @@ export default function AdmissionsPage() {
       },
     },
     {
-      key: "exam_category_id", label: "Exam Cat.", sortable: true,
+      key: "exam_category_id", label: "", sortable: true,
       sortValue: (exam) => exam.exam_category_id ? (examCategoryMap.get(exam.exam_category_id) ?? "") : "",
       render: (exam) => exam.exam_category_id ? (examCategoryMap.get(exam.exam_category_id) ?? "—") : "—",
       csvValue: (exam) => exam.exam_category_id ? (examCategoryMap.get(exam.exam_category_id) ?? "") : "",
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
     },
     {
-      key: "exam_center_id", label: "Center", sortable: true,
+      key: "exam_center_id", label: "", sortable: true,
       sortValue: (exam) => exam.exam_center_id ? (examCenterMap.get(exam.exam_center_id) ?? "") : "",
       render: (exam) => exam.exam_center_id ? (examCenterMap.get(exam.exam_center_id) ?? "—") : "—",
       csvValue: (exam) => exam.exam_center_id ? (examCenterMap.get(exam.exam_center_id) ?? "") : "",
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
     },
     {
-      key: "application_number", label: "App #", sortable: true,
+      key: "application_number", label: "", sortable: true,
       render: (exam) => exam.application_number ?? "—",
       csvValue: (exam) => exam.application_number ?? "",
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" },
     },
     {
-      key: "roll_number", label: "Roll #", sortable: true,
+      key: "roll_number", label: "", sortable: true,
       render: (exam) => exam.roll_number ?? "—",
       csvValue: (exam) => exam.roll_number ?? "",
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" },
     },
     {
-      key: "scores", label: "Scores", sortable: true,
+      key: "scores", label: "", sortable: true,
       sortValue: (exam) => exam.scores.reduce<number>((sum, s) => sum + (s.score != null ? Number(s.score) : 0), 0),
       render: (exam) => {
         const total   = exam.scores.reduce<number>((sum, s) => sum + (s.score != null ? Number(s.score) : 0), 0);
@@ -294,10 +302,20 @@ export default function AdmissionsPage() {
 
   const { isVisible, orderedMetas } = useFieldConfig("admissions", ADMISSIONS_FIELDS);
   const columns = useMemo(() => {
+    if (import.meta.env.DEV) {
+      for (const key of ADMISSIONS_FIELD_KEYS) {
+        if (!allColumns.some((c) => c.key === key)) {
+          throw new Error(`AdmissionsPage missing renderer for ADMISSIONS_FIELDS key: ${key}`);
+        }
+      }
+    }
     const colByKey = new Map(allColumns.map(c => [c.key, c]));
     return orderedMetas
       .filter(m => isVisible(m.key))
-      .map(m => colByKey.get(m.key))
+      .map(m => {
+        const col = colByKey.get(m.key);
+        return col ? { ...col, label: m.label } : undefined;
+      })
       .filter((c): c is NonNullable<typeof c> => c != null);
   }, [allColumns, orderedMetas, isVisible]);
 

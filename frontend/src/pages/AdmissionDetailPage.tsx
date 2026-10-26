@@ -16,6 +16,8 @@ import {
   admissionFormFromExam,
   admissionPayloadFromForm,
   admissionSchoolFieldsRequired,
+  admissionClassMissing,
+  ADMISSION_CLASS_REQUIRED_MSG,
   emptyAdmissionForm,
   type AdmissionFormState,
 } from "../components/AdmissionForm";
@@ -90,7 +92,9 @@ export default function AdmissionDetailPage() {
 
   const studentName = studentLabel(student, `Student #${exam.student_id}`);
   const schoolRequired = admissionSchoolFieldsRequired(form);
-  const canSave = !schoolRequired || (!!form.school_type && !!form.admitted_school_id);
+  const classOk = !admissionClassMissing(form);
+  const canSave =
+    classOk && (!schoolRequired || (!!form.school_type && !!form.admitted_school_id));
 
   function resetFromExam() {
     setForm(admissionFormFromExam(exam!));
@@ -100,6 +104,10 @@ export default function AdmissionDetailPage() {
 
   function handleSave() {
     setSaveError("");
+    if (admissionClassMissing(form)) {
+      setSaveError(ADMISSION_CLASS_REQUIRED_MSG);
+      return;
+    }
     const payload = admissionPayloadFromForm(form);
     const { student_id: _sid, school_start_year: _year, ...rest } = payload;
     updateMut.mutate(rest);

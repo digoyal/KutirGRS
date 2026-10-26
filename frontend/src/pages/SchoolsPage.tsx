@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
@@ -6,7 +6,7 @@ import { listSchools, deleteSchool, type School } from "../api/schools";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
-import { SCHOOLS_FIELDS } from "../constants/schoolsFields";
+import { SCHOOLS_FIELDS, SCHOOLS_FIELD_KEYS } from "../constants/schoolsFields";
 import { canManageSchools } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { grs } from "../styles/grs";
@@ -37,6 +37,57 @@ const _savedFilters = (() => {
 
 interface SchoolWithDistrict extends School {
   district?: { id: number; name: string } | null;
+}
+
+type SchoolColRenderer = {
+  render?: (s: SchoolWithDistrict) => ReactNode;
+  csvValue?: (s: SchoolWithDistrict) => string;
+  sortValue?: (s: SchoolWithDistrict) => string | number;
+  sortable?: boolean;
+};
+
+function schoolColRenderers(): Record<string, SchoolColRenderer> {
+  const renderers: Record<string, SchoolColRenderer> = {
+    name: {
+      sortable: true,
+      render: (s) => <strong style={{ color: "var(--text-primary)" }}>{s.name}</strong>,
+    },
+    school_type: {
+      sortable: true,
+      render: (s) => {
+        const { bg, fg } = typeBadge(s.school_type);
+        return <span style={{ ...grs.badge, background: bg, color: fg }}>{s.school_type}</span>;
+      },
+    },
+    city: {
+      render: (s) => s.city ?? "—",
+      csvValue: (s) => s.city ?? "",
+    },
+    district: {
+      render: (s) => s.district ? s.district.name : s.district_id ? `#${s.district_id}` : "—",
+      csvValue: (s) => s.district?.name ?? (s.district_id ? `#${s.district_id}` : ""),
+      sortValue: (s) => (s.district?.name ?? "").toLowerCase(),
+    },
+    state: { sortable: true },
+    street: {
+      sortable: false,
+      render: (s) => s.street ?? "—",
+      csvValue: (s) => s.street ?? "",
+    },
+    pincode: {
+      sortable: true,
+      render: (s) => s.pincode ?? "—",
+      csvValue: (s) => s.pincode ?? "",
+    },
+  };
+  if (import.meta.env.DEV) {
+    for (const key of SCHOOLS_FIELD_KEYS) {
+      if (!(key in renderers)) {
+        throw new Error(`SchoolsPage missing renderer for SCHOOLS_FIELDS key: ${key}`);
+      }
+    }
+  }
+  return renderers;
 }
 
 export default function SchoolsPage() {
@@ -71,23 +122,24 @@ export default function SchoolsPage() {
 
   const displayed = filterType ? schools.filter(s => s.school_type === filterType) : schools;
 
-  const allColumns: Col<SchoolWithDistrict>[] = [
-    { key: "name", label: "Name", sortable: true,
-      render: s => <strong style={{ color: "var(--text-primary)" }}>{s.name}</strong> },
-    { key: "school_type", label: "Type", sortable: true,
-      render: s => { const { bg, fg } = typeBadge(s.school_type); return <span style={{ ...grs.badge, background: bg, color: fg }}>{s.school_type}</span>; } },
-    { key: "city", label: "City / Block", render: s => s.city ?? "—" },
-    { key: "district", label: "District", render: s => s.district ? s.district.name : s.district_id ? `#${s.district_id}` : "—" },
-    { key: "state", label: "State", sortable: true },
-    { key: "street", label: "Street", sortable: false, render: s => s.street ?? "—", csvValue: s => s.street ?? "" },
-    { key: "pincode", label: "Pincode", sortable: true, render: s => s.pincode ?? "—", csvValue: s => s.pincode ?? "" },
-  ];
-
+  // List columns, labels, visibility, order, and CSV headers all come from SCHOOLS_FIELDS.
   const { isVisible, orderedMetas } = useFieldConfig("schools", SCHOOLS_FIELDS);
-  const columns = useMemo(() => {
-    const colByKey = new Map(allColumns.map(c => [c.key, c]));
-    return orderedMetas.filter(m => isVisible(m.key)).map(m => colByKey.get(m.key)).filter((c): c is NonNullable<typeof c> => c != null);
-  }, [allColumns, orderedMetas, isVisible]);
+  const columns = useMemo<Col<SchoolWithDistrict>[]>(() => {
+    const renderers = schoolColRenderers();
+    return orderedMetas
+      .filter((m) => isVisible(m.key))
+      .map((meta): Col<SchoolWithDistrict> => {
+        const r = renderers[meta.key] ?? {};
+        return {
+          key: meta.key,
+          label: meta.label,
+          sortable: r.sortable ?? true,
+          render: r.render,
+          csvValue: r.csvValue,
+          sortValue: r.sortValue,
+        };
+      });
+  }, [orderedMetas, isVisible]);
 
   return (
     <div style={{ padding: "24px 28px" }}>

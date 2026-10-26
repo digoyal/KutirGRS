@@ -32,6 +32,7 @@ import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
 import { grs } from "../styles/grs";
 import { studentLabel } from "../utils/studentLabel";
+import { admissionFieldLabel } from "../constants/admissionsFields";
 
 /** Student district via kutir.district_id, else kutir → cluster → area → district. */
 function districtIdForKutir(
@@ -204,6 +205,18 @@ export function admissionPayloadFromForm(
 export function admissionSchoolFieldsRequired(form: Pick<AdmissionFormState, StageKey>): boolean {
   return pipelineFieldVisible(form, "school_name");
 }
+
+/** Class (admission_class) is required whenever Admitted is set (5 or 8). */
+export function admissionClassRequired(form: Pick<AdmissionFormState, "admitted">): boolean {
+  return form.admitted === true;
+}
+
+export function admissionClassMissing(form: Pick<AdmissionFormState, "admitted" | "admission_class">): boolean {
+  return admissionClassRequired(form) && form.admission_class == null;
+}
+
+export const ADMISSION_CLASS_REQUIRED_MSG =
+  "Class is required when admitting (select 5 or 8).";
 
 interface AdmissionFormProps {
   form: AdmissionFormState;
@@ -505,11 +518,11 @@ export function AdmissionForm({
           <div style={secTitle}>Student</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
             <div style={fieldStyle}>
-              <span style={labelStyle}>Student</span>
+              <span style={labelStyle}>{admissionFieldLabel("student")}</span>
               <span style={valueStyle}>{studentName ?? `Student #${form.student_id}`}</span>
             </div>
             <div style={fieldStyle}>
-              <span style={labelStyle}>Class</span>
+              <span style={labelStyle}>{admissionFieldLabel("admission_class")}</span>
               <span style={valueStyle}>
                 {form.admission_class != null ? `Class ${form.admission_class}` : "—"}
               </span>
@@ -531,7 +544,7 @@ export function AdmissionForm({
               </span>
             </div>
             <div style={fieldStyle}>
-              <span style={labelStyle}>Exam Category</span>
+              <span style={labelStyle}>{admissionFieldLabel("exam_category_id")}</span>
               <span style={valueStyle}>{viewExamCategory?.name ?? "—"}</span>
             </div>
           </div>
@@ -546,7 +559,7 @@ export function AdmissionForm({
                 </span>
               </div>
               <div style={fieldStyle}>
-                <span style={labelStyle}>Exam Center</span>
+                <span style={labelStyle}>{admissionFieldLabel("exam_center_id")}</span>
                 <span style={valueStyle}>{viewExamCenter?.name ?? "—"}</span>
               </div>
             </div>
@@ -555,13 +568,13 @@ export function AdmissionForm({
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
               {showAppliedExam && (
                 <div style={fieldStyle}>
-                  <span style={labelStyle}>Application #</span>
+                  <span style={labelStyle}>{admissionFieldLabel("application_number")}</span>
                   <span style={valueStyle}>{form.application_number ?? "—"}</span>
                 </div>
               )}
               {showRoll && (
                 <div style={fieldStyle}>
-                  <span style={labelStyle}>Roll #</span>
+                  <span style={labelStyle}>{admissionFieldLabel("roll_number")}</span>
                   <span style={valueStyle}>{form.roll_number ?? "—"}</span>
                 </div>
               )}
@@ -685,7 +698,7 @@ export function AdmissionForm({
         {isAdd ? (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 120px", gap: 8 }}>
             <div>
-              <label style={grs.fieldLabel}>Kutir</label>
+              <label style={grs.fieldLabel}>{admissionFieldLabel("kutir")}</label>
               <select
                 value={kutirFilter}
                 onChange={(e) => {
@@ -705,7 +718,7 @@ export function AdmissionForm({
             </div>
             <div style={{ position: "relative" }}>
               <label style={grs.fieldLabel}>
-                Student <span style={{ color: "var(--danger)" }}>*</span>
+                {admissionFieldLabel("student")} <span style={{ color: "var(--danger)" }}>*</span>
               </label>
               <input
                 placeholder="Type name to search…"
@@ -784,7 +797,7 @@ export function AdmissionForm({
             </div>
             <div>
               <label style={grs.fieldLabel}>
-                Class <span style={{ color: "var(--danger)" }}>*</span>
+                {admissionFieldLabel("admission_class")} <span style={{ color: "var(--danger)" }}>*</span>
               </label>
               <select
                 value={form.admission_class ?? ""}
@@ -805,7 +818,7 @@ export function AdmissionForm({
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 8 }}>
             <div>
-              <label style={grs.fieldLabel}>Student</label>
+              <label style={grs.fieldLabel}>{admissionFieldLabel("student")}</label>
               <input
                 readOnly
                 value={studentName ?? `Student #${form.student_id}`}
@@ -813,7 +826,12 @@ export function AdmissionForm({
               />
             </div>
             <div>
-              <label style={grs.fieldLabel}>Class</label>
+              <label style={grs.fieldLabel}>
+                {admissionFieldLabel("admission_class")}
+                {admissionClassRequired(form) && (
+                  <span style={{ color: "var(--danger)" }}> *</span>
+                )}
+              </label>
               <select
                 value={form.admission_class ?? ""}
                 onChange={(e) =>
@@ -891,7 +909,7 @@ export function AdmissionForm({
             </select>
           </div>
           <div>
-            <label style={grs.fieldLabel}>Exam Category</label>
+            <label style={grs.fieldLabel}>{admissionFieldLabel("exam_category_id")}</label>
             <select
               value={form.exam_category_id ?? ""}
               onChange={(e) =>
@@ -941,7 +959,7 @@ export function AdmissionForm({
               </select>
             </div>
             <div>
-              <label style={grs.fieldLabel}>Exam Center</label>
+              <label style={grs.fieldLabel}>{admissionFieldLabel("exam_center_id")}</label>
               <select
                 value={form.exam_center_id ?? ""}
                 onChange={(e) =>
@@ -972,7 +990,7 @@ export function AdmissionForm({
           >
             {showAppliedExam ? (
               <div>
-                <label style={grs.fieldLabel}>Application #</label>
+                <label style={grs.fieldLabel}>{admissionFieldLabel("application_number")}</label>
                 <input
                   value={form.application_number ?? ""}
                   onChange={(e) => setField("application_number", e.target.value || null)}
@@ -984,7 +1002,7 @@ export function AdmissionForm({
             )}
             {showRoll ? (
               <div>
-                <label style={grs.fieldLabel}>Roll #</label>
+                <label style={grs.fieldLabel}>{admissionFieldLabel("roll_number")}</label>
                 <input
                   value={form.roll_number ?? ""}
                   onChange={(e) => setField("roll_number", e.target.value || null)}

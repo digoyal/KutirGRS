@@ -22,7 +22,7 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
-import { PROGRESS_FIELDS } from "../constants/progressFields";
+import { PROGRESS_FIELDS, PROGRESS_FIELD_KEYS } from "../constants/progressFields";
 import { studentLabel } from "../utils/studentLabel";
 import {
   PROGRESS_STATUSES,
@@ -147,9 +147,16 @@ export default function StudentProgressPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["progress"] }),
   });
 
-  // Columns: built from useFieldConfig order/visibility, with sort + csv + render per key
-  const columns = useMemo<Col<StudentProgress>[]>(() =>
-    orderedMetas
+  // List columns, labels, visibility, order, and CSV headers all come from PROGRESS_FIELDS.
+  const columns = useMemo<Col<StudentProgress>[]>(() => {
+    if (import.meta.env.DEV) {
+      for (const key of PROGRESS_FIELD_KEYS) {
+        if (!orderedMetas.some((m) => m.key === key)) {
+          throw new Error(`StudentProgressPage missing PROGRESS_FIELDS key in orderedMetas: ${key}`);
+        }
+      }
+    }
+    return orderedMetas
       .filter(m => isVisible(m.key))
       .map((meta): Col<StudentProgress> => {
         const sortValue = (p: StudentProgress): string | number => {
@@ -276,8 +283,8 @@ export default function StudentProgressPage() {
             ? { ...compactTd, maxWidth: 180, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis" }
             : compactTd;
         return { key: meta.key, label: meta.label, sortable: true, sortValue, csvValue, render, tdStyle };
-      }),
-  [orderedMetas, isVisible, studentMap2, schoolMap]);
+      });
+  }, [orderedMetas, isVisible, studentMap2, schoolMap]);
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>

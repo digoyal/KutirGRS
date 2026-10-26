@@ -13,7 +13,7 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
-import { VISITS_FIELDS } from "../constants/visitsFields";
+import { VISITS_FIELDS, VISITS_FIELD_KEYS } from "../constants/visitsFields";
 import { canManageVisits as roleCanManageVisits, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { scopeClusters, scopeDistricts, type FilterId } from "../utils/geoFilters";
@@ -134,16 +134,17 @@ export default function VisitsPage() {
     [filtered]
   );
 
+  // Labels come from VISITS_FIELDS via orderedMetas; renderers are keyed only.
   const allColumns = useMemo<Col<KutirVisit>[]>(() => [
     {
       key: "visit_date",
-      label: "Date",
+      label: "",
       sortable: true,
       render: v => new Date(v.visit_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
     },
     {
       key: "kutir_id",
-      label: "Kutir",
+      label: "",
       sortable: true,
       sortValue: v => kutirMap.get(v.kutir_id)?.name ?? "",
       csvValue: v => kutirMap.get(v.kutir_id)?.name ?? String(v.kutir_id),
@@ -159,21 +160,21 @@ export default function VisitsPage() {
     },
     {
       key: "avg_attendance_morning" as keyof KutirVisit,
-      label: "Attendance M/E",
+      label: "",
       sortable: false,
       render: (v: KutirVisit) => <span>{v.avg_attendance_morning ?? "—"} / {v.avg_attendance_evening ?? "—"}</span>,
       csvValue: v => `${v.avg_attendance_morning ?? ""}/${v.avg_attendance_evening ?? ""}`,
     },
     {
       key: "regular_students_morning" as keyof KutirVisit,
-      label: "Regular Students M/E",
+      label: "",
       sortable: false,
       render: (v: KutirVisit) => <span>{v.regular_students_morning ?? "—"} / {v.regular_students_evening ?? "—"}</span>,
       csvValue: v => `${v.regular_students_morning ?? ""}/${v.regular_students_evening ?? ""}`,
     },
     {
       key: "physical_vs_registered",
-      label: "App vs. Registered Students",
+      label: "",
       sortable: true,
       render: v => (
         <span style={{ background: v.physical_vs_registered === "Matched" ? "var(--status-success-bg)" : "var(--status-danger-bg)", color: v.physical_vs_registered === "Matched" ? "var(--status-success-fg)" : "var(--status-danger-fg)", borderRadius: 4, padding: "2px 8px", fontSize: "0.78rem" }}>
@@ -183,14 +184,14 @@ export default function VisitsPage() {
     },
     {
       key: "follow_timetable",
-      label: "Follows Timetable",
+      label: "",
       sortable: true,
       render: v => <span style={{ color: v.follow_timetable ? "var(--status-success-fg)" : "var(--status-danger-fg)" }}>{v.follow_timetable ? "✓ Yes" : "✗ No"}</span>,
       csvValue: v => v.follow_timetable ? "Yes" : "No",
     },
     {
       key: "workbook_percentage",
-      label: "Workbook %",
+      label: "",
       sortable: true,
       render: v => (
         <>
@@ -202,77 +203,77 @@ export default function VisitsPage() {
       ),
       csvValue: v => `${v.workbook_percentage}% (${v.workbook_completion ?? ""})`,
     },
-    { key: "workbook_completion", label: "Workbook Completion", sortable: true },
-    { key: "book_availability", label: "Book Availability", sortable: true },
+    { key: "workbook_completion", label: "", sortable: true },
+    { key: "book_availability", label: "", sortable: true },
     {
       key: "kutir_performance",
-      label: "Performance",
+      label: "",
       sortable: true,
       render: v => <StarRating value={v.kutir_performance} readOnly />,
     },
     {
       key: "staff_behavior",
-      label: "Staff Behavior",
+      label: "",
       sortable: true,
       render: v => <StarRating value={v.staff_behavior ?? 0} readOnly />,
     },
     {
       key: "cleanliness",
-      label: "Cleanliness",
+      label: "",
       sortable: true,
       render: v => <StarRating value={v.cleanliness} readOnly />,
     },
     {
       key: "hindi_proficiency",
-      label: "Hindi",
+      label: "",
       sortable: true,
       render: v => <StarRating value={v.hindi_proficiency} readOnly />,
     },
     {
       key: "english_proficiency",
-      label: "English",
+      label: "",
       sortable: true,
       render: v => <StarRating value={v.english_proficiency} readOnly />,
     },
     {
       key: "maths_proficiency",
-      label: "Maths",
+      label: "",
       sortable: true,
       render: v => <StarRating value={v.maths_proficiency} readOnly />,
     },
     {
       key: "evs_proficiency",
-      label: "EVS",
+      label: "",
       sortable: true,
       render: v => <StarRating value={v.evs_proficiency} readOnly />,
     },
     {
       key: "reasoning_proficiency",
-      label: "Reasoning",
+      label: "",
       sortable: true,
       render: v => <StarRating value={v.reasoning_proficiency} readOnly />,
     },
     {
       key: "material_management",
-      label: "Material Mgmt",
+      label: "",
       sortable: true,
       render: v => <StarRating value={v.material_management} readOnly />,
     },
     {
       key: "grs_prep_remarks",
-      label: "GRS Prep Remarks",
+      label: "",
       sortable: false,
       render: v => <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{v.grs_prep_remarks ?? "—"}</span>,
     },
     {
       key: "final_remarks",
-      label: "Final Remarks",
+      label: "",
       sortable: false,
       render: v => <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{v.final_remarks ?? "—"}</span>,
     },
     {
       key: "visit_photo",
-      label: "Photo",
+      label: "",
       csvValue: v => v.visit_photo ? `${MEDIA_BASE}/media/${v.visit_photo}` : "",
       render: v => v.visit_photo ? (
         <img src={`${MEDIA_BASE}/media/${v.visit_photo}`} alt="Visit photo" style={{ width: 56, height: 42, objectFit: "cover", borderRadius: 4, display: "block" }} />
@@ -284,10 +285,20 @@ export default function VisitsPage() {
 
   const { isVisible, orderedMetas } = useFieldConfig("visits", VISITS_FIELDS);
   const columns = useMemo(() => {
+    if (import.meta.env.DEV) {
+      for (const key of VISITS_FIELD_KEYS) {
+        if (!allColumns.some((c) => c.key === key)) {
+          throw new Error(`VisitsPage missing renderer for VISITS_FIELDS key: ${key}`);
+        }
+      }
+    }
     const colByKey = new Map(allColumns.map(c => [c.key, c]));
     return orderedMetas
       .filter(m => isVisible(m.key))
-      .map(m => colByKey.get(m.key))
+      .map(m => {
+        const col = colByKey.get(m.key);
+        return col ? { ...col, label: m.label } : undefined;
+      })
       .filter((c): c is NonNullable<typeof c> => c != null);
   }, [allColumns, orderedMetas, isVisible]);
 

@@ -68,6 +68,6 @@ Schools, Exam Centers, and Lookups are **global catalogs** (all roles see all ro
 ## Notes from initial review (Oct 2026)
 
 1. Spreadsheet typos kept as source intent but cleaned in this markdown: “Functionalty”, “cateogories”.
-2. **Conflicts with recent API hardening (audit S2/S3 / PRs #5):** code currently requires **Admin** for school CUD, exam-center CUD, and visit **delete**. This matrix allows Cluster Coordinator and above to Add/Edit/Delete those. Resolve deliberately in a follow-up (either loosen API to match this matrix, or update the matrix if Admin-only was the real product rule).
-3. Backend `MANAGER_ROLES` / FE manage buttons (Top-10 #9) should be driven from the Functionality sheet so view-only roles never see dead edit controls.
+2. **Decided (2026-10-26):** the Functionality matrix wins over the earlier Admin-only hardening (audit S2/S3 / PR #5). API and FE use Cluster Coordinator+ for school CUD, exam-center CUD, and visit Add/Edit/Delete; Geography remains Education Coordinator+; Lookups / Column Config stay Admin (+ SysAdmin) only. SysAdmin shares Admin gates (unrestricted + same menus) except Deploy.
+3. Backend `MANAGE_*` sets / FE manage buttons (Top-10 #9) are driven from the Functionality sheet so view-only roles never see dead edit controls.
 4. Data sheet matches the geographic `get_scope` model (kutir → cluster → area → district → zone → all).

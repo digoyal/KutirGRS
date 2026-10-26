@@ -95,6 +95,7 @@ const navItems: {
   { to: "/kutirs", label: "Kutirs" },
   { to: "/admissions", label: "Admissions" },
   { to: "/progress", label: "Progress" },
+  { to: "/new-year-setup", label: "Bulk Progress Update" },
   { to: "/reports", label: "Reports" },
   { to: "/reports/detailed", label: "Detailed", sub: true },
   { to: "/reports/summary", label: "Summary", sub: true },

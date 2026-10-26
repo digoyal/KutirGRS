@@ -111,7 +111,7 @@ One record per student per academic year after admission.
 
 - **Fields:** school, academic year, class (1–12), status (enrolled / transferred / dropped out / graduated), transfer school, exit reason, previous year's percentage, remarks.
 - **R-PRG-1** List with server-side paging (`listProgressPaged`), plus add and detail pages.
-- **R-PRG-2 New Year Setup:** for a chosen year, list students (filter by district and Kutir) and bulk-create that year's progress records with class, school and previous percentage. Students who already have a record for that year are skipped. 🟡 The rules for promoting a student to the next class and choosing which students to include are not written down; confirm them.
+- **R-PRG-2 Bulk Progress Update** (nav label; route `new-year-setup`): for a chosen year, list students (filter by district and Kutir) and bulk-create that year's progress records with New Class (default = prior progress class + 1 when known, else admission class), school (read-only from prior progress / admitted school), and previous-year marks %. Students who already have a record for that year are **omitted from the list** (create still safe-skips duplicates). ✅ Class promotion = auto-bump by 1 (2026-10-26). ✅ Inclusion = Admitted ∪ prior-year Progress, deduped; exclude target-year Progress (2026-10-26). 🟡 Transfer/dropout handling still open.
 
 ---
 
@@ -178,4 +178,4 @@ An inspection form filled in by a field user at a Kutir.
 | 8 | Deletes use `window.confirm()`; replace with a shared ConfirmDialog. | Low |
 | 9 | The bfcache `useEffect` is copied into several pages; extract a `useBfcacheReload` hook. | Low |
 | 10 | No automated tests. | Medium |
-| 11 | New Year Setup promotion rules need confirming (§6). | Medium |
+| 11 | Bulk Progress Update: transfer/dropout rules still open (§6); class +1 and Admitted∪prior Progress inclusion decided 2026-10-26. | Medium |

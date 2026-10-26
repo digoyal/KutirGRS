@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listStudentsPaged, deleteStudent, type Student } from "../api/students";
 import { listKutirs } from "../api/kutirs";
@@ -12,7 +12,7 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
-import { STUDENTS_FIELDS } from "../constants/studentsFields";
+import { STUDENTS_FIELDS, STUDENTS_FIELD_KEYS } from "../constants/studentsFields";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
   defaultsFromUser,
@@ -27,8 +27,92 @@ const STORAGE_KEY = "students_filter_state";
 
 type EnrichedStudent = Student & { docsCount: number; addedDate: string };
 
+type KutirLike = { id: number; name: string };
+
+/** Cell/export/sort helpers keyed by STUDENTS_FIELDS.key — labels/order/visibility come from the registry. */
+type StudentColRenderer = {
+  render?: (s: EnrichedStudent) => ReactNode;
+  csvValue?: (s: EnrichedStudent) => string;
+  sortValue?: (s: EnrichedStudent) => string | number;
+};
+
 function docCount(s: Student) {
   return [s.aadhaar, s.category_cert, s.birth_cert, s.residence_proof, s.medical].filter(Boolean).length;
+}
+
+function studentColRenderers(kutirMap: Map<number, KutirLike>): Record<string, StudentColRenderer> {
+  const renderers: Record<string, StudentColRenderer> = {
+    name: {
+      render: (s) => (
+        <Link to={`/students/${s.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
+          {s.first_name} {s.last_name}
+        </Link>
+      ),
+      csvValue: (s) => `${s.first_name} ${s.last_name}`,
+      sortValue: (s) => `${s.first_name} ${s.last_name}`.toLowerCase(),
+    },
+    gender: {},
+    phone: {
+      render: (s) => s.phone ?? "—",
+      csvValue: (s) => s.phone ?? "",
+    },
+    father_name: {
+      render: (s) => s.father_name ?? "—",
+      csvValue: (s) => s.father_name ?? "",
+    },
+    mother_name: {
+      render: (s) => s.mother_name ?? "—",
+      csvValue: (s) => s.mother_name ?? "",
+    },
+    docsCount: {
+      render: (s) => (
+        <span style={{
+          ...grs.badge,
+          background: s.docsCount === 5 ? "var(--status-success-bg)" : "var(--badge-yellow-bg)",
+          color: "var(--text-primary)",
+        }}>
+          {s.docsCount}/5
+        </span>
+      ),
+      csvValue: (s) => `${s.docsCount}/5`,
+    },
+    addedDate: {
+      csvValue: (s) => s.addedDate,
+    },
+    kutir_id: {
+      sortValue: (s) => s.kutir_id != null ? (kutirMap.get(s.kutir_id)?.name ?? "") : "",
+      render: (s) => s.kutir_id != null
+        ? <span style={{ fontSize: "0.82rem" }}>{kutirMap.get(s.kutir_id)?.name ?? "—"}</span>
+        : <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.kutir_id != null ? (kutirMap.get(s.kutir_id)?.name ?? "") : "",
+    },
+    dob: {
+      render: (s) => s.dob
+        ? new Date(s.dob).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+        : <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.dob ?? "",
+    },
+    email: {
+      render: (s) => s.email ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.email ?? "",
+    },
+    alt_contact_name: {
+      render: (s) => s.alt_contact_name ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.alt_contact_name ?? "",
+    },
+    alt_contact_phone: {
+      render: (s) => s.alt_contact_phone ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => s.alt_contact_phone ?? "",
+    },
+  };
+  if (import.meta.env.DEV) {
+    for (const key of STUDENTS_FIELD_KEYS) {
+      if (!(key in renderers)) {
+        throw new Error(`StudentsPage missing renderer for STUDENTS_FIELDS key: ${key}`);
+      }
+    }
+  }
+  return renderers;
 }
 
 export default function StudentsPage() {
@@ -91,7 +175,7 @@ export default function StudentsPage() {
   const { data: allAreas = [] } = useQuery({ queryKey: ["all-areas"], queryFn: () => listAreas() });
   const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
 
-  const kutirMap = new Map(allKutirs.map(k => [k.id, k]));
+  const kutirMap = useMemo(() => new Map(allKutirs.map(k => [k.id, k])), [allKutirs]);
   const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
   const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
@@ -125,107 +209,24 @@ export default function StudentsPage() {
     });
   }
 
-  const allColumns: Col<EnrichedStudent>[] = [
-    {
-      key: "name",
-      label: "Name",
-      sortable: true,
-      render: (s) => (
-        <Link to={`/students/${s.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
-          {s.first_name} {s.last_name}
-        </Link>
-      ),
-      csvValue: (s) => `${s.first_name} ${s.last_name}`,
-    },
-    { key: "gender", label: "Gender", sortable: true },
-    {
-      key: "phone",
-      label: "Phone",
-      sortable: true,
-      render: (s) => s.phone ?? "—",
-      csvValue: (s) => s.phone ?? "",
-    },
-    {
-      key: "father_name",
-      label: "Father",
-      sortable: true,
-      render: (s) => s.father_name ?? "—",
-      csvValue: (s) => s.father_name ?? "",
-    },
-    {
-      key: "mother_name",
-      label: "Mother",
-      sortable: true,
-      render: (s) => s.mother_name ?? "—",
-      csvValue: (s) => s.mother_name ?? "",
-    },
-    {
-      key: "docsCount",
-      label: "Docs",
-      sortable: true,
-      render: (s) => (
-        <span style={{
-          ...grs.badge,
-          background: s.docsCount === 5 ? "var(--status-success-bg)" : "var(--badge-yellow-bg)",
-          color: "var(--text-primary)",
-        }}>
-          {s.docsCount}/5
-        </span>
-      ),
-      csvValue: (s) => `${s.docsCount}/5`,
-    },
-    {
-      key: "addedDate",
-      label: "Added",
-      sortable: true,
-      csvValue: (s) => s.addedDate,
-    },
-    {
-      key: "kutir_id",
-      label: "Kutir",
-      sortable: true,
-      sortValue: (s) => s.kutir_id != null ? (kutirMap.get(s.kutir_id)?.name ?? "") : "",
-      render: (s) => s.kutir_id != null ? <span style={{ fontSize: "0.82rem" }}>{kutirMap.get(s.kutir_id)?.name ?? "—"}</span> : <span style={{ color: "var(--text-secondary)" }}>—</span>,
-      csvValue: (s) => s.kutir_id != null ? (kutirMap.get(s.kutir_id)?.name ?? "") : "",
-    },
-    {
-      key: "dob",
-      label: "Date of Birth",
-      sortable: true,
-      render: (s) => s.dob ? new Date(s.dob).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : <span style={{ color: "var(--text-secondary)" }}>—</span>,
-      csvValue: (s) => s.dob ?? "",
-    },
-    {
-      key: "email",
-      label: "Email",
-      sortable: true,
-      render: (s) => s.email ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
-      csvValue: (s) => s.email ?? "",
-    },
-    {
-      key: "alt_contact_name",
-      label: "Alt Contact",
-      sortable: true,
-      render: (s) => s.alt_contact_name ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
-      csvValue: (s) => s.alt_contact_name ?? "",
-    },
-    {
-      key: "alt_contact_phone",
-      label: "Alt Phone",
-      sortable: true,
-      render: (s) => s.alt_contact_phone ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
-      csvValue: (s) => s.alt_contact_phone ?? "",
-    },
-  ];
-
+  // List columns, labels, visibility, order, and CSV headers all come from STUDENTS_FIELDS.
   const { isVisible, orderedMetas } = useFieldConfig("students", STUDENTS_FIELDS);
-  const columns = useMemo(() => {
-    const colByKey = new Map(allColumns.map(c => [c.key, c]));
+  const columns = useMemo<Col<EnrichedStudent>[]>(() => {
+    const renderers = studentColRenderers(kutirMap);
     return orderedMetas
-      .filter(m => isVisible(m.key))
-      .map(m => colByKey.get(m.key))
-      .filter((c): c is NonNullable<typeof c> => c != null);
-  }, [allColumns, orderedMetas, isVisible]);
+      .filter((m) => isVisible(m.key))
+      .map((meta): Col<EnrichedStudent> => {
+        const r = renderers[meta.key] ?? {};
+        return {
+          key: meta.key,
+          label: meta.label,
+          sortable: true,
+          render: r.render,
+          csvValue: r.csvValue,
+          sortValue: r.sortValue,
+        };
+      });
+  }, [orderedMetas, isVisible, kutirMap]);
 
   const geoFilters = (
     <GeoFilterBar

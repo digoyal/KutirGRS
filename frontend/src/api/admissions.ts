@@ -128,6 +128,8 @@ export async function listExams(params: {
   school_id?: number;
   school_start_year?: number;
   admitted?: boolean;
+  limit?: number;
+  offset?: number;
 } = {}): Promise<StudentExam[]> {
   const { data } = await api.get("/student-exams", { params });
   return data;
@@ -156,6 +158,8 @@ export async function listProgress(params: {
   student_id?: number;
   school_id?: number;
   academic_year?: number;
+  limit?: number;
+  offset?: number;
 } = {}): Promise<StudentProgress[]> {
   const { data } = await api.get("/student-progress", { params });
   return data;

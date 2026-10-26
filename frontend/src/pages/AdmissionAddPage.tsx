@@ -7,6 +7,8 @@ import {
   emptyAdmissionForm,
   admissionPayloadFromForm,
   admissionSchoolFieldsRequired,
+  admissionClassMissing,
+  ADMISSION_CLASS_REQUIRED_MSG,
   type AdmissionFormState,
 } from "../components/AdmissionForm";
 import { grs } from "../styles/grs";
@@ -37,12 +39,18 @@ export default function AdmissionAddPage() {
 
   function handleSave() {
     setSaveError(null);
+    if (admissionClassMissing(form)) {
+      setSaveError(ADMISSION_CLASS_REQUIRED_MSG);
+      return;
+    }
     addMut.mutate(admissionPayloadFromForm(form) as StudentExamCreate);
   }
 
   const schoolRequired = admissionSchoolFieldsRequired(form);
+  const classOk = !admissionClassMissing(form);
   const canSave =
     !!form.student_id &&
+    classOk &&
     (!schoolRequired || (!!form.school_type && !!form.admitted_school_id));
 
   return (
