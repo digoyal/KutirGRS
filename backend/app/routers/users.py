@@ -20,8 +20,10 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 
 def _is_admin_or_super(user: User) -> bool:
-    """Admin (or superuser) for privilege escalation / assign-any-title — not SysAdmin."""
-    return user.title == "Admin" or bool(user.is_superuser)
+    """Admin / SysAdmin / superuser: assign any title, set is_superuser."""
+    from app.roles import SYSADMIN
+
+    return user.title in ("Admin", SYSADMIN) or bool(user.is_superuser)
 
 
 def _sees_all_users(user: User) -> bool:

@@ -27,9 +27,10 @@ function from(minTitle: OperationalTitle): readonly OperationalTitle[] {
   return OPERATIONAL_TITLES.slice(i);
 }
 
-/** Day-to-day entities: operational roles + SysAdmin (global data). */
+/** Day-to-day entities: operational roles + SysAdmin (global data + all menus). */
 export const ALL_ROLES: readonly RoleTitle[] = [...OPERATIONAL_TITLES, SYSADMIN];
-export const ADMIN_ONLY: readonly RoleTitle[] = ["Admin"];
+/** Admin-level menus/APIs (Lookups mutate, Column Config, Import). Includes SysAdmin; not Deploy. */
+export const ADMIN_ONLY: readonly RoleTitle[] = ["Admin", SYSADMIN];
 export const SYSADMIN_ONLY: readonly RoleTitle[] = [SYSADMIN];
 export const CC_PLUS: readonly RoleTitle[] = [...from("Cluster Coordinator"), SYSADMIN];
 export const EC_PLUS: readonly RoleTitle[] = [...from("Education Coordinator"), SYSADMIN];
@@ -102,7 +103,7 @@ export function canManageLookups(title: string | null | undefined): boolean {
   return hasRole(title, MANAGE_LOOKUPS);
 }
 
-/** Lookups mutate: Admin title or API is_admin (superuser). */
+/** Lookups mutate: Admin / SysAdmin title or API is_admin (superuser). */
 export function canManageLookupsUser(user: {
   title?: string | null;
   is_admin?: boolean;
@@ -134,10 +135,10 @@ export function canViewDeploy(title: string | null | undefined): boolean {
 
 /**
  * Titles the actor may assign (strictly below their own).
- * Admin may assign any title including SysAdmin.
+ * Admin and SysAdmin may assign any title including SysAdmin.
  */
 export function assignableTitles(actorTitle: string | null | undefined): string[] {
-  if (actorTitle === "Admin") return [...TITLES];
+  if (actorTitle === "Admin" || actorTitle === SYSADMIN) return [...TITLES];
   const i = TITLES.indexOf(actorTitle as RoleTitle);
   if (i <= 0) return [];
   return TITLES.slice(0, i) as unknown as string[];

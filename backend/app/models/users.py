@@ -104,7 +104,8 @@ class User(Base, TimestampMixin):
 
     @property
     def is_admin(self) -> bool:
-        return self.is_superuser or self.title == "Admin"
+        """Admin-level UI/API (not Deploy). Includes SysAdmin."""
+        return self.is_superuser or self.title in ("Admin", "SysAdmin")
 
     def __repr__(self):
         return f"<User {self.username} ({self.title})>"

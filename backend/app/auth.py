@@ -62,7 +62,10 @@ async def get_current_user(
 
 
 async def require_admin(user=Depends(get_current_user)):
-    if user.title != "Admin" and not user.is_superuser:
+    """Admin-level pages/APIs (Import, Lookups mutate, Column Config, …). SysAdmin allowed; Deploy is not here."""
+    from app.roles import SYSADMIN
+
+    if user.title not in ("Admin", SYSADMIN) and not user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
@@ -81,7 +84,7 @@ async def require_any_role(user=Depends(get_current_user)):
 
 
 def require_roles(allowed: Collection[str]):
-    """Allow callers whose title is in `allowed`, or Admin / superuser.
+    """Allow callers whose title is in `allowed`, or Admin / SysAdmin / superuser.
 
     Prefer sets from app.roles (MANAGE_*, VIEW_*) so gates match docs/role-and-access.md.
     SysAdmin-only sets never grant via Admin bypass (see role_allowed).

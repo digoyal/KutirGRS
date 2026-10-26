@@ -29,9 +29,9 @@ def _from(min_title: str) -> frozenset[str]:
     return frozenset(OPERATIONAL_TITLES[i:])
 
 
-# SysAdmin has global data access (all rows) for day-to-day entities; not Admin-only menus.
+# SysAdmin: global data + all Admin menus/APIs; Deploy stays SYSADMIN_ONLY.
 ALL_ROLES: frozenset[str] = frozenset(OPERATIONAL_TITLES) | {SYSADMIN}
-ADMIN_ONLY: frozenset[str] = frozenset({"Admin"})
+ADMIN_ONLY: frozenset[str] = frozenset({"Admin", SYSADMIN})
 SYSADMIN_ONLY: frozenset[str] = frozenset({SYSADMIN})
 CC_PLUS: frozenset[str] = _from("Cluster Coordinator") | {SYSADMIN}
 EC_PLUS: frozenset[str] = _from("Education Coordinator") | {SYSADMIN}
@@ -69,12 +69,13 @@ def has_global_data_scope(title: str | None, *, is_superuser: bool = False) -> b
 
 
 def role_allowed(title: str | None, allowed: Collection[str], *, is_superuser: bool = False) -> bool:
-    """True if title is in allowed, or caller is Admin / superuser.
+    """True if title is in allowed, or caller is Admin / SysAdmin / superuser.
 
-    Exception: SysAdmin-only sets (e.g. Deploy) never grant via Admin bypass.
+    Exception: SysAdmin-only sets (e.g. Deploy) never grant via Admin bypass —
+    only an exact title match (SysAdmin) is allowed.
     """
     if allowed and set(allowed) <= SYSADMIN_ONLY:
         return bool(title) and title in allowed
-    if is_superuser or title == "Admin":
+    if is_superuser or title in ("Admin", SYSADMIN):
         return True
     return bool(title) and title in allowed

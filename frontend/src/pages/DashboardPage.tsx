@@ -6,7 +6,7 @@ import {
   canViewUsers,
   canViewColumnConfig,
   canViewDeploy,
-  isAdmin as roleIsAdmin,
+  hasGlobalDataScope,
 } from "../constants/roles";
 import HomePage from "./HomePage";
 
@@ -20,7 +20,9 @@ export default function DashboardPage() {
   const closeNav = () => setNavOpen(false);
 
   function navVisible(item: (typeof navItems)[number]): boolean {
-    if (item.adminOnly && !roleIsAdmin(title)) return false;
+    // Admin-level menus (Import, …): Admin or SysAdmin
+    if (item.adminOnly && !hasGlobalDataScope(title)) return false;
+    // Deploy: SysAdmin only
     if (item.sysAdminOnly && !canViewDeploy(title)) return false;
     if (item.usersOnly && !canViewUsers(title)) return false;
     if (item.columnConfigOnly && !canViewColumnConfig(title)) return false;
