@@ -105,27 +105,35 @@ def _result(created, skipped, errors):
 
 # ── Hierarchical geo resolve (names are parent-scoped, not globally unique) ──
 # Cluster unique within district (via area→district); kutir unique within cluster.
+# Parents optional when the name alone is unique in DB; required when ambiguous.
 
 async def _resolve_area_id(
     db,
     *,
     area_name: str,
-    district_name: str,
+    district_name: str = "",
 ) -> tuple[int | None, str | None]:
     if not area_name:
         return None, "Empty area_name"
-    if not district_name:
-        return None, f"Area '{area_name}' needs district_name (areas are unique within a district)"
-    rows = (await db.execute(text("""
+    sql = """
         SELECT a.id
         FROM areas a
         JOIN districts d ON d.id = a.district_id
-        WHERE lower(a.name) = lower(:a) AND lower(d.name) = lower(:d)
-    """), {"a": area_name, "d": district_name})).scalars().all()
+        WHERE lower(a.name) = lower(:a)
+    """
+    params: dict[str, Any] = {"a": area_name}
+    if district_name:
+        sql += " AND lower(d.name) = lower(:d)"
+        params["d"] = district_name
+    rows = (await db.execute(text(sql), params)).scalars().all()
     if len(rows) == 0:
-        return None, f"Area '{area_name}' not found in district '{district_name}'"
+        if district_name:
+            return None, f"Area '{area_name}' not found in district '{district_name}'"
+        return None, f"Area '{area_name}' not found"
     if len(rows) > 1:
-        return None, f"Ambiguous area '{area_name}' in district '{district_name}' ({len(rows)} matches)"
+        return None, (
+            f"Ambiguous area '{area_name}' ({len(rows)} matches) — set district_name"
+        )
     return rows[0], None
 
 
@@ -133,36 +141,45 @@ async def _resolve_cluster_id(
     db,
     *,
     cluster_name: str,
-    district_name: str,
+    district_name: str = "",
     area_name: str = "",
 ) -> tuple[int | None, str | None]:
-    """Cluster by name within a district (optional area_name to disambiguate)."""
+    """Cluster by name; filter by district/area when provided. Unique name alone is OK."""
     if not cluster_name:
         return None, "Empty cluster_name"
-    if not district_name:
-        return None, (
-            f"Cluster '{cluster_name}' needs district_name "
-            "(same cluster name may exist in other districts)"
-        )
     sql = """
         SELECT c.id
         FROM clusters c
         JOIN areas a ON a.id = c.area_id
         JOIN districts d ON d.id = a.district_id
-        WHERE lower(c.name) = lower(:c) AND lower(d.name) = lower(:d)
+        WHERE lower(c.name) = lower(:c)
     """
-    params: dict[str, Any] = {"c": cluster_name, "d": district_name}
+    params: dict[str, Any] = {"c": cluster_name}
+    if district_name:
+        sql += " AND lower(d.name) = lower(:d)"
+        params["d"] = district_name
     if area_name:
         sql += " AND lower(a.name) = lower(:a)"
         params["a"] = area_name
     rows = (await db.execute(text(sql), params)).scalars().all()
     if len(rows) == 0:
-        scope = f"district '{district_name}'" + (f" / area '{area_name}'" if area_name else "")
-        return None, f"Cluster '{cluster_name}' not found in {scope}"
+        scope_bits = []
+        if district_name:
+            scope_bits.append(f"district '{district_name}'")
+        if area_name:
+            scope_bits.append(f"area '{area_name}'")
+        if scope_bits:
+            return None, f"Cluster '{cluster_name}' not found in {' / '.join(scope_bits)}"
+        return None, f"Cluster '{cluster_name}' not found"
     if len(rows) > 1:
+        hint = []
+        if not district_name:
+            hint.append("district_name")
+        if not area_name:
+            hint.append("area_name")
+        need = " and ".join(hint) if hint else "more parent columns"
         return None, (
-            f"Ambiguous cluster '{cluster_name}' in district '{district_name}' "
-            f"({len(rows)} matches) — also set area_name"
+            f"Ambiguous cluster '{cluster_name}' ({len(rows)} matches) — set {need}"
         )
     return rows[0], None
 
@@ -175,14 +192,9 @@ async def _resolve_kutir_id(
     district_name: str = "",
     area_name: str = "",
 ) -> tuple[int | None, str | None]:
-    """Kutir by name within cluster; cluster scoped by district (+ optional area)."""
+    """Kutir by name; filter by parents when provided. Unique name alone is OK."""
     if not kutir_name:
         return None, "Empty kutir_name"
-    if not cluster_name or not district_name:
-        return None, (
-            f"Kutir '{kutir_name}' needs district_name and cluster_name "
-            "(kutir names are unique within a cluster, not globally)"
-        )
     sql = """
         SELECT k.id
         FROM kutirs k
@@ -190,24 +202,40 @@ async def _resolve_kutir_id(
         JOIN areas a ON a.id = c.area_id
         JOIN districts d ON d.id = a.district_id
         WHERE lower(k.name) = lower(:k)
-          AND lower(c.name) = lower(:c)
-          AND lower(d.name) = lower(:d)
     """
-    params: dict[str, Any] = {"k": kutir_name, "c": cluster_name, "d": district_name}
+    params: dict[str, Any] = {"k": kutir_name}
+    if cluster_name:
+        sql += " AND lower(c.name) = lower(:c)"
+        params["c"] = cluster_name
+    if district_name:
+        sql += " AND lower(d.name) = lower(:d)"
+        params["d"] = district_name
     if area_name:
         sql += " AND lower(a.name) = lower(:a)"
         params["a"] = area_name
     rows = (await db.execute(text(sql), params)).scalars().all()
     if len(rows) == 0:
-        scope = f"cluster '{cluster_name}' / district '{district_name}'"
+        scope_bits = []
         if area_name:
-            scope = f"area '{area_name}' / " + scope
-        return None, f"Kutir '{kutir_name}' not found under {scope}"
+            scope_bits.append(f"area '{area_name}'")
+        if cluster_name:
+            scope_bits.append(f"cluster '{cluster_name}'")
+        if district_name:
+            scope_bits.append(f"district '{district_name}'")
+        if scope_bits:
+            return None, f"Kutir '{kutir_name}' not found under {' / '.join(scope_bits)}"
+        return None, f"Kutir '{kutir_name}' not found"
     if len(rows) > 1:
+        hint = []
+        if not district_name:
+            hint.append("district_name")
+        if not cluster_name:
+            hint.append("cluster_name")
+        if not area_name:
+            hint.append("area_name")
+        need = ", ".join(hint) if hint else "more parent columns"
         return None, (
-            f"Ambiguous kutir '{kutir_name}' under cluster '{cluster_name}' / "
-            f"district '{district_name}' ({len(rows)} matches)"
-            + ("" if area_name else " — also set area_name")
+            f"Ambiguous kutir '{kutir_name}' ({len(rows)} matches) — set {need}"
         )
     return rows[0], None
 
