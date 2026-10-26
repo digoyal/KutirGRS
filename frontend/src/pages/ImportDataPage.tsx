@@ -408,9 +408,9 @@ export default function ImportDataPage() {
           Download the Import Template
         </div>
         <p style={s.stepDesc}>
-          Fill in the template with your data. Row 1 has instructions, Row 2 has
-          column headers (red = required), and Row 3 shows an example (delete before
-          uploading). Keep all sheet names unchanged.
+          Fill in the template with your data. Row 1 = column headers (red =
+          required), Row 2 = sample (always skipped), Row 3+ = your data. Keep all
+          sheet names unchanged. See docs/import-template.md for sheet order.
         </p>
         <button
           style={downloading ? { ...s.btnPrimary, opacity: 0.6 } : s.btnPrimary}
@@ -428,8 +428,8 @@ export default function ImportDataPage() {
           Upload &amp; Import
         </div>
         <p style={s.stepDesc}>
-          Select your filled-in template (.xlsx). The import will process all 18
-          sheets in order and report results per sheet.
+          Select your filled-in template (.xlsx). The import will process all 22
+          data sheets in order and report results per sheet.
         </p>
 
         <div

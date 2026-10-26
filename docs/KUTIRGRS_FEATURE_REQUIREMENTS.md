@@ -148,7 +148,7 @@ An inspection form filled in by a field user at a Kutir.
 ## 9. Administration
 
 - **R-ADMIN-1 Column settings** ✅ Admin chooses, per table, which columns show and in what order (drag and drop). Saved in `app_settings` and cached in localStorage. Every table page needs the bfcache fix.
-- **R-ADMIN-2 Excel import** ✅ Upload the workbook (`GRS_Import_Template.xlsx`). Sheets are processed in dependency order: users, geography, lookups, schools, exam centres, donors, Kutirs, students, exam types, admissions, progress, visits. Each sheet reports created / skipped / errors. Template download is included.
+- **R-ADMIN-2 Excel import** ✅ Upload the workbook (`GRS_Import_Template.xlsx`). Sheets are processed in dependency order `0_Users` … `21_KutirVisits` (see [`docs/import-template.md`](./import-template.md)). Each sheet reports created / skipped / errors. Template download is included.
 - **R-ADMIN-3 Data reset** ✅ Admin-only endpoint that deletes imported data.
 - **R-ADMIN-4 One-click deploy** 🟡 Admin page runs git pull, install, build and restart on the server. The script calls `alembic upgrade head`, but the project uses hand-written SQL migrations in `backend/scripts/`, and the server path is hard-coded (`/opt/sevakutir`).
 
