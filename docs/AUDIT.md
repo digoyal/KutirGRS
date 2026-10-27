@@ -5,7 +5,7 @@
 **Method:** Code inspection, `npx tsc -b --noEmit`, `npm run lint` (oxlint), read-only SQL against local DB via `backend/.env`.  
 **Constraint:** No code, config, or database writes were made for this audit.
 
-**Sources of truth consulted:** `AGENTS.md`, `docs/KutirGRS_PRD.md`, `docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`.
+**Sources of truth consulted:** `AGENTS.md`, `docs/KutirGRS_PRD.md`, `docs/kutirGRS_PRD_Old.md`.
 
 **Legend:** Effort S/M/L · Priority High/Medium/Low · **unsure** = not fully certain.
 

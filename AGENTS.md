@@ -94,6 +94,6 @@ Entity list columns, Column Config, CSV export, and form field labels must come 
 
 ### This repo
 
-Checkout: `/Users/dineshgoyal/projects/KutirGRS` · PRD: [`docs/KutirGRS_PRD.md`](docs/KutirGRS_PRD.md) · Feature status: [`docs/KUTIRGRS_FEATURE_REQUIREMENTS.md`](docs/KUTIRGRS_FEATURE_REQUIREMENTS.md) · Role & access: [`docs/role-and-access.md`](docs/role-and-access.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md) · Smoke test: [`docs/smoke-test.md`](docs/smoke-test.md)
+Checkout: `/Users/dineshgoyal/projects/KutirGRS` · PRD: [`docs/KutirGRS_PRD.md`](docs/KutirGRS_PRD.md) · Role & access: [`docs/role-and-access.md`](docs/role-and-access.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md) · Smoke test: [`docs/smoke-test.md`](docs/smoke-test.md)
 
 Local login is **`admin` / `admin`** (`backend/.env` `ADMIN_PASSWORD=admin`). API must be up on `:8001` (`bash backend/start.sh`). Startup creates admin only if missing — it does not rehash on every restart. If the UI says invalid password, check `/docs` first (API down / bad `ALLOWED_ORIGINS` env often looks like a bad password).

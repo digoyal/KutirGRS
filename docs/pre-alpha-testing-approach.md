@@ -2,7 +2,7 @@
 
 **Audience:** Dinesh (sole developer), then a small Alpha/Beta invite list  
 **Layers on top of:** [`docs/smoke-test.md`](./smoke-test.md) — smoke stays short; this doc is the deeper gate before inviting people  
-**Automation stance:** Manual checklists + smoke + a few high-value API/script checks. No Playwright / full browser suite unless you explicitly ask later.
+**Automation stance:** Manual checklists + smoke + a few high-value API/script checks. Optional Playwright browser smoke (Admissions / Progress / Kutir Visits): [`docs/browser-smoke.md`](./browser-smoke.md) — not a full browser suite.
 
 Local defaults match smoke: API `http://localhost:8001`, Vite `http://localhost:5173`, login `admin` / `admin` (keep `ADMIN_PASSWORD` in sync). Prefer `http://localhost:5173` over `127.0.0.1`.
 
@@ -75,6 +75,8 @@ Run [`docs/smoke-test.md`](./smoke-test.md) after any substantial change and **b
 6. Privilege: CC1 cannot create Admin/SysAdmin or assign a higher title than allowed (PRD §2.3). Teacher assignable to **at most one** Kutir.
 
 **Stage 1 automated API (high value, not a full suite):** [`backend/scripts/API_testing_matrix.py`](../backend/scripts/API_testing_matrix.py) logs in as fixtures T1/CC1/ADM/SYS against `http://localhost:8001`, asserts list scope + IDOR GET/PATCH/DELETE (403/404) + BR-ROLE-1 Deploy, and writes [`docs/API_testing_matrix_results.md`](./API_testing_matrix_results.md). No Playwright. Re-run the script to refresh the matrix; do not wait on a full pytest suite for Alpha.
+
+**Optional Stage browser try:** [`docs/browser-smoke.md`](./browser-smoke.md) — Playwright login → Admissions / Progress / Kutir Visits list → Add form → Edit + no-op Save. Headless by default; not CI and not a full module suite.
 
 ### 3.2 Admissions pipeline stages
 
@@ -216,7 +218,7 @@ Give Alpha a one-pager: URL, role, “do J1 or J2”, “file bugs with role + s
 
 ## 7. Out of scope for now
 
-- Full Playwright / E2E browser automation (optional later only if you ask).  
+- Full Playwright / E2E browser suite across modules (Admissions / Progress / Visits smoke is optional: [`browser-smoke.md`](./browser-smoke.md)).  
 - Exhaustive matrix: every role × every menu × every HTTP method on every release.  
 - Perfect resolution of all PRD §8 items before Alpha (document instead).  
 - Load / performance testing beyond “lists paginate”.  
