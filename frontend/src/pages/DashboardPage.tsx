@@ -100,7 +100,7 @@ const navItems: {
   { to: "/reports/detailed", label: "Detailed", sub: true },
   { to: "/reports/summary", label: "Summary", sub: true },
   { divider: true, label: "KUTIR VISITS" },
-  { to: "/visits", label: "Dashboard" },
+  { to: "/visits", label: "Visit Dashboard" },
   { to: "/visits/detail", label: "Visit Details" },
   { to: "/reports/summary", label: "Reports" },
   { divider: true, label: "ADMIN" },
