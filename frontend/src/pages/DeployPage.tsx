@@ -72,7 +72,7 @@ export default function DeployPage() {
       {/* Deploy steps info */}
       <div style={{ background: "var(--bg-card)", borderRadius: 8, padding: "12px 16px", marginBottom: 20, border: "1px solid var(--border)", fontSize: 13, color: "var(--text-secondary)" }}>
         <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 }}>What this does:</div>
-        {["git pull origin main", "pip install -r requirements.txt", "python -m app.sql_migrations  (pending NNN_*.sql)", "npm ci && npm run build", "systemctl restart kutir-backend"].map((step, i) => (
+        {["git pull origin main", "pip install -r backend/requirements.txt (backend/venv)", "python -m app.sql_migrations  (pending NNN_*.sql)", "npm ci && npm run build → backend/frontend_dist", "systemctl restart sevakutir"].map((step, i) => (
           <div key={i} style={{ padding: "3px 0" }}>
             <span style={{ color: "var(--badge-blue-fg, #2563eb)", fontWeight: 700, marginRight: 8 }}>{i + 1}.</span>
             <code style={{ fontSize: 12 }}>{step}</code>

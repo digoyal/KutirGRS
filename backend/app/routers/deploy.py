@@ -17,21 +17,29 @@ echo "=== [1/5] Git pull ==="
 git pull origin main
 
 echo "=== [2/5] Backend: install dependencies ==="
-source venv/bin/activate
-pip install -r requirements.txt --quiet
+source backend/venv/bin/activate
+pip install -r backend/requirements.txt --quiet
 
 echo "=== [3/5] Backend: apply pending numbered SQL ==="
 cd backend
 python -m app.sql_migrations
 cd ..
 
-echo "=== [4/5] Frontend: install & build ==="
+echo "=== [4/5] Frontend: install, build, copy into backend/frontend_dist ==="
+# package.json uses @parivaar/ui file:../../parivaar-ui → sibling of PROJECT_ROOT
+if [ ! -d "{root}/../parivaar-ui" ]; then
+  echo "error: missing sibling checkout {root}/../parivaar-ui (required for npm ci)"
+  exit 1
+fi
 cd frontend
 npm ci --silent
 npm run build
+cd ..
+rm -rf backend/frontend_dist
+cp -r frontend/dist backend/frontend_dist
 
 echo "=== [5/5] Restarting services ==="
-sudo systemctl restart sevakutir || true
+sudo systemctl restart sevakutir
 
 echo "=== Deploy complete ==="
 """.format(root=PROJECT_ROOT)
