@@ -44,13 +44,15 @@ export const EMPTY_USER_FORM: UserFormState = {
 // ── CheckboxList ──────────────────────────────────────────────────────────────
 
 function CheckboxList({ items, selected, onChange, placeholder = "None available" }: {
-  items: { id: number; label: string }[];
+  items: { id: number; label: string; disabled?: boolean }[];
   selected: number[];
   onChange: (ids: number[]) => void;
   placeholder?: string;
 }) {
   const set = new Set(selected);
-  function toggle(id: number) {
+  function toggle(id: number, disabled: boolean) {
+    // Disabled = not newly selectable; already-selected disabled rows can still be cleared.
+    if (disabled && !set.has(id)) return;
     onChange(set.has(id) ? selected.filter(x => x !== id) : [...selected, id]);
   }
   if (items.length === 0) {
@@ -58,18 +60,29 @@ function CheckboxList({ items, selected, onChange, placeholder = "None available
   }
   return (
     <div style={{ maxHeight: 160, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 0", background: "var(--surface)" }}>
-      {items.map(item => (
-        <label key={item.id} style={{
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "5px 10px", cursor: "pointer",
-          background: set.has(item.id) ? "var(--row-selected-bg, rgba(79,140,255,0.1))" : "transparent",
-          fontSize: "0.875rem", color: "var(--text-primary)",
-        }}>
-          <input type="checkbox" checked={set.has(item.id)} onChange={() => toggle(item.id)}
-            style={{ accentColor: "var(--accent)", width: 15, height: 15, flexShrink: 0 }} />
-          {item.label}
-        </label>
-      ))}
+      {items.map(item => {
+        const isSelected = set.has(item.id);
+        const disabled = !!item.disabled;
+        return (
+          <label key={item.id} style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "5px 10px",
+            cursor: disabled && !isSelected ? "not-allowed" : "pointer",
+            background: isSelected
+              ? (disabled ? "rgba(0,0,0,0.04)" : "var(--row-selected-bg, rgba(79,140,255,0.1))")
+              : "transparent",
+            fontSize: "0.875rem",
+            color: disabled ? "var(--text-secondary)" : "var(--text-primary)",
+            opacity: disabled ? 0.55 : 1,
+          }}>
+            <input type="checkbox" checked={isSelected}
+              disabled={disabled && !isSelected}
+              onChange={() => toggle(item.id, disabled)}
+              style={{ accentColor: "var(--accent)", width: 15, height: 15, flexShrink: 0 }} />
+            {item.label}
+          </label>
+        );
+      })}
     </div>
   );
 }
@@ -125,6 +138,61 @@ export function UserForm({
     }
     return filterArea ? allClusters.filter(c => c.area_id === filterArea) : allClusters;
   }, [leaf, allClusters, areaById, filterDistrict, filterArea]);
+
+  // True when any selected cluster is outside the active district (or no district yet).
+  // While locked: grey/disable the entire cluster list; only allow unchecking foreign selections.
+  const ccLockedByForeignSelection = useMemo(() => {
+    if (leaf !== "cluster") return false;
+    if (form.cluster_ids.length === 0) return false;
+    if (filterDistrict === null) return true;
+    return form.cluster_ids.some(id => {
+      const c = allClusters.find(x => x.id === id);
+      const area = c ? areaById.get(c.area_id) : undefined;
+      return !area || area.district_id !== filterDistrict;
+    });
+  }, [leaf, form.cluster_ids, filterDistrict, allClusters, areaById]);
+
+  // CC: show active-district clusters + foreign selections. When locked, every row is greyed;
+  // foreign checked rows stay deselectable; nothing else can be newly selected.
+  const ccClusterItems = useMemo(() => {
+    if (leaf !== "cluster") return [] as { id: number; label: string; disabled?: boolean }[];
+    const clusterById = new Map(allClusters.map(c => [c.id, c]));
+    const districtName = (districtId: number) => districtById.get(districtId)?.name ?? `district ${districtId}`;
+    const items: { id: number; label: string; disabled?: boolean }[] = [];
+    const seen = new Set<number>();
+    const lockNew = ccLockedByForeignSelection || filterDistrict === null;
+
+    for (const id of form.cluster_ids) {
+      const c = clusterById.get(id);
+      if (!c) continue;
+      const area = areaById.get(c.area_id);
+      const distId = area?.district_id ?? null;
+      const outOfDistrict = filterDistrict === null || distId !== filterDistrict;
+      if (!outOfDistrict) continue;
+      seen.add(id);
+      const other = distId != null ? districtName(distId) : "unknown district";
+      items.push({ id, label: `${c.name} (${other})`, disabled: true });
+    }
+
+    for (const c of filteredClusters) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      items.push({ id: c.id, label: c.name, disabled: lockNew });
+    }
+
+    // Same-district selections hidden by area refine still stay visible.
+    for (const id of form.cluster_ids) {
+      if (seen.has(id)) continue;
+      const c = clusterById.get(id);
+      if (!c) continue;
+      const area = areaById.get(c.area_id);
+      if (filterDistrict !== null && area?.district_id !== filterDistrict) continue;
+      seen.add(id);
+      items.push({ id: c.id, label: c.name, disabled: lockNew });
+    }
+    return items;
+  }, [leaf, allClusters, form.cluster_ids, areaById, districtById, filterDistrict, filteredClusters, ccLockedByForeignSelection]);
+
   const filteredKutirs: Kutir[] = useMemo(() => filterCluster ? allKutirs.filter(k => k.cluster_id === filterCluster) : [], [allKutirs, filterCluster]);
 
   // Auto-select when only one option available (add mode only)
@@ -173,6 +241,7 @@ export function UserForm({
     setFilterZone(null); setFilterDistrict(null); setFilterArea(null); setFilterCluster(null);
   }
 
+  /** Explicit reset via empty district: clear filter + selections. Switching district keeps selections. */
   function clearCcDistrict() {
     setFilterDistrict(null);
     setFilterArea(null);
@@ -292,14 +361,22 @@ export function UserForm({
           {leaf === "cluster" && (
             <>
               <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>
-                Clusters must be from a single district. Pick a district first; clearing it clears selected clusters.
+                Clusters must be from a single district. Changing district keeps prior selections but greys out the entire
+                cluster list until those other-district selections are cleared; only then can you pick clusters in the new district.
+                Clearing the district resets all selections.
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
                 <div>
                   <label style={grs.fieldLabel}>Filter by Zone</label>
                   <select style={grs.select} value={filterZone ?? ""} onChange={e => {
-                    setFilterZone(e.target.value === "" ? null : Number(e.target.value));
-                    clearCcDistrict();
+                    const next = e.target.value === "" ? null : Number(e.target.value);
+                    setFilterZone(next);
+                    setFilterArea(null);
+                    // Keep cluster selections; drop district filter if it falls outside the new zone.
+                    if (filterDistrict !== null && next !== null) {
+                      const d = districtById.get(filterDistrict);
+                      if (d && d.zone_id !== next) setFilterDistrict(null);
+                    }
                   }}>
                     <option value="">— all zones —</option>
                     {allZones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
@@ -314,9 +391,9 @@ export function UserForm({
                         clearCcDistrict();
                         return;
                       }
+                      // Switch district without clearing prior cluster selections (they grey out if out of district).
                       setFilterDistrict(next);
                       setFilterArea(null);
-                      setForm(f => ({ ...f, cluster_ids: [] }));
                       const d = districtById.get(next);
                       if (d?.zone_id != null) setFilterZone(d.zone_id);
                     }}>
@@ -335,9 +412,22 @@ export function UserForm({
               </div>
               <div>
                 <label style={grs.fieldLabel}>Clusters {form.cluster_ids.length > 0 && <span style={{ color: "var(--accent)", fontWeight: 600 }}>({form.cluster_ids.length} selected)</span>}</label>
-                <CheckboxList items={filteredClusters.map(c => ({ id: c.id, label: c.name }))} selected={form.cluster_ids}
-                  onChange={ids => setForm(f => ({ ...f, cluster_ids: ids }))}
+                <CheckboxList items={ccClusterItems} selected={form.cluster_ids}
+                  onChange={ids => {
+                    // While foreign selections remain, only allow removals — never add Dist2 while Dist1 still selected.
+                    if (ccLockedByForeignSelection) {
+                      const allowed = new Set(form.cluster_ids);
+                      setForm(f => ({ ...f, cluster_ids: ids.filter(id => allowed.has(id)) }));
+                      return;
+                    }
+                    setForm(f => ({ ...f, cluster_ids: ids }));
+                  }}
                   placeholder={filterDistrict === null ? "Select a district first" : "No clusters in this district"} />
+                {ccLockedByForeignSelection && form.cluster_ids.length > 0 && filterDistrict !== null && (
+                  <div style={{ fontSize: 12, color: "var(--danger, #b42318)", marginTop: 6 }}>
+                    Clear the greyed other-district selection(s) to unlock clusters in this district.
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -392,21 +482,37 @@ export function UserForm({
 
           {/* Assignment summary */}
           {(() => {
-            let names: string[] = [];
-            if (leaf === "zone")     names = form.zone_ids.map(id => allZones.find(z => z.id === id)?.name ?? String(id));
-            if (leaf === "district") names = form.district_ids.map(id => allDistricts.find(d => d.id === id)?.name ?? String(id));
-            if (leaf === "area")     names = form.area_ids.map(id => allAreas.find(a => a.id === id)?.name ?? String(id));
-            if (leaf === "cluster")  names = form.cluster_ids.map(id => allClusters.find(c => c.id === id)?.name ?? String(id));
-            if (leaf === "kutir")    names = form.kutir_ids.map(id => allKutirs.find(k => k.id === id)?.name ?? String(id));
+            type Chip = { key: string; name: string; muted?: boolean };
+            let chips: Chip[] = [];
+            if (leaf === "zone")     chips = form.zone_ids.map(id => ({ key: `z-${id}`, name: allZones.find(z => z.id === id)?.name ?? String(id) }));
+            if (leaf === "district") chips = form.district_ids.map(id => ({ key: `d-${id}`, name: allDistricts.find(d => d.id === id)?.name ?? String(id) }));
+            if (leaf === "area")     chips = form.area_ids.map(id => ({ key: `a-${id}`, name: allAreas.find(a => a.id === id)?.name ?? String(id) }));
+            if (leaf === "cluster") {
+              chips = form.cluster_ids.map(id => {
+                const c = allClusters.find(x => x.id === id);
+                const area = c ? areaById.get(c.area_id) : undefined;
+                const muted = filterDistrict !== null && area != null && area.district_id !== filterDistrict;
+                const name = c?.name ?? String(id);
+                return { key: `c-${id}`, name: muted ? `${name} (other district)` : name, muted };
+              });
+            }
+            if (leaf === "kutir")    chips = form.kutir_ids.map(id => ({ key: `k-${id}`, name: allKutirs.find(k => k.id === id)?.name ?? String(id) }));
             return (
               <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
                 <div style={{ ...grs.fieldLabel, marginBottom: 6 }}>Assignment</div>
-                {names.length === 0
+                {chips.length === 0
                   ? <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", fontStyle: "italic" }}>None selected</div>
                   : <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {names.map(name => (
-                        <span key={name} style={{ display: "inline-flex", alignItems: "center", background: "var(--accent-subtle, rgba(79,140,255,0.12))", color: "var(--accent)", border: "1px solid var(--accent-border, rgba(79,140,255,0.3))", borderRadius: 20, padding: "2px 10px", fontSize: "0.8125rem", fontWeight: 500 }}>
-                          {name}
+                      {chips.map(chip => (
+                        <span key={chip.key} style={{
+                          display: "inline-flex", alignItems: "center",
+                          background: chip.muted ? "rgba(0,0,0,0.06)" : "var(--accent-subtle, rgba(79,140,255,0.12))",
+                          color: chip.muted ? "var(--text-secondary)" : "var(--accent)",
+                          border: chip.muted ? "1px solid var(--border)" : "1px solid var(--accent-border, rgba(79,140,255,0.3))",
+                          borderRadius: 20, padding: "2px 10px", fontSize: "0.8125rem", fontWeight: 500,
+                          opacity: chip.muted ? 0.7 : 1,
+                        }}>
+                          {chip.name}
                         </span>
                       ))}
                     </div>
