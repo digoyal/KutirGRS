@@ -14,7 +14,7 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 
 - Schema changes ship as **numbered SQL only**: `backend/scripts/NNN_descriptive_name.sql` (e.g. `024_add_foo.sql`). **Do not add Alembic** migrations, `alembic.ini`, or an `alembic/` tree.
 - Deploy applies pending `NNN_*.sql` via `python -m app.sql_migrations`, which records each basename in the `schema_migrations` ledger so re-Deploy is safe. Unapplied scripts under `scripts/` are not done. `create_all` only creates missing tables — it does **not** alter columns.
-- **Ledger bootstrap:** on first create of `schema_migrations`, if the DB already looks initialized (`users` exists), seed the ledger with every current `NNN_*.sql` filename as applied so Deploy does not re-run scripts that were applied manually before the ledger existed. New files added later are pending and get applied. Fresh restores apply all SQL then `--sync-ledger` (see `restore_db.sh`).
+- **Ledger bootstrap:** existing databases without `schema_migrations` require an explicit operator-verified `--baseline-through NNN`; never seed all newly fetched files automatically. Later files remain pending. Fresh restores apply all SQL then `--sync-ledger` (see `restore_db.sh`). See `docs/deployment.md` for button setup.
 - Any model/API/FE field that needs a new column or table ships **with** that migration. Do not add pipeline/UI stages that cannot persist.
 - Before marking done: **verify** the column/table exists in the target DB (`information_schema` or a `SELECT`). Assume environments can drift.
 - When adding/renaming a field, update in the **same change**: model → API schema → FE type → forms/lists → import/export headers if applicable.
