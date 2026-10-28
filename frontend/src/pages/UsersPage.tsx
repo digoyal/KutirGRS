@@ -1,7 +1,7 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listUsers, deleteUser, type User } from "../api/users";
+import { listUsersPaged, deleteUser, type User } from "../api/users";
 import { useAuth } from "../context/AuthContext";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
@@ -77,7 +77,28 @@ export default function UsersPage() {
   const canManage = canManageUsers(user?.title);
   const [pendingDelete, setPendingDelete] = useState<{ id: number; username: string } | null>(null);
 
-  const { data: users = [], isLoading } = useQuery({ queryKey: ["users"], queryFn: listUsers });
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
+  };
+
+  const { data: usersPage, isLoading } = useQuery({
+    queryKey: ["users", debouncedSearch, page],
+    queryFn: () => listUsersPaged({
+      search: debouncedSearch || undefined,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+  });
+  const users = usersPage?.items ?? [];
+  const userTotal = usersPage?.total ?? 0;
 
   const deleteMut = useMutation({
     mutationFn: deleteUser,
@@ -112,6 +133,7 @@ export default function UsersPage() {
         rowKey={u => u.id}
         isLoading={isLoading}
         emptyMessage="No users found."
+        pagination={{ page, pageSize: PAGE_SIZE, total: userTotal, onPageChange: setPage }}
         actions={canManage
           ? (u => ({
               onView: () => navigate(`/users/${u.id}`),
@@ -120,13 +142,9 @@ export default function UsersPage() {
             }))
           : undefined}
         searchable
-        searchFn={(u, q) => {
-          const s = q.toLowerCase();
-          return u.username.toLowerCase().includes(s)
-            || (u.first_name ?? "").toLowerCase().includes(s)
-            || (u.last_name ?? "").toLowerCase().includes(s)
-            || (u.title ?? "").toLowerCase().includes(s);
-        }}
+        searchPlaceholder="Search by name, username…"
+        externalSearch={searchQuery}
+        onExternalSearch={handleSearch}
         exportFilename="users"
         printTitle="Users"
         onAdd={canManage ? () => navigate("/users/new") : undefined}

@@ -12,12 +12,13 @@ async function openUsers(page: Page) {
   await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
 }
 
-/** Client-side search for a known username, then open Edit. */
+/** Server-side search for a known username, then open Edit. */
 async function openFirstUserEdit(page: Page) {
   await openUsers(page);
 
-  const search = page.getByPlaceholder("Search…");
+  const search = page.getByPlaceholder(/Search/);
   await search.fill("aaditya_mandloi");
+  // Debounce (300ms) + list refetch before Edit is available for that user.
   await expect(page.getByTitle("Edit").first()).toBeVisible({ timeout: 15_000 });
   await page.getByTitle("Edit").first().click();
 
@@ -31,8 +32,8 @@ test.describe("Users smoke", () => {
     await loginAsAdmin(page);
     await openUsers(page);
 
-    await expect(page.getByPlaceholder("Search…")).toBeVisible();
-    await expect(page.getByText(/No users found\.|\d[\d,]* rows/).first()).toBeVisible();
+    await expect(page.getByPlaceholder(/Search/)).toBeVisible();
+    await expect(page.getByText(/No users found\.|No records|\d[\d,]* rows|\d+–\d+ of \d+/).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "+ Add" })).toBeVisible();
   });
 

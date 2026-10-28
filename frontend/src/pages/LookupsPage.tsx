@@ -8,6 +8,8 @@ import { grs } from "../styles/grs";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { GrsModal } from "../components/GrsModal";
 import { GrsTabs } from "../components/GrsTabs";
+import { donorFieldLabel } from "../constants/donorsFields";
+import type { Donor } from "../api/donors";
 
 interface LookupItem { id: number; name?: string; reason?: string; category_id?: number }
 
@@ -674,27 +676,22 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-interface DonorItem {
-  id: number;
-  name: string;
-  contact: string | null;
-  notes: string | null;
-}
-
 function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
   const qc = useQueryClient();
   const [addName, setAddName] = useState("");
-  const [addContact, setAddContact] = useState("");
+  const [addEmail, setAddEmail] = useState("");
+  const [addPhone, setAddPhone] = useState("");
   const [addNotes, setAddNotes] = useState("");
-  const [editing, setEditing] = useState<DonorItem | null>(null);
+  const [editing, setEditing] = useState<Donor | null>(null);
   const [editName, setEditName] = useState("");
-  const [editContact, setEditContact] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [editNotes, setEditNotes] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState<DonorItem | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Donor | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const { data: items = [], isLoading, isError, error: loadError, refetch } = useQuery<DonorItem[]>({
+  const { data: items = [], isLoading, isError, error: loadError, refetch } = useQuery<Donor[]>({
     queryKey: ["donors"],
     queryFn: async () => {
       const r = await api.get("/donors");
@@ -708,16 +705,18 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
     setError(null);
     setSaving(true);
     try {
-      const { data: newItem } = await api.post<DonorItem>("/donors", {
+      const { data: newItem } = await api.post<Donor>("/donors", {
         name,
-        contact: addContact.trim() || null,
+        email: addEmail.trim() || null,
+        phone: addPhone.trim() || null,
         notes: addNotes.trim() || null,
       });
       setAddName("");
-      setAddContact("");
+      setAddEmail("");
+      setAddPhone("");
       setAddNotes("");
       qc.setQueryData(["donors"], (old: unknown) => {
-        const prev = Array.isArray(old) ? (old as DonorItem[]) : [];
+        const prev = Array.isArray(old) ? (old as Donor[]) : [];
         if (newItem?.id != null && prev.some((i) => i.id === newItem.id)) return prev;
         return newItem ? [...prev, newItem] : prev;
       });
@@ -737,14 +736,15 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
     setError(null);
     setSaving(true);
     try {
-      const { data: updated } = await api.put<DonorItem>(`/donors/${editing.id}`, {
+      const { data: updated } = await api.put<Donor>(`/donors/${editing.id}`, {
         name,
-        contact: editContact.trim() || null,
+        email: editEmail.trim() || null,
+        phone: editPhone.trim() || null,
         notes: editNotes.trim() || null,
       });
       setEditing(null);
       qc.setQueryData(["donors"], (old: unknown) =>
-        (Array.isArray(old) ? (old as DonorItem[]) : []).map((item) =>
+        (Array.isArray(old) ? (old as Donor[]) : []).map((item) =>
           item.id === updated?.id ? updated : item,
         ),
       );
@@ -761,7 +761,7 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
       await api.delete(`/donors/${id}`);
       setConfirmDelete(null);
       qc.setQueryData(["donors"], (old: unknown) =>
-        (Array.isArray(old) ? (old as DonorItem[]) : []).filter((item) => item.id !== id),
+        (Array.isArray(old) ? (old as Donor[]) : []).filter((item) => item.id !== id),
       );
       await qc.invalidateQueries({ queryKey: ["donors"] });
     } catch (e: unknown) {
@@ -781,7 +781,7 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
           <p style={{ margin: "0 0 10px", fontWeight: 600, fontSize: "0.85rem" }}>Add Donor</p>
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 160 }}>
-              <label style={grs.fieldLabel}>Name *</label>
+              <label style={grs.fieldLabel}>{donorFieldLabel("name", { required: true })}</label>
               <input
                 style={grs.input}
                 value={addName}
@@ -791,18 +791,29 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
                 disabled={saving}
               />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 140 }}>
-              <label style={grs.fieldLabel}>Contact</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 160 }}>
+              <label style={grs.fieldLabel}>{donorFieldLabel("email")}</label>
               <input
                 style={grs.input}
-                value={addContact}
-                onChange={(e) => setAddContact(e.target.value)}
-                placeholder="Phone / email"
+                type="email"
+                value={addEmail}
+                onChange={(e) => setAddEmail(e.target.value)}
+                placeholder="email@example.com"
                 disabled={saving}
               />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 2, minWidth: 180 }}>
-              <label style={grs.fieldLabel}>Notes</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 120 }}>
+              <label style={grs.fieldLabel}>{donorFieldLabel("phone")}</label>
+              <input
+                style={grs.input}
+                value={addPhone}
+                onChange={(e) => setAddPhone(e.target.value)}
+                placeholder="Phone"
+                disabled={saving}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 2, minWidth: 160 }}>
+              <label style={grs.fieldLabel}>{donorFieldLabel("notes")}</label>
               <input
                 style={grs.input}
                 value={addNotes}
@@ -843,9 +854,10 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr>
-                  <th className="grs-thead-th" style={grs.th}>Name</th>
-                  <th className="grs-thead-th" style={grs.th}>Contact</th>
-                  <th className="grs-thead-th" style={{ ...grs.th, width: "100%" }}>Notes</th>
+                  <th className="grs-thead-th" style={grs.th}>{donorFieldLabel("name")}</th>
+                  <th className="grs-thead-th" style={grs.th}>{donorFieldLabel("email")}</th>
+                  <th className="grs-thead-th" style={grs.th}>{donorFieldLabel("phone")}</th>
+                  <th className="grs-thead-th" style={{ ...grs.th, width: "100%" }}>{donorFieldLabel("notes")}</th>
                   {isAdmin && (
                     <th
                       className="grs-thead-th"
@@ -858,7 +870,8 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
                 {safeItems.map((item, i) => (
                   <tr key={item.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--bg-input)" }}>
                     <td style={{ ...grs.td, fontWeight: 600, whiteSpace: "nowrap" }}>{item.name}</td>
-                    <td style={{ ...grs.td, whiteSpace: "nowrap" }}>{item.contact || "—"}</td>
+                    <td style={{ ...grs.td, whiteSpace: "nowrap" }}>{item.email || "—"}</td>
+                    <td style={{ ...grs.td, whiteSpace: "nowrap" }}>{item.phone || "—"}</td>
                     <td style={grs.td}>
                       {item.notes
                         ? <span style={{ fontSize: "0.82rem" }}>{item.notes}</span>
@@ -870,7 +883,8 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
                           onEdit={() => {
                             setEditing(item);
                             setEditName(item.name);
-                            setEditContact(item.contact ?? "");
+                            setEditEmail(item.email ?? "");
+                            setEditPhone(item.phone ?? "");
                             setEditNotes(item.notes ?? "");
                             setError(null);
                           }}
@@ -890,15 +904,19 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
         <GrsModal title="Edit Donor" onClose={() => setEditing(null)} width={440}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
-              <label style={grs.fieldLabel}>Name *</label>
+              <label style={grs.fieldLabel}>{donorFieldLabel("name", { required: true })}</label>
               <input style={grs.input} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
             </div>
             <div>
-              <label style={grs.fieldLabel}>Contact</label>
-              <input style={grs.input} value={editContact} onChange={(e) => setEditContact(e.target.value)} />
+              <label style={grs.fieldLabel}>{donorFieldLabel("email")}</label>
+              <input style={grs.input} type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
             </div>
             <div>
-              <label style={grs.fieldLabel}>Notes</label>
+              <label style={grs.fieldLabel}>{donorFieldLabel("phone")}</label>
+              <input style={grs.input} value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+            </div>
+            <div>
+              <label style={grs.fieldLabel}>{donorFieldLabel("notes")}</label>
               <textarea
                 style={{ ...grs.input, minHeight: 72, resize: "vertical" }}
                 value={editNotes}

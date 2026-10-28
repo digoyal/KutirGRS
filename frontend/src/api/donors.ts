@@ -3,13 +3,15 @@ import api from "./client";
 export interface Donor {
   id: number;
   name: string;
-  contact: string | null;
+  email: string | null;
+  phone: string | null;
   notes: string | null;
 }
 
 export interface DonorCreate {
   name: string;
-  contact?: string | null;
+  email?: string | null;
+  phone?: string | null;
   notes?: string | null;
 }
 

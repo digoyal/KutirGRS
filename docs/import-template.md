@@ -50,7 +50,7 @@ There is **no States sheet** — districts reference existing `states` rows (Mad
 - **Users `title`:** Teacher, Cluster Coordinator, Education Coordinator, District Anchor, Regional Head, Admin, **SysAdmin**. Geo assignment is via `userid` on Zones / Districts / Areas / Clusters / Kutirs — not on the Users sheet.
 - **Districts:** `state_name`, `parivaar_presence` (yes/no, default yes).
 - **Schools / ExamCenters:** `street`, `city`, `district_name`, `state`, `pincode` (not a free-text `address`).
-- **Donors:** `name`, `contact`, `notes` (also editable in UI under Lookups → Donors).
+- **Donors:** `name`, `email`, `phone`, `notes` (also editable in UI under Lookups → Donors). Legacy `contact` column in old sheets is accepted: values with `@` map to email, otherwise phone.
 - **Kutirs `donor_name`:** optional; resolved to `donor_id` by donor name (must already exist from `4_Donors`).
 - **Kutir type:** Seva Kutir | Shiksha Kutir | Non-Kutir.
 - **Parent-scoped names (not globally unique):** cluster names are unique **within a district**; kutir names are unique **within a cluster**. Import accepts name alone when that name matches **exactly one** row (including `14_Clusters` skip); if 2+ match, set parents. Creating a new cluster still needs `area_name` (and `district_name` if the area name is ambiguous).

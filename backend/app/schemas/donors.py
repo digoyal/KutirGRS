@@ -3,7 +3,8 @@ from pydantic import BaseModel
 
 class DonorBase(BaseModel):
     name: str
-    contact: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     notes: Optional[str] = None
 
 class DonorCreate(DonorBase):
@@ -11,7 +12,8 @@ class DonorCreate(DonorBase):
 
 class DonorUpdate(BaseModel):
     name: Optional[str] = None
-    contact: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     notes: Optional[str] = None
 
 class DonorOut(DonorBase):

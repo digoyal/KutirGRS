@@ -1,6 +1,6 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, delete, insert
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import select, delete, insert, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -130,14 +130,42 @@ async def _get_kutir_ids(db: AsyncSession, user_id: int) -> list[int]:
 
 
 async def _attach_geo(db: AsyncSession, user: User) -> dict:
-    """Build a UserOut dict with all M2M geo arrays attached."""
-    d = UserOut.model_validate(user).model_dump()
-    d["zone_ids"]     = await _get_zone_ids(db, user.id)
-    d["district_ids"] = await _get_district_ids(db, user.id)
-    d["area_ids"]     = await _get_area_ids(db, user.id)
-    d["cluster_ids"]  = await _get_cluster_ids(db, user.id)
-    d["kutir_ids"]    = await _get_kutir_ids(db, user.id)
-    return d
+    """Build a UserOut dict with all M2M geo arrays attached (detail/get path)."""
+    rows = await _attach_geo_batch(db, [user])
+    return rows[0]
+
+
+async def _attach_geo_batch(db: AsyncSession, users: list[User]) -> list[dict]:
+    """Attach M2M geo arrays for a page of users in a few queries (not N×5)."""
+    if not users:
+        return []
+    ids = [u.id for u in users]
+
+    async def _ids_by_user(table, id_col) -> dict[int, list[int]]:
+        r = await db.execute(
+            select(table.c.user_id, id_col).where(table.c.user_id.in_(ids))
+        )
+        m: dict[int, list[int]] = {i: [] for i in ids}
+        for uid, gid in r.all():
+            m[uid].append(gid)
+        return m
+
+    zones = await _ids_by_user(user_zones, user_zones.c.zone_id)
+    districts = await _ids_by_user(user_districts, user_districts.c.district_id)
+    areas = await _ids_by_user(user_areas, user_areas.c.area_id)
+    clusters = await _ids_by_user(user_clusters, user_clusters.c.cluster_id)
+    kutirs = await _ids_by_user(user_kutirs, user_kutirs.c.kutir_id)
+
+    out: list[dict] = []
+    for u in users:
+        d = UserOut.model_validate(u).model_dump()
+        d["zone_ids"] = zones[u.id]
+        d["district_ids"] = districts[u.id]
+        d["area_ids"] = areas[u.id]
+        d["cluster_ids"] = clusters[u.id]
+        d["kutir_ids"] = kutirs[u.id]
+        out.append(d)
+    return out
 
 
 # ── Role → which M2M tables are active ───────────────────────────────────────
@@ -168,25 +196,54 @@ async def _sync_for_role(db: AsyncSession, user_id: int, title: Optional[str], b
 
 @router.get("", response_model=list[UserOut])
 async def list_users(
+    response: Response,
     is_active: Optional[bool] = Query(None),
     title: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    limit: Optional[int] = Query(50),
+    offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    q = select(User).order_by(User.username)
-    if is_active is not None:
-        q = q.where(User.is_active == is_active)
-    if title:
-        q = q.where(User.title == title)
     _assert_can_view_users(current_user)
-    result = await db.execute(q)
-    users = result.scalars().all()
-    # Scoped managers only see roles strictly below their own (plus themselves)
-    if not _sees_all_users(current_user):
-        my_index = title_index(current_user.title)
-        assignable = set(TITLES[:my_index]) if my_index > 0 else set()
-        users = [u for u in users if u.title in assignable or u.id == current_user.id]
-    return [await _attach_geo(db, u) for u in users]
+
+    def _apply_filters(q):
+        if is_active is not None:
+            q = q.where(User.is_active == is_active)
+        if title:
+            q = q.where(User.title == title)
+        if search:
+            term = f"%{search}%"
+            q = q.where(
+                or_(
+                    User.username.ilike(term),
+                    User.first_name.ilike(term),
+                    User.last_name.ilike(term),
+                    User.title.ilike(term),
+                    User.email.ilike(term),
+                    User.phone.ilike(term),
+                )
+            )
+        # Scoped managers only see roles strictly below their own (plus themselves)
+        if not _sees_all_users(current_user):
+            my_index = title_index(current_user.title)
+            assignable = list(TITLES[:my_index]) if my_index > 0 else []
+            q = q.where(or_(User.title.in_(assignable), User.id == current_user.id))
+        return q
+
+    count_q = _apply_filters(select(func.count()).select_from(User))
+    total = (await db.execute(count_q)).scalar_one()
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
+
+    data_q = _apply_filters(select(User)).order_by(User.username)
+    if limit is not None:
+        data_q = data_q.limit(limit)
+    if offset:
+        data_q = data_q.offset(offset)
+    result = await db.execute(data_q)
+    users = list(result.scalars().all())
+    return await _attach_geo_batch(db, users)
 
 
 @router.post("", response_model=UserOut, status_code=201)

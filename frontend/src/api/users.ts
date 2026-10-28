@@ -48,7 +48,29 @@ export interface UserUpdate {
   password?: string;
 }
 
-export const listUsers  = async (): Promise<User[]>  => (await api.get("/users")).data;
+export interface UsersListParams {
+  is_active?: boolean;
+  title?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface UsersPage {
+  items: User[];
+  total: number;
+}
+
+export async function listUsers(params: UsersListParams = {}): Promise<User[]> {
+  const { data } = await api.get("/users", { params });
+  return data;
+}
+
+export async function listUsersPaged(params: UsersListParams = {}): Promise<UsersPage> {
+  const { data, headers } = await api.get("/users", { params });
+  return { items: data, total: parseInt(headers["x-total-count"] ?? "0", 10) };
+}
+
 export const getUser    = async (id: number): Promise<User> => (await api.get(`/users/${id}`)).data;
 export const createUser = async (data: UserCreate): Promise<User> => (await api.post("/users", data)).data;
 export const updateUser = async (id: number, data: UserUpdate): Promise<User> => (await api.put(`/users/${id}`, data)).data;

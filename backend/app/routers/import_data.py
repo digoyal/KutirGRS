@@ -638,15 +638,24 @@ async def _import_donors(rows, db):
         exists = (await db.execute(
             text("SELECT id FROM donors WHERE lower(name)=lower(:n)"), {"n": name}
         )).scalar_one_or_none()
-        params = {"n": name, "c": _str(r.get("contact")) or None, "no": _str(r.get("notes")) or None}
+        # Prefer email/phone columns; fall back to legacy "contact" (email if '@', else phone).
+        email = _str(r.get("email")) or None
+        phone = _str(r.get("phone")) or None
+        legacy = _str(r.get("contact")) or None
+        if legacy and not email and not phone:
+            if "@" in legacy:
+                email = legacy
+            else:
+                phone = legacy
+        params = {"n": name, "em": email, "ph": phone, "no": _str(r.get("notes")) or None}
         if exists:
             await db.execute(
-                text("UPDATE donors SET contact=:c, notes=:no, updated_at=now() WHERE id=:id"),
+                text("UPDATE donors SET email=:em, phone=:ph, notes=:no, updated_at=now() WHERE id=:id"),
                 {**params, "id": exists},
             )
             updated += 1; continue
         await db.execute(
-            text("INSERT INTO donors (name, contact, notes, created_at, updated_at) VALUES (:n, :c, :no, now(), now())"),
+            text("INSERT INTO donors (name, email, phone, notes, created_at, updated_at) VALUES (:n, :em, :ph, :no, now(), now())"),
             params,
         )
         created += 1

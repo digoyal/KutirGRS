@@ -90,7 +90,7 @@ Zone → District → Area → Cluster → Kutir
 ### 4.2 People and orgs
 
 - **User:** username, password hash, names, phone, email, title (role), active flag, geo assignments.
-- **Donor:** name, contact, notes; optional link from Kutir.
+- **Donor:** name, email, phone, notes; optional link from Kutir.
 - **Student:** names, gender (Boy/Girl), DOB, photo, Kutir, address, phone, email, father/mother names, alt contact, category / sub-category, document flags (Aadhaar, category cert, birth cert, residence, medical).
 - Deleting a student shall **hard-delete** the row and cascade-remove related exams and progress (with confirmation). No soft-delete / hide.
 
@@ -98,7 +98,7 @@ Zone → District → Area → Cluster → Kutir
 
 - **Government residential school:** name, school type, street, city, district, state, pincode.
 - **Exam centre:** name, district, street, city, state, pincode.
-- **Lookups:** categories + sub-categories; exam categories; no-exam reasons; no-admit reasons; subjects; school types; exam types (many-to-many with school types); exam-type → subjects matrix; **Donors** (name, contact, notes).
+- **Lookups:** categories + sub-categories; exam categories; no-exam reasons; no-admit reasons; subjects; school types; exam types (many-to-many with school types); exam-type → subjects matrix; **Donors** (name, email, phone, notes).
 - **Student exam (admission attempt):** one row per student attempt for a school-start year / path; pipeline flags; application/roll numbers; exam centre; scores by subject; admitted school; reasons when not appeared / not admitted.
 - **Student progress:** one row per student per school per academic year after admission path is in play; class, status, transfer/exit fields, previous-year %, remarks.
 - **Kutir visit:** one inspection per Kutir per visit date (unique on kutir + date); rich checklist (attendance, plans, topics, ratings, registers, remarks); optional photo; visited-by user.
