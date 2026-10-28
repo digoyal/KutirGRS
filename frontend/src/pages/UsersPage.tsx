@@ -5,11 +5,14 @@ import { listUsersPaged, deleteUser, type User } from "../api/users";
 import { useAuth } from "../context/AuthContext";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
+import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { USERS_FIELDS, USERS_FIELD_KEYS } from "../constants/usersFields";
 import { canManageUsers, TITLES } from "../constants/roles";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { grs } from "../styles/grs";
+
+const STORAGE_KEY = "users_filter_state";
 
 type UserColRenderer = {
   render?: (u: User) => ReactNode;
@@ -77,11 +80,17 @@ export default function UsersPage() {
   const canManage = canManageUsers(user?.title);
   const [pendingDelete, setPendingDelete] = useState<{ id: number; username: string } | null>(null);
 
+  const saved = usePersistedFilterRestore<{
+    role?: string;
+    search?: string;
+    page?: number;
+  }>(STORAGE_KEY);
+
   const PAGE_SIZE = 50;
-  const [page, setPage] = useState(1);
-  const [roleFilter, setRoleFilter] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(saved?.page ?? 1);
+  const [roleFilter, setRoleFilter] = useState(saved?.role ?? "");
+  const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearch = (q: string) => {
@@ -106,6 +115,14 @@ export default function UsersPage() {
     mutationFn: deleteUser,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
   });
+
+  function saveFilters() {
+    persistFilters(STORAGE_KEY, {
+      role: roleFilter,
+      search: searchQuery,
+      page,
+    });
+  }
 
   // List columns, labels, visibility, order, and CSV headers all come from USERS_FIELDS.
   const { isVisible, orderedMetas } = useFieldConfig("users", USERS_FIELDS);
@@ -138,8 +155,8 @@ export default function UsersPage() {
         pagination={{ page, pageSize: PAGE_SIZE, total: userTotal, onPageChange: setPage }}
         actions={canManage
           ? (u => ({
-              onView: () => navigate(`/users/${u.id}`),
-              onEdit: () => navigate(`/users/${u.id}?edit=1`),
+              onView: () => { saveFilters(); navigate(`/users/${u.id}`); },
+              onEdit: () => { saveFilters(); navigate(`/users/${u.id}?edit=1`); },
               onDelete: () => setPendingDelete({ id: u.id, username: u.username }),
             }))
           : undefined}
@@ -162,7 +179,7 @@ export default function UsersPage() {
         }
         exportFilename="users"
         printTitle="Users"
-        onAdd={canManage ? () => navigate("/users/new") : undefined}
+        onAdd={canManage ? () => { saveFilters(); navigate("/users/new"); } : undefined}
       />
       {pendingDelete && (
         <ConfirmDialog
