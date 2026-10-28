@@ -5,12 +5,11 @@ Schema changes ship as ``NNN_*.sql`` only (no Alembic). Deploy and
 each basename in ``schema_migrations``.
 
 Bootstrap (first create of the ledger):
-  If the DB already looks initialized (e.g. ``users`` exists), seed the
-  ledger with every current ``NNN_*.sql`` filename as applied so Deploy does
-  not re-run scripts that were applied manually before the ledger existed.
+  Existing databases require an explicit operator-verified --baseline-through.
+  Never silently mark newly fetched migrations as already applied.
   If the DB is empty, leave the ledger empty and apply all scripts.
-  After ``restore_db.sh`` applies every file, call ``--sync-ledger`` (or a
-  normal run) so the ledger matches disk without re-executing SQL.
+  After ``restore_db.sh`` applies every file, call ``--sync-ledger``
+  so the ledger matches disk without re-executing SQL.
 """
 
 from __future__ import annotations
@@ -161,11 +160,14 @@ async def _record_applied(conn: AsyncConnection, filename: str) -> None:
 
 def _run_sql_file(path: Path) -> None:
     env, args = _psql_env_and_args()
+    filename = path.name.replace("'", "''")
     proc = subprocess.run(
-        [*args, "-f", str(path)],
+        [*args, "-X", "-w", "--single-transaction", "-f", str(path),
+         "-c", f"INSERT INTO {LEDGER_TABLE} (filename) VALUES ('{filename}') ON CONFLICT (filename) DO NOTHING"],
         env=env,
         capture_output=True,
         text=True,
+        timeout=600,
     )
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "").strip() or f"exit {proc.returncode}"
@@ -181,8 +183,7 @@ async def ensure_ledger_and_pending(
     """
     Ensure ledger exists; return (created_ledger, seeded_names, pending_paths).
 
-    On first create: if ``users`` exists, seed all current script names (existing
-    DB). Otherwise leave empty so a greenfield DB can apply every file.
+    Existing databases need an explicit baseline. Empty databases start unseeded.
     ``sync_only`` always records every script name without applying (restore).
     """
     created = False
@@ -190,6 +191,8 @@ async def ensure_ledger_and_pending(
     names = [p.name for p in scripts]
 
     if not await _ledger_exists(conn):
+        if not sync_only and await _users_table_exists(conn):
+            raise RuntimeError("Existing database has no migration ledger. Run the documented one-time --baseline-through setup; refusing to silently skip migrations.")
         await _create_ledger(conn)
         created = True
         if sync_only or await _users_table_exists(conn):
@@ -216,7 +219,7 @@ async def _preview_pending(
     names = [p.name for p in scripts]
     if not await _ledger_exists(conn):
         if await _users_table_exists(conn):
-            return True, list(names), []
+            raise RuntimeError("Existing database has no migration ledger. Run the documented one-time --baseline-through setup.")
         return True, [], list(scripts)
     applied = await _applied_filenames(conn)
     return False, [], [p for p in scripts if p.name not in applied]
@@ -263,8 +266,6 @@ async def apply_pending_sql(
 
         for path in pending:
             _run_sql_file(path)
-            async with engine.begin() as conn:
-                await _record_applied(conn, path.name)
             applied.append(path.name)
     finally:
         await engine.dispose()
@@ -303,6 +304,23 @@ def _print_result(result: ApplyResult) -> None:
         print("No pending numbered SQL migrations")
 
 
+async def baseline_ledger(through: int) -> None:
+    """Explicit operator-selected history only; never include later migrations."""
+    scripts = list_numbered_scripts()
+    names = [p.name for p in scripts if int(p.name[:3]) <= through]
+    if not names or not any(int(p.name[:3]) == through for p in scripts):
+        raise ValueError("Baseline must name an existing migration number")
+    engine = create_async_engine(_async_database_url(), echo=False)
+    try:
+        async with engine.begin() as conn:
+            if not await _ledger_exists(conn):
+                await _create_ledger(conn)
+            await _seed_ledger(conn, names)
+    finally:
+        await engine.dispose()
+    print(f"Recorded operator-verified baseline through {through:03d}; later SQL remains pending")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Apply pending backend/scripts/NNN_*.sql via schema_migrations ledger"
@@ -318,6 +336,10 @@ def main(argv: list[str] | None = None) -> int:
         help="Same as --dry-run",
     )
     parser.add_argument(
+        "--baseline-through", type=int,
+        help="Record an operator-verified legacy baseline through NNN; do not run SQL",
+    )
+    parser.add_argument(
         "--sync-ledger",
         action="store_true",
         help="Create ledger and record all current NNN_*.sql as applied (no SQL run)",
@@ -327,6 +349,11 @@ def main(argv: list[str] | None = None) -> int:
     sync_only = args.sync_ledger
 
     try:
+        if args.baseline_through is not None:
+            if dry_run or sync_only:
+                parser.error("--baseline-through cannot be combined with other modes")
+            asyncio.run(baseline_ledger(args.baseline_through))
+            return 0
         result = asyncio.run(
             apply_pending_sql(dry_run=dry_run, sync_only=sync_only)
         )

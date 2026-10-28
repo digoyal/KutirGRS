@@ -1,78 +1,34 @@
+"""Short requests: systemd owns the job independently of the web service."""
 import asyncio
-import subprocess
 import os
+import subprocess
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from app.auth import require_sysadmin
+from app.deploy_state import read_job, start_job
 
 router = APIRouter(prefix="/admin/deploy", tags=["deploy"])
-
-# Path to the project root on the server — adjust if needed
-PROJECT_ROOT = os.environ.get("PROJECT_ROOT", "/opt/sevakutir")
-
-DEPLOY_SCRIPT = """
-set -e
-cd {root}
-
-echo "=== [1/5] Git pull ==="
-git pull origin main
-
-echo "=== [2/5] Backend: install dependencies ==="
-source backend/venv/bin/activate
-pip install -r backend/requirements.txt --quiet
-
-echo "=== [3/5] Backend: apply pending numbered SQL ==="
-cd backend
-python -m app.sql_migrations
-cd ..
-
-echo "=== [4/5] Frontend: install, build, copy into backend/frontend_dist ==="
-# package.json uses @parivaar/ui file:../../parivaar-ui → sibling of PROJECT_ROOT
-if [ ! -d "{root}/../parivaar-ui" ]; then
-  echo "error: missing sibling checkout {root}/../parivaar-ui (required for npm ci)"
-  exit 1
-fi
-cd frontend
-npm ci --silent
-npm run build
-cd ..
-rm -rf backend/frontend_dist
-cp -r frontend/dist backend/frontend_dist
-
-echo "=== [5/5] Restarting services ==="
-sudo systemctl restart sevakutir
-
-echo "=== Deploy complete ==="
-""".format(root=PROJECT_ROOT)
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", "/opt/sevakutir"))
 
 
-@router.post("")
+@router.post("", status_code=202)
 async def trigger_deploy(_=Depends(require_sysadmin)):
-    """Run git pull + build + restart. Streams output as text. SysAdmin only."""
     try:
-        proc = await asyncio.create_subprocess_shell(
-            DEPLOY_SCRIPT,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            shell=True,
-        )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
-        output = stdout.decode("utf-8", errors="replace")
-        success = proc.returncode == 0
-        return {"success": success, "output": output, "returncode": proc.returncode}
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail="Deploy timed out after 5 minutes")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return await asyncio.to_thread(start_job, PROJECT_ROOT)
+    except FileExistsError:
+        raise HTTPException(409, "A deployment is already running.")
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        raise HTTPException(503, "Cannot start deployment. Run the one-time deployment service setup in docs/deployment.md.")
 
 
 @router.get("/status")
 async def deploy_status(_=Depends(require_sysadmin)):
-    """Check git status and current commit. SysAdmin only."""
+    def status():
+        result = subprocess.run(["git", "log", "-1", "--format=%h %s"],
+                                cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=10)
+        return {"output": result.stdout.strip(), "success": result.returncode == 0,
+                "job": read_job(PROJECT_ROOT)}
     try:
-        result = subprocess.run(
-            f"cd {PROJECT_ROOT} && git log -1 --format='%h %s (%cr)' && git status --short",
-            shell=True, capture_output=True, text=True, timeout=10
-        )
-        return {"output": result.stdout + result.stderr, "success": result.returncode == 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return await asyncio.to_thread(status)
+    except (OSError, subprocess.SubprocessError):
+        raise HTTPException(503, "Deployment status is temporarily unavailable.")
