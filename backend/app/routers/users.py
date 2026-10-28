@@ -14,9 +14,34 @@ from app.roles import (
     has_global_data_scope,
 )
 from app.models.users import User, user_zones, user_districts, user_areas, user_clusters, user_kutirs
+from app.models.geo import Cluster, Area
 from app.schemas.users import UserCreate, UserUpdate, UserOut
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+CC_SAME_DISTRICT_MSG = (
+    "Cluster Coordinator may only be assigned clusters from a single district"
+)
+
+
+async def _assert_cc_clusters_same_district(
+    db: AsyncSession, title: Optional[str], cluster_ids: list[int]
+) -> None:
+    """Cluster Coordinator geo assignment: all clusters must share one district_id."""
+    if title != "Cluster Coordinator":
+        return
+    ids = list({int(i) for i in cluster_ids})
+    if len(ids) < 2:
+        return
+    result = await db.execute(
+        select(Area.district_id)
+        .join(Cluster, Cluster.area_id == Area.id)
+        .where(Cluster.id.in_(ids))
+        .distinct()
+    )
+    district_ids = [row[0] for row in result.all()]
+    if len(district_ids) > 1:
+        raise HTTPException(status_code=400, detail=CC_SAME_DISTRICT_MSG)
 
 
 def _is_admin_or_super(user: User) -> bool:
@@ -266,6 +291,9 @@ async def create_user(body: UserCreate, db: AsyncSession = Depends(get_db), curr
     await db.flush()
 
     body_data = body.model_dump()
+    await _assert_cc_clusters_same_district(
+        db, obj.title, body_data.get("cluster_ids") or []
+    )
     await _sync_for_role(db, obj.id, obj.title, body_data)
 
     await db.commit()
@@ -340,6 +368,7 @@ async def update_user(
 
     if "clusters" in active:
         ids = body.cluster_ids if body.cluster_ids is not None else await _get_cluster_ids(db, user_id)
+        await _assert_cc_clusters_same_district(db, new_title, ids)
         await _sync_clusters(db, user_id, ids)
     else:
         await _sync_clusters(db, user_id, [])

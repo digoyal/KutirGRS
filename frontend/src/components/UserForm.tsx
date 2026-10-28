@@ -106,9 +106,25 @@ export function UserForm({
   const { data: allKutirsRaw }       = useQuery<Kutir[]>({ queryKey: ["kutirs"],       queryFn: () => listKutirs() });
   const allKutirs: Kutir[] = allKutirsRaw ?? [];
 
+  const leaf = ROLE_LEAF[form.title] ?? null;
+  const areaById = useMemo(() => new Map(allAreas.map(a => [a.id, a])), [allAreas]);
+  const districtById = useMemo(() => new Map(allDistricts.map(d => [d.id, d])), [allDistricts]);
+
   const filteredDistricts = useMemo(() => filterZone ? allDistricts.filter(d => d.zone_id === filterZone) : allDistricts, [allDistricts, filterZone]);
   const filteredAreas     = useMemo(() => filterDistrict ? allAreas.filter(a => a.district_id === filterDistrict) : allAreas, [allAreas, filterDistrict]);
-  const filteredClusters  = useMemo(() => filterArea ? allClusters.filter(c => c.area_id === filterArea) : allClusters, [allClusters, filterArea]);
+  // Teacher/kutir leaf: area-scoped clusters. CC: district-locked (optional area refine).
+  const filteredClusters  = useMemo(() => {
+    if (leaf === "cluster") {
+      if (filterDistrict === null) return [];
+      return allClusters.filter(c => {
+        const area = areaById.get(c.area_id);
+        if (!area || area.district_id !== filterDistrict) return false;
+        if (filterArea !== null && c.area_id !== filterArea) return false;
+        return true;
+      });
+    }
+    return filterArea ? allClusters.filter(c => c.area_id === filterArea) : allClusters;
+  }, [leaf, allClusters, areaById, filterDistrict, filterArea]);
   const filteredKutirs: Kutir[] = useMemo(() => filterCluster ? allKutirs.filter(k => k.cluster_id === filterCluster) : [], [allKutirs, filterCluster]);
 
   // Auto-select when only one option available (add mode only)
@@ -124,21 +140,43 @@ export function UserForm({
 
   useEffect(() => {
     if (isEdit || filterDistrict === null) return;
+    // CC: do not auto-pick area — district lock is the constraint; area is optional refine.
+    if (leaf === "cluster") return;
     if (filteredAreas.length === 1 && filterArea === null) setFilterArea(filteredAreas[0].id);
-  }, [isEdit, filterDistrict, filteredAreas.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isEdit, filterDistrict, filteredAreas.length, leaf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isEdit || filterArea === null) return;
+    if (leaf === "cluster") return;
     if (filteredClusters.length === 1 && filterCluster === null) setFilterCluster(filteredClusters[0].id);
-  }, [isEdit, filterArea, filteredClusters.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isEdit, filterArea, filteredClusters.length, leaf]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const leaf = ROLE_LEAF[form.title] ?? null;
+  // Edit / existing CC: derive district (and zone) from the first assigned cluster.
+  useEffect(() => {
+    if (leaf !== "cluster") return;
+    if (filterDistrict !== null) return;
+    if (form.cluster_ids.length === 0) return;
+    const first = allClusters.find(c => c.id === form.cluster_ids[0]);
+    if (!first) return;
+    const area = areaById.get(first.area_id);
+    if (!area) return;
+    setFilterDistrict(area.district_id);
+    const district = districtById.get(area.district_id);
+    if (district?.zone_id != null) setFilterZone(district.zone_id);
+  }, [leaf, form.cluster_ids, allClusters, areaById, districtById, filterDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const sel = (enabled: boolean): React.CSSProperties =>
     enabled ? grs.select : { ...grs.select, opacity: 0.45 };
 
   function handleRoleChange(title: string) {
     setForm(f => ({ ...f, title, zone_ids: [], district_ids: [], area_ids: [], cluster_ids: [], kutir_ids: [] }));
     setFilterZone(null); setFilterDistrict(null); setFilterArea(null); setFilterCluster(null);
+  }
+
+  function clearCcDistrict() {
+    setFilterDistrict(null);
+    setFilterArea(null);
+    setForm(f => ({ ...f, cluster_ids: [] }));
   }
 
   return (
@@ -253,19 +291,36 @@ export function UserForm({
 
           {leaf === "cluster" && (
             <>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>
+                Clusters must be from a single district. Pick a district first; clearing it clears selected clusters.
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
                 <div>
                   <label style={grs.fieldLabel}>Filter by Zone</label>
-                  <select style={grs.select} value={filterZone ?? ""} onChange={e => { setFilterZone(e.target.value === "" ? null : Number(e.target.value)); setFilterDistrict(null); setFilterArea(null); }}>
-                    <option value="">— all —</option>
+                  <select style={grs.select} value={filterZone ?? ""} onChange={e => {
+                    setFilterZone(e.target.value === "" ? null : Number(e.target.value));
+                    clearCcDistrict();
+                  }}>
+                    <option value="">— all zones —</option>
                     {allZones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={grs.fieldLabel}>Filter by District</label>
-                  <select style={sel(filterZone !== null)} value={filterDistrict ?? ""} disabled={filterZone === null}
-                    onChange={e => { setFilterDistrict(e.target.value === "" ? null : Number(e.target.value)); setFilterArea(null); }}>
-                    <option value="">— all —</option>
+                  <label style={grs.fieldLabel}>District *</label>
+                  <select style={grs.select} value={filterDistrict ?? ""}
+                    onChange={e => {
+                      const next = e.target.value === "" ? null : Number(e.target.value);
+                      if (next === null) {
+                        clearCcDistrict();
+                        return;
+                      }
+                      setFilterDistrict(next);
+                      setFilterArea(null);
+                      setForm(f => ({ ...f, cluster_ids: [] }));
+                      const d = districtById.get(next);
+                      if (d?.zone_id != null) setFilterZone(d.zone_id);
+                    }}>
+                    <option value="">— select district —</option>
                     {filteredDistricts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
@@ -273,7 +328,7 @@ export function UserForm({
                   <label style={grs.fieldLabel}>Filter by Area</label>
                   <select style={sel(filterDistrict !== null)} value={filterArea ?? ""} disabled={filterDistrict === null}
                     onChange={e => setFilterArea(e.target.value === "" ? null : Number(e.target.value))}>
-                    <option value="">— all —</option>
+                    <option value="">— all in district —</option>
                     {filteredAreas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>
@@ -281,7 +336,8 @@ export function UserForm({
               <div>
                 <label style={grs.fieldLabel}>Clusters {form.cluster_ids.length > 0 && <span style={{ color: "var(--accent)", fontWeight: 600 }}>({form.cluster_ids.length} selected)</span>}</label>
                 <CheckboxList items={filteredClusters.map(c => ({ id: c.id, label: c.name }))} selected={form.cluster_ids}
-                  onChange={ids => setForm(f => ({ ...f, cluster_ids: ids }))} placeholder="Select an area filter first" />
+                  onChange={ids => setForm(f => ({ ...f, cluster_ids: ids }))}
+                  placeholder={filterDistrict === null ? "Select a district first" : "No clusters in this district"} />
               </div>
             </>
           )}
