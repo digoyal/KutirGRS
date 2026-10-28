@@ -51,6 +51,8 @@ export interface UserUpdate {
 export interface UsersListParams {
   is_active?: boolean;
   title?: string;
+  /** Filter by role title (server `role` query param). */
+  role?: string;
   search?: string;
   limit?: number;
   offset?: number;

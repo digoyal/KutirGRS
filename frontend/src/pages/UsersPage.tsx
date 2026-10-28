@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { USERS_FIELDS, USERS_FIELD_KEYS } from "../constants/usersFields";
-import { canManageUsers } from "../constants/roles";
+import { canManageUsers, TITLES } from "../constants/roles";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { grs } from "../styles/grs";
@@ -79,6 +79,7 @@ export default function UsersPage() {
 
   const PAGE_SIZE = 50;
   const [page, setPage] = useState(1);
+  const [roleFilter, setRoleFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,9 +91,10 @@ export default function UsersPage() {
   };
 
   const { data: usersPage, isLoading } = useQuery({
-    queryKey: ["users", debouncedSearch, page],
+    queryKey: ["users", debouncedSearch, roleFilter, page],
     queryFn: () => listUsersPaged({
       search: debouncedSearch || undefined,
+      role: roleFilter || undefined,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     }),
@@ -145,6 +147,19 @@ export default function UsersPage() {
         searchPlaceholder="Search by name, username…"
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
+        filters={
+          <select
+            aria-label="Filter by role"
+            value={roleFilter}
+            onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+            style={grs.filterSelect}
+          >
+            <option value="">All roles</option>
+            {TITLES.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        }
         exportFilename="users"
         printTitle="Users"
         onAdd={canManage ? () => navigate("/users/new") : undefined}

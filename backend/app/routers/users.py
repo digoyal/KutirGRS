@@ -199,6 +199,7 @@ async def list_users(
     response: Response,
     is_active: Optional[bool] = Query(None),
     title: Optional[str] = Query(None),
+    role: Optional[str] = Query(None, description="Filter by role title (alias of title)"),
     search: Optional[str] = Query(None),
     limit: Optional[int] = Query(50),
     offset: Optional[int] = Query(0),
@@ -206,12 +207,13 @@ async def list_users(
     current_user=Depends(get_current_user),
 ):
     _assert_can_view_users(current_user)
+    role_title = role or title
 
     def _apply_filters(q):
         if is_active is not None:
             q = q.where(User.is_active == is_active)
-        if title:
-            q = q.where(User.title == title)
+        if role_title:
+            q = q.where(User.title == role_title)
         if search:
             term = f"%{search}%"
             q = q.where(
