@@ -109,7 +109,7 @@ export default function VisitDetailPage() {
               fontSize: 14,
               padding: 0,
             }}
-            onClick={() => navigate("/visits")}
+            onClick={() => navigate("/visits/detail")}
           >
             ← Back
           </button>
