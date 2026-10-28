@@ -71,13 +71,7 @@ export default function VisitDetailPage() {
   }
 
   function handleCancel() {
-    if (enteredViaEdit) navigate(-1);
-    else {
-      setEditing(false);
-      setError(null);
-      setPhotoFile(null);
-      if (visit) setForm(visitFormFromVisit(visit));
-    }
+    navigate("/visits/detail");
   }
 
   if (isLoading || !visit) {
