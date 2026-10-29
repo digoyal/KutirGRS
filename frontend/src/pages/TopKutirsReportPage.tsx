@@ -23,11 +23,11 @@ const yearStart = () => `${new Date().getFullYear()}-01-01`;
 
 type FilterId = number | "";
 
-const selectStyle: React.CSSProperties = {
+const controlStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 6,
-  padding: "8px 10px",
-  fontSize: "16px",
+  padding: "6px 8px",
+  fontSize: "14px",
   minWidth: 0,
   width: "100%",
   background: "var(--bg-input)",
@@ -35,9 +35,22 @@ const selectStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-const fieldStyle: React.CSSProperties = {
-  flex: "1 1 0",
-  minWidth: 120,
+/** Extra right padding so the native calendar icon does not cover the date. */
+const dateStyle: React.CSSProperties = {
+  ...controlStyle,
+  padding: "6px 2rem 6px 8px",
+};
+
+const geoFieldStyle: React.CSSProperties = {
+  flex: "1 1 110px",
+  maxWidth: 150,
+  minWidth: 100,
+};
+
+const dateFieldStyle: React.CSSProperties = {
+  flex: "0 1 148px",
+  maxWidth: 160,
+  minWidth: 136,
 };
 
 const labelStyle: React.CSSProperties = {
@@ -187,12 +200,12 @@ export default function TopKutirsReportPage() {
           alignItems: "flex-end",
         }}
       >
-        <div style={fieldStyle}>
+        <div style={geoFieldStyle}>
           <label style={labelStyle}>Geo level</label>
           <select
             value={level}
             onChange={(e) => onLevelChange(e.target.value as TopKutirsGeoLevel)}
-            style={selectStyle}
+            style={controlStyle}
           >
             <option value="zone">Zone</option>
             <option value="district">District</option>
@@ -200,12 +213,12 @@ export default function TopKutirsReportPage() {
           </select>
         </div>
         {showZone && (
-          <div style={fieldStyle}>
+          <div style={geoFieldStyle}>
             <label style={labelStyle}>Zone</label>
             <select
               value={zoneId === "" ? "" : String(zoneId)}
               onChange={(e) => onZoneChange(e.target.value ? Number(e.target.value) : "")}
-              style={selectStyle}
+              style={controlStyle}
             >
               <option value="">Select…</option>
               {zones.map((z) => (
@@ -217,12 +230,12 @@ export default function TopKutirsReportPage() {
           </div>
         )}
         {showDistrict && (
-          <div style={fieldStyle}>
+          <div style={geoFieldStyle}>
             <label style={labelStyle}>District</label>
             <select
               value={districtId === "" ? "" : String(districtId)}
               onChange={(e) => onDistrictChange(e.target.value ? Number(e.target.value) : "")}
-              style={selectStyle}
+              style={controlStyle}
               disabled={zoneId === ""}
             >
               <option value="">{zoneId === "" ? "Select zone first…" : "Select…"}</option>
@@ -235,12 +248,12 @@ export default function TopKutirsReportPage() {
           </div>
         )}
         {showCluster && (
-          <div style={fieldStyle}>
+          <div style={geoFieldStyle}>
             <label style={labelStyle}>Cluster</label>
             <select
               value={clusterId === "" ? "" : String(clusterId)}
               onChange={(e) => setClusterId(e.target.value ? Number(e.target.value) : "")}
-              style={selectStyle}
+              style={controlStyle}
               disabled={districtId === ""}
             >
               <option value="">
@@ -254,22 +267,22 @@ export default function TopKutirsReportPage() {
             </select>
           </div>
         )}
-        <div style={fieldStyle}>
+        <div style={dateFieldStyle}>
           <label style={labelStyle}>From</label>
           <input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            style={selectStyle}
+            style={dateStyle}
           />
         </div>
-        <div style={fieldStyle}>
+        <div style={dateFieldStyle}>
           <label style={labelStyle}>To</label>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            style={selectStyle}
+            style={dateStyle}
           />
         </div>
       </div>
