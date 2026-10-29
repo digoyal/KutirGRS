@@ -223,17 +223,17 @@ table td {
   color: var(--text-primary);
 }
 
-/* Top 10 Kutirs: calendar icon clear of date, tight gap (not oversized) */
+/* Top 10 Kutirs: calendar icon clear of date, minimal gap */
 input.top-kutirs-date[type="date"] {
   position: relative;
-  padding-inline-end: 1.65rem !important;
-  min-width: 9.25em;
+  padding-inline-end: 1.35rem !important;
+  min-width: 8.75em;
 }
 input.top-kutirs-date[type="date"]::-webkit-calendar-picker-indicator {
   position: absolute;
-  right: 4px;
-  width: 1rem;
-  height: 1rem;
+  right: 2px;
+  width: 0.95rem;
+  height: 0.95rem;
   padding: 0;
   margin: 0;
   cursor: pointer;

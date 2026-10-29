@@ -23,12 +23,12 @@ const yearStart = () => `${new Date().getFullYear()}-01-01`;
 
 type FilterId = number | "";
 
-/** From/To — light outline, regular weight (distinct from geo). */
-const dateControlStyle: React.CSSProperties = {
+/** Default filter control (From/To and shared label chrome). */
+const defaultControlStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 6,
-  padding: "6px 8px",
-  fontSize: "14px",
+  padding: "8px 10px",
+  fontSize: "16px",
   fontWeight: 400,
   minWidth: 0,
   width: "100%",
@@ -37,13 +37,13 @@ const dateControlStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-/** End padding tuned with .top-kutirs-date CSS — clear of icon, no large gap. */
+/** End padding tuned with .top-kutirs-date CSS — clear of icon, tight gap. */
 const dateStyle: React.CSSProperties = {
-  ...dateControlStyle,
-  padding: "6px 1.65rem 6px 8px",
+  ...defaultControlStyle,
+  padding: "8px 1.35rem 8px 10px",
 };
 
-/** Geo level / Zone / District / Cluster — darker outline + bold. */
+/** Geo level / Zone / District / Cluster — only these look accented. */
 const geoSelectStyle: React.CSSProperties = {
   border: "1.5px solid var(--badge-blue-fg)",
   borderRadius: 6,
@@ -64,12 +64,12 @@ const geoFieldStyle: React.CSSProperties = {
 };
 
 const dateFieldStyle: React.CSSProperties = {
-  flex: "0 0 148px",
-  maxWidth: 156,
-  minWidth: 140,
+  flex: "0 0 138px",
+  maxWidth: 146,
+  minWidth: 132,
 };
 
-const dateLabelStyle: React.CSSProperties = {
+const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "0.78rem",
   fontWeight: 600,
@@ -292,7 +292,7 @@ export default function TopKutirsReportPage() {
           </div>
         )}
         <div style={dateFieldStyle}>
-          <label style={dateLabelStyle}>From</label>
+          <label style={labelStyle}>From</label>
           <input
             type="date"
             className="top-kutirs-date"
@@ -302,7 +302,7 @@ export default function TopKutirsReportPage() {
           />
         </div>
         <div style={dateFieldStyle}>
-          <label style={dateLabelStyle}>To</label>
+          <label style={labelStyle}>To</label>
           <input
             type="date"
             className="top-kutirs-date"
