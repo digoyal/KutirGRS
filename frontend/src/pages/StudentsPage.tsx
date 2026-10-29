@@ -20,6 +20,7 @@ import {
   scopeDistricts,
   scopeKutirs,
   type FilterId,
+  countActiveFilters,
 } from "../utils/geoFilters";
 import { hasGlobalDataScope } from "../constants/roles";
 
@@ -274,6 +275,7 @@ export default function StudentsPage() {
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
         filters={geoFilters}
+        activeFilterCount={countActiveFilters(filterDistrict, filterCluster, filterKutir)}
         exportFilename="students"
         printTitle="Students"
         onAdd={() => { saveFilters(); navigate("new"); }}

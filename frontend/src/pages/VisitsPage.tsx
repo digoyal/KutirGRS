@@ -16,7 +16,7 @@ import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersisted
 import { VISITS_FIELDS, VISITS_FIELD_KEYS } from "../constants/visitsFields";
 import { canManageVisits as roleCanManageVisits, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { scopeClusters, scopeDistricts, type FilterId } from "../utils/geoFilters";
+import { countActiveFilters, scopeClusters, scopeDistricts, type FilterId } from "../utils/geoFilters";
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
 const STORAGE_KEY = "visits_filter_state";
@@ -315,6 +315,7 @@ export default function VisitsPage() {
         searchable
         searchPlaceholder="Search by kutir name…"
         searchFn={(v, q) => (kutirMap.get(v.kutir_id)?.name ?? "").toLowerCase().includes(q)}
+        activeFilterCount={countActiveFilters(filterDistrict, filterCluster, filterKutir)}
         filters={
           <GeoFilterBar
             district={filterDistrict}

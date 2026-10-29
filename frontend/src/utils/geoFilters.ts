@@ -147,3 +147,13 @@ export function kutirsForFilter(
       return scopedKutirs;
   }
 }
+
+/** Count non-empty filter values for the mobile Filters badge (excludes search). */
+export function countActiveFilters(
+  ...values: Array<string | number | null | undefined | boolean>
+): number {
+  return values.reduce<number>((n, v) => {
+    if (v === "" || v == null || v === false) return n;
+    return n + 1;
+  }, 0);
+}

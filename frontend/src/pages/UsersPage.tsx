@@ -164,6 +164,7 @@ export default function UsersPage() {
         searchPlaceholder="Search by name, username…"
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
+        activeFilterCount={roleFilter ? 1 : 0}
         filters={
           <select
             aria-label="Filter by role"

@@ -17,6 +17,7 @@ import { canManageKutirs as roleCanManageKutirs, hasGlobalDataScope } from "../c
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
   clustersForDistrict,
+  countActiveFilters,
   scopeClusters,
   scopeDistricts,
   type FilterId,
@@ -211,6 +212,7 @@ export default function KutirsPage() {
         searchable
         searchPlaceholder="Search kutirs…"
         searchFn={(r, q) => r.name.toLowerCase().includes(q)}
+        activeFilterCount={countActiveFilters(filterDistrict, filterCluster)}
         filters={
           <GeoFilterBar
             district={filterDistrict}

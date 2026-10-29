@@ -59,7 +59,8 @@ Entity list columns, Column Config, CSV export, and form field labels must come 
 - Forms: full-width controls; stack fields on narrow screens; avoid multi-column grids that crush below ~640px.
 - No document-level horizontal overflow: scroll **inside** tables/cards; use `min-width: 0` on flex children.
 - Preserve hamburger / drawer nav behavior on phone (open, overlay dismiss, close on navigate). Desktop sidebar stays visible; hamburger hidden.
-- Dense filter rows: collapse or toggle on small screens; do not leave permanent page overflow from chips/selects.
+- **Collapsible filters (≤640px):** list-page filters in GrsTable / `@parivaar/ui` Table collapse behind a Filters toggle with an active-count badge; desktop stays expanded. Prefer Table `filters` slot + `activeFilterCount` — do not reinvent per page. Pass `activeFilterCount` when page filters are set so the badge works. Persistence stays page-level (`usePersistedFilters`).
+- Dense filter rows must not leave permanent page overflow from chips/selects on small screens.
 - After UI changes, smoke-test phone (~375px) and desktop (≥1024px): nav, one Add form, one filtered list, modals if touched.
 
 ## Security & secrets

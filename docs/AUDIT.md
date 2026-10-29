@@ -74,7 +74,7 @@
 | D5 | `backend/app/routers/users.py:153–155` `GET /users/me` | Unused; auth uses `GET /auth/me`. | Remove or alias and document one. | S | Low |
 | D6 | `geo.py` GET-by-id for zones/districts/areas/clusters | No FE client; lists only. | Optional drop. | S | Low |
 | D7 | `frontend/src/App.css` (entire file) | Never imported (`main.tsx` loads `index.css` + `mobile.css` only). Vite scaffold leftover. | Delete. | S | Medium |
-| D8 | `index.css` scaffold selectors (`#social`, `.counter`); `grs.ts` unused `thead`/`trEven`/`trOdd`; `mobile.css` `.grs-ibtn` / `.grs-filter-toggle` etc. with no matching `className` | Dead CSS/tokens. | Remove or wire. | S | Low–Medium |
+| D8 | `index.css` scaffold selectors (`#social`, `.counter`); `grs.ts` unused `thead`/`trEven`/`trOdd`; ~~`mobile.css` `.grs-filter-toggle`~~ (wired via `@parivaar/ui` Table collapsible filters) | Dead CSS/tokens. | Remove remaining dead tokens. | S | Low–Medium |
 | D9 | `App.tsx` route `new-year-setup` → `NewYearSetupPage` | Routed but **absent** from `DashboardPage.tsx` `navItems` (66–89). Reachable only by URL. | Add nav under Progress/Admin, or remove if abandoned. | S | Medium |
 | D10 | `backend/scripts/migrate_data.py`; `export_geo.py` + `geo_export.json`; `backend/clear_progress.py` | One-shot / leftover scripts with hardcoded DSNs; not in `restore_db.sh`. | Archive or delete after confirming unused. | S | Medium |
 | D11 | `frontend/src/constants/kutirsFields.ts:12` `teachers` | In field config; `KutirsPage` `allColumns` has no `teachers` column — toggle does nothing. | Remove from Fields or add column. | S | Medium |

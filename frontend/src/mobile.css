@@ -3,11 +3,31 @@
 /* Keep icon-button text visible on desktop */
 .grs-ibtn { white-space: nowrap; }
 
-/* Filter-toggle button: hidden on desktop, visible on mobile */
+/* Filter toggle: desktop hidden; mobile shown (wired by @parivaar/ui Table) */
 .grs-filter-toggle { display: none !important; }
 
-/* Hidden filter bar (toggled by state on mobile) */
+/* Desktop: filter controls participate in the parent flex row beside search */
+.grs-fbar {
+  display: contents;
+}
+
+/* Legacy class kept as alias for collapsed (mobile-only effect below) */
 .grs-fbar--hidden { display: none !important; }
+
+.grs-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent, #2b6cb0);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
 
 @media (max-width: 640px) {
   /* Tighten page padding */
@@ -21,16 +41,31 @@
   .grs-filter-toggle {
     display: inline-flex !important;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
+    min-height: 40px;
     padding: 6px 12px;
-    border: 1px solid #cbd5e0;
+    border: 1px solid var(--border, #cbd5e0);
     border-radius: 6px;
-    background: #fff;
+    background: var(--bg-card, #fff);
     cursor: pointer;
     font-size: 0.85rem;
-    color: #4a5568;
+    color: var(--text-secondary, #4a5568);
     font-weight: 500;
-    margin-bottom: 8px;
+  }
+
+  /* Expanded filters: full-width row under search + toggle */
+  .grs-fbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .grs-fbar--collapsed,
+  .grs-fbar--hidden {
+    display: none !important;
   }
 
   /* Make primary action button text not overflow */

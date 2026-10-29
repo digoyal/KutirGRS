@@ -32,6 +32,7 @@ import {
 } from "../constants/progressStatus";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
+  countActiveFilters,
   defaultsFromUser,
   scopeClusters,
   scopeDistricts,
@@ -317,6 +318,12 @@ export default function StudentProgressPage() {
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
         emptyMessage={hasFilter ? `No progress records for ${formatAcademicYear(filterYear)}.` : "Select a District or search by Student name to view Progress"}
+        activeFilterCount={countActiveFilters(
+          filterYear !== CURRENT_YEAR ? filterYear : "",
+          filterDistrict,
+          filterCluster,
+          filterKutir,
+        )}
         filters={
           <GeoFilterBar
             leading={

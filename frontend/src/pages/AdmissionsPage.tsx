@@ -21,6 +21,7 @@ import { STAGES, StageBadge, pipelineStage } from "../components/admissions-pipe
 import { studentLabel } from "../utils/studentLabel";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
+  countActiveFilters,
   defaultsFromUser,
   scopeClusters,
   scopeDistricts,
@@ -339,6 +340,12 @@ export default function AdmissionsPage() {
         searchPlaceholder="Search student..."
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
+        activeFilterCount={countActiveFilters(
+          year !== CURRENT_YEAR ? year : "",
+          filterDistrict,
+          filterCluster,
+          filterKutir,
+        )}
         filters={
           <GeoFilterBar
             leading={

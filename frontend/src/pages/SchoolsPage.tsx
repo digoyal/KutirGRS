@@ -158,6 +158,7 @@ export default function SchoolsPage() {
           } : {}),
         })}
         searchable
+        activeFilterCount={filterType ? 1 : 0}
         filters={
           <select value={filterType} onChange={e => setFilterType(e.target.value)} style={grs.filterSelect}>
             <option value="">All Types</option>

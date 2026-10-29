@@ -12,7 +12,7 @@ import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersisted
 import { EXAM_CENTERS_FIELDS, EXAM_CENTERS_FIELD_KEYS } from "../constants/examCentersFields";
 import { canManageExamCenters } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import type { FilterId } from "../utils/geoFilters";
+import { countActiveFilters, type FilterId } from "../utils/geoFilters";
 
 const STORAGE_KEY = "exam_centers_filter_state";
 
@@ -139,6 +139,7 @@ export default function ExamCentersPage() {
         })}
         searchable
         searchPlaceholder="Search centers…"
+        activeFilterCount={countActiveFilters(filterDistrict)}
         filters={
           <GeoFilterBar
             district={filterDistrict}
