@@ -71,7 +71,7 @@ class User(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(150), nullable=False, unique=True)
-    email: Mapped[Optional[str]] = mapped_column(String(254), nullable=True, unique=True)
+    email: Mapped[str] = mapped_column(String(254), nullable=False, unique=True)
     first_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

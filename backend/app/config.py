@@ -53,6 +53,21 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: Optional[str] = None
     ADMIN_EMAIL: str = "admin@kutirgrs.local"
 
+    # Public app URL used in password-reset emails (no trailing slash).
+    FRONTEND_BASE_URL: str = "http://localhost:5173"
+
+    # SMTP — if SMTP_HOST is empty, reset emails are logged instead of sent (local/dev).
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: str = ""
+    SMTP_USE_TLS: bool = True
+
+    # Password-reset token lifetime and light rate limits.
+    PASSWORD_RESET_TOKEN_MINUTES: int = 60
+    PASSWORD_RESET_RATE_LIMIT_PER_HOUR: int = 5
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def _coerce_origins(cls, v: Any) -> List[str]:

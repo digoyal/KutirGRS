@@ -15,6 +15,7 @@ import app.models.geo       # noqa
 import app.models.donors    # noqa
 import app.models.schools   # noqa
 import app.models.users     # noqa  — must come after geo/donors
+import app.models.password_reset  # noqa  — after users
 import app.models.kutirs    # noqa  — must come after clusters/donors/users
 import app.models.students  # noqa  — must come after kutirs/lookups
 import app.models.visits    # noqa

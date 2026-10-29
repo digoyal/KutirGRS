@@ -1,19 +1,49 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+import hashlib
+import logging
+import secrets
+import time
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from app.database import get_db
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, Field
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.auth import (
-    verify_password,
     create_access_token,
     get_current_user,
+    hash_password,
+    verify_password,
 )
+from app.config import settings
+from app.database import get_db
+from app.mail import send_password_reset_email
+from app.models.password_reset import PasswordResetToken
 from app.models.users import User, user_districts, user_areas, user_clusters, user_kutirs
 
+log = logging.getLogger("kutirgrs.auth")
+
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+# Light in-process rate limit: key → timestamps of recent hits.
+_rate_hits: dict[str, list[float]] = defaultdict(list)
+
+
+def _rate_limited(key: str, *, limit: int, window_sec: int = 3600) -> bool:
+    now = time.monotonic()
+    hits = [t for t in _rate_hits[key] if now - t < window_sec]
+    _rate_hits[key] = hits
+    if len(hits) >= limit:
+        return True
+    _rate_hits[key].append(now)
+    return False
+
+
+def _hash_reset_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -38,6 +68,28 @@ class UserOut(BaseModel):
     kutir_ids: list[int] = []
 
     model_config = {"from_attributes": True}
+
+
+class PasswordResetRequestIn(BaseModel):
+    """Username or email — response is always the same generic success."""
+    identifier: str = Field(..., min_length=1, max_length=254)
+
+
+class PasswordResetRequestOut(BaseModel):
+    detail: str = (
+        "If an account with that username or email exists and has an email on file, "
+        "a reset link has been sent."
+    )
+
+
+class PasswordResetConfirmIn(BaseModel):
+    token: str = Field(..., min_length=20, max_length=200)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class PasswordResetConfirmOut(BaseModel):
+    detail: str = "Password updated. You can sign in with your new password."
+
 
 TokenResponse.model_rebuild()
 
@@ -156,3 +208,114 @@ async def me(
     db: AsyncSession = Depends(get_db),
 ):
     return await _me_out(current_user, db)
+
+
+@router.post("/request-password-reset", response_model=PasswordResetRequestOut)
+async def request_password_reset(
+    body: PasswordResetRequestIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Always return a generic success. Send magic link only when a matching active user has email."""
+    limit = settings.PASSWORD_RESET_RATE_LIMIT_PER_HOUR
+    client = request.client.host if request.client else "unknown"
+    ident = body.identifier.strip().lower()
+    if _rate_limited(f"pwreset:{client}:{ident}", limit=limit) or _rate_limited(
+        f"pwreset-ip:{client}", limit=limit * 3
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many reset requests. Try again later.",
+        )
+
+    raw = body.identifier.strip()
+    result = await db.execute(
+        select(User).where(
+            or_(
+                User.username == raw,
+                func.lower(User.email) == raw.lower(),
+            )
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if user and user.is_active and (user.email or "").strip():
+        plain = secrets.token_urlsafe(32)
+        token_hash = _hash_reset_token(plain)
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_MINUTES)
+        db.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=expires,
+                used_at=None,
+                created_at=now,
+            )
+        )
+        await db.commit()
+
+        base = (settings.FRONTEND_BASE_URL or "http://localhost:5173").rstrip("/")
+        reset_url = f"{base}/reset-password?token={plain}"
+        try:
+            send_password_reset_email(to=user.email.strip(), reset_url=reset_url)
+        except Exception:
+            log.exception("Failed to send password-reset email to user_id=%s", user.id)
+            # Still return generic success — do not leak delivery failures.
+
+    return PasswordResetRequestOut()
+
+
+@router.post("/reset-password", response_model=PasswordResetConfirmOut)
+async def reset_password(
+    body: PasswordResetConfirmIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    client = request.client.host if request.client else "unknown"
+    if _rate_limited(f"pwconfirm-ip:{client}", limit=30):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many attempts. Try again later.",
+        )
+
+    token_hash = _hash_reset_token(body.token.strip())
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+    )
+    row = result.scalar_one_or_none()
+    expired = False
+    if row is not None:
+        exp = row.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        expired = exp < now
+    if not row or row.used_at is not None or expired:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset link.",
+        )
+
+    user_result = await db.execute(select(User).where(User.id == row.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset link.",
+        )
+
+    user.password = hash_password(body.new_password)
+    row.used_at = now
+    # Invalidate other unused tokens for this user.
+    others = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.id != row.id,
+        )
+    )
+    for other in others.scalars().all():
+        other.used_at = now
+    await db.commit()
+    return PasswordResetConfirmOut()

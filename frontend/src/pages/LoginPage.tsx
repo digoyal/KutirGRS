@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginPage() {
@@ -50,6 +50,9 @@ export default function LoginPage() {
           <button style={styles.btn} disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
+          <Link to="/forgot-password" style={styles.forgot}>
+            Forgot password?
+          </Link>
         </form>
       </div>
     </div>
@@ -94,5 +97,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "1rem",
     fontWeight: 600,
     cursor: "pointer",
+    minHeight: 44,
+  },
+  forgot: {
+    marginTop: 12,
+    color: "var(--link-color)",
+    fontSize: "0.875rem",
+    textAlign: "center" as const,
+    textDecoration: "none",
   },
 };

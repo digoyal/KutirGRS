@@ -100,3 +100,5 @@ Entity list columns, Column Config, CSV export, and form field labels must come 
 Checkout: `/Users/dineshgoyal/projects/KutirGRS` · PRD: [`docs/KutirGRS_PRD.md`](docs/KutirGRS_PRD.md) · Role & access: [`docs/role-and-access.md`](docs/role-and-access.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md) · Smoke test: [`docs/smoke-test.md`](docs/smoke-test.md)
 
 Local login is **`admin` / `admin`** (`backend/.env` `ADMIN_PASSWORD=admin`). API must be up on `:8001` (`bash backend/start.sh`). Startup creates admin only if missing — it does not rehash on every restart. If the UI says invalid password, check `/docs` first (API down / bad `ALLOWED_ORIGINS` env often looks like a bad password).
+
+**Forgot password (magic link):** set `FRONTEND_BASE_URL` and optional `SMTP_*` in `backend/.env` (see `.env.example`). With no `SMTP_HOST`, the API logs the reset URL to the server log instead of sending email.
