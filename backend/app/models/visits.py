@@ -66,7 +66,7 @@ class KutirVisit(Base, TimestampMixin):
     reasoning_proficiency: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     material_management: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     kutir_performance: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    staff_behavior: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    staff_behavior: Mapped[int] = mapped_column(SmallInteger, nullable=False)
 
     # ── Registers & Documents Available ─────────────────────────────────────
     reg_admission_forms: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

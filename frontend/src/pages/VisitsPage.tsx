@@ -215,7 +215,7 @@ export default function VisitsPage() {
       key: "staff_behavior",
       label: "",
       sortable: true,
-      render: v => <StarRating value={v.staff_behavior ?? 0} readOnly />,
+      render: v => <StarRating value={v.staff_behavior} readOnly />,
     },
     {
       key: "cleanliness",

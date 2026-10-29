@@ -71,7 +71,7 @@ def make_visit(kutir_id, visit_date):
         book_availability=random.choice(["Sufficient", "Lacking", "More than required"]),
         cleanliness=rr(), hindi_proficiency=rr(), english_proficiency=rr(),
         maths_proficiency=rr(), evs_proficiency=rr(), reasoning_proficiency=rr(),
-        material_management=rr(), kutir_performance=rr(),
+        material_management=rr(), kutir_performance=rr(), staff_behavior=rr(),
         reg_admission_forms=rbt(), reg_attendance_students=rbt(),
         reg_daily_activity=rbt(), reg_observation=rbt(),
         reg_students_data=rbt(), reg_attendance_teachers=rbt(),

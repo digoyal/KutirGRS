@@ -32,6 +32,8 @@ import NewYearSetupPage from "./pages/NewYearSetupPage";
 import ImportDataPage from "./pages/ImportDataPage";
 import ReportsPage from "./pages/ReportsPage";
 import TopKutirsReportPage from "./pages/TopKutirsReportPage";
+import KutirPerformanceReportPage from "./pages/KutirPerformanceReportPage";
+import VisitDetailedReportPage from "./pages/VisitDetailedReportPage";
 import LookupsPage from "./pages/LookupsPage";
 import ExamCentersPage from "./pages/ExamCentersPage";
 import ExamCenterDetailPage from "./pages/ExamCenterDetailPage";
@@ -98,6 +100,8 @@ function AppRoutes() {
           <Route path="summary" element={<ReportsPage />} />
           <Route path="top-kutirs" element={<TopKutirsReportPage rank="top" />} />
           <Route path="bottom-kutirs" element={<TopKutirsReportPage rank="bottom" />} />
+          <Route path="kutir-performance" element={<KutirPerformanceReportPage />} />
+          <Route path="visit-detailed" element={<VisitDetailedReportPage />} />
         </Route>
       </Route>
     </Routes>

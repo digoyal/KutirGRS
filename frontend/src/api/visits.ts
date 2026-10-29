@@ -31,7 +31,7 @@ export interface KutirVisit {
   reasoning_proficiency: number;
   material_management: number;
   kutir_performance: number;
-  staff_behavior: number | null;
+  staff_behavior: number;
   reg_admission_forms: boolean;
   reg_attendance_students: boolean;
   reg_daily_activity: boolean;
@@ -83,7 +83,7 @@ export const BLANK_VISIT: KutirVisitCreate = {
   reasoning_proficiency: 3,
   material_management: 3,
   kutir_performance: 3,
-  staff_behavior: null,
+  staff_behavior: 3,
   reg_admission_forms: false,
   reg_attendance_students: false,
   reg_daily_activity: false,
@@ -169,5 +169,72 @@ export async function fetchTopKutirsReport(params: {
   const { data } = await api.get("/kutir-visits/top-kutirs", {
     params: { rank: "top", ...params },
   });
+  return data;
+}
+
+export interface KutirPerformanceRow {
+  kutir_id: number;
+  kutir_name: string;
+  district_name: string | null;
+  cluster_name: string | null;
+  num_visits: number;
+  avg_score: number;
+}
+
+export interface KutirPerformanceReport {
+  title: string;
+  metric: string;
+  metric_label: string;
+  level: TopKutirsGeoLevel;
+  geo_id: number;
+  geo_path: string[];
+  date_from: string;
+  date_to: string;
+  show_district: boolean;
+  show_cluster: boolean;
+  rows: KutirPerformanceRow[];
+}
+
+export async function fetchKutirPerformanceReport(params: {
+  date_from: string;
+  date_to: string;
+  level: TopKutirsGeoLevel;
+  geo_id: number;
+  metric: string;
+}): Promise<KutirPerformanceReport> {
+  const { data } = await api.get("/kutir-visits/kutir-performance", { params });
+  return data;
+}
+
+export interface VisitDetailedRow {
+  visitor_name: string;
+  visitor_role: string | null;
+  state_name: string | null;
+  zone_name: string | null;
+  district_name: string | null;
+  area_name: string | null;
+  cluster_name: string | null;
+  kutir_id: number;
+  kutir_name: string;
+  visit: KutirVisit;
+}
+
+export interface VisitDetailedReport {
+  title: string;
+  level: TopKutirsGeoLevel;
+  geo_id: number;
+  geo_path: string[];
+  date_from: string;
+  date_to: string;
+  rows: VisitDetailedRow[];
+}
+
+export async function fetchVisitDetailedReport(params: {
+  date_from: string;
+  date_to: string;
+  level: TopKutirsGeoLevel;
+  geo_id: number;
+}): Promise<VisitDetailedReport> {
+  const { data } = await api.get("/kutir-visits/detailed-report", { params });
   return data;
 }

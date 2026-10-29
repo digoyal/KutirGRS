@@ -33,6 +33,21 @@ export const VISITS_FIELDS: FieldMeta[] = [
 
 export const VISITS_FIELD_KEYS = VISITS_FIELDS.map((f) => f.key) as readonly string[];
 
+/** Rating fields (1–5) available on Kutir Performance report metric dropdown. */
+export const KUTIR_PERFORMANCE_METRIC_KEYS = [
+  "kutir_performance",
+  "cleanliness",
+  "hindi_proficiency",
+  "english_proficiency",
+  "maths_proficiency",
+  "evs_proficiency",
+  "reasoning_proficiency",
+  "material_management",
+  "staff_behavior",
+] as const;
+
+export type KutirPerformanceMetricKey = (typeof KUTIR_PERFORMANCE_METRIC_KEYS)[number];
+
 if (new Set(VISITS_FIELD_KEYS).size !== VISITS_FIELD_KEYS.length) {
   throw new Error("VISITS_FIELDS keys must be unique");
 }

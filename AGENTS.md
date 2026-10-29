@@ -25,6 +25,7 @@ General rules for agents working on database-backed web apps. Prefer do/don’t 
 
 ## API & auth / scope
 
+- Role permissions and menu/data access: follow [`docs/role-and-access.md`](docs/role-and-access.md) (do not invent parallel matrices).
 - Every list/get that is tenant- or geography-scoped must apply the **same scope helper** as writes. Mutations that only check “logged in” without verifying the target resource are an **IDOR** risk.
 - Prefer scoping **writes like reads**. Deny by default when scope is empty; unrestricted only for explicit admin/superuser cases.
 - Do not allow callers to escalate privilege (e.g. set `is_superuser` or a higher role than their own) unless product rules say so — and enforce that on the **server**, not only by hiding UI.
@@ -87,11 +88,19 @@ Entity list columns, Column Config, CSV export, and form field labels must come 
 
 ## Process (PRs / branches)
 
+- **Do only what was asked.** No scope expansion, no “while we’re here” refactors, no Playwright / browser automation unless explicitly requested. Diagnose minimally, ship or report, then stop.
 - Branch from the agreed base; use a clear descriptive name. One concern per PR when practical.
 - Commits: short imperative subject; explain *why* if non-obvious. Do not commit generated secrets or local env files.
 - PR description: what changed, how to verify, risks (migrations, auth, mobile). Link product/audit docs when relevant.
 - Do not force-push shared branches or rewrite published history unless explicitly asked.
 - Ask before destructive DB ops, production deploys, or scope expansions beyond the task.
+
+### Git (local main until push)
+
+- Until push, keep **at most one unpushed commit** on local `main`.
+- After the first unpushed commit, **amend** further work into it — do not stack additional SHAs.
+- On push, **squash to one** commit if more than one unpushed commit somehow accumulated (prefer avoiding that with amend).
+- Never force-push unless explicitly asked.
 
 ---
 

@@ -982,7 +982,7 @@ export function VisitForm({
           {RATING_FIELD_KEYS.map((key) => (
             <RatingRow
               key={key}
-              label={visitFieldLabel(key)}
+              label={visitFieldLabel(key, { required: true })}
               value={(form[key] as number) ?? 3}
               onChange={(v) => set(key, v as never)}
             />

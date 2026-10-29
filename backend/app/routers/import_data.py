@@ -1200,7 +1200,7 @@ async def _import_kutir_visits(rows, db):
             "rp": rating("reasoning_proficiency"),
             "mm": rating("material_management"),
             "kp": rating("kutir_performance"),
-            "sb": _int(r.get("staff_behavior")),
+            "sb": rating("staff_behavior"),
             "ra": _yn(r.get("reg_admission_forms")),
             "rs": _yn(r.get("reg_attendance_students")),
             "rd": _yn(r.get("reg_daily_activity")),

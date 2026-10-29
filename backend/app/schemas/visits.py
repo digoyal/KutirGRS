@@ -45,7 +45,7 @@ class KutirVisitBase(BaseModel):
     reasoning_proficiency: int = Field(..., ge=1, le=5)
     material_management: int = Field(..., ge=1, le=5)
     kutir_performance: int = Field(..., ge=1, le=5)
-    staff_behavior: Optional[int] = Field(None, ge=1, le=5)
+    staff_behavior: int = Field(..., ge=1, le=5)
 
     # Document registers
     reg_admission_forms: bool = False
@@ -150,3 +150,53 @@ class TopKutirsReportOut(BaseModel):
     show_district: bool
     show_cluster: bool
     rows: list[TopKutirRow]
+
+
+# ── Kutir Performance report (all kutirs by avg rating) ───────────────────────
+
+class KutirPerformanceRow(BaseModel):
+    kutir_id: int
+    kutir_name: str
+    district_name: Optional[str] = None
+    cluster_name: Optional[str] = None
+    num_visits: int
+    avg_score: float
+
+
+class KutirPerformanceReportOut(BaseModel):
+    title: str
+    metric: str
+    metric_label: str
+    level: str  # zone | district | cluster
+    geo_id: int
+    geo_path: list[str]
+    date_from: date
+    date_to: date
+    show_district: bool
+    show_cluster: bool
+    rows: list[KutirPerformanceRow]
+
+
+# ── Kutir Visit Detailed Report ──────────────────────────────────────────────
+
+class VisitDetailedRow(BaseModel):
+    visitor_name: str
+    visitor_role: Optional[str] = None
+    state_name: Optional[str] = None
+    zone_name: Optional[str] = None
+    district_name: Optional[str] = None
+    area_name: Optional[str] = None
+    cluster_name: Optional[str] = None
+    kutir_id: int
+    kutir_name: str
+    visit: KutirVisitOut
+
+
+class VisitDetailedReportOut(BaseModel):
+    title: str
+    level: str
+    geo_id: int
+    geo_path: list[str]
+    date_from: date
+    date_to: date
+    rows: list[VisitDetailedRow]
