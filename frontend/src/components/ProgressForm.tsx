@@ -217,7 +217,13 @@ export function ProgressForm({
 
   const currentStatus = (form.status || "enrolled") as ProgressStatus;
   const badge = STATUS_BADGES[currentStatus] ?? STATUS_BADGES.enrolled;
-  const yearLabel = isAdd ? "Year" : "Academic Year";
+  const yearLabel = isAdd ? "New Year" : "Academic Year";
+  const classLabel = isAdd
+    ? "New Class *"
+    : progressFieldLabel("class_in_year");
+  const marksLabel = isAdd
+    ? "Previous Year Marks %"
+    : progressFieldLabel("previous_year_percentage");
 
   return (
     <div className={readOnly ? undefined : "grs-form"}>
@@ -363,7 +369,7 @@ export function ProgressForm({
             </select>
           </div>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>{progressFieldLabel("class_in_year", { required: isAdd })}</label>
+            <label style={labelStyle}>{classLabel}</label>
             <select
               style={inp}
               value={form.class_in_year ?? ""}
@@ -411,7 +417,7 @@ export function ProgressForm({
             </select>
           </div>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>{progressFieldLabel("previous_year_percentage")}</label>
+            <label style={labelStyle}>{marksLabel}</label>
             <input
               type="number"
               min={0}

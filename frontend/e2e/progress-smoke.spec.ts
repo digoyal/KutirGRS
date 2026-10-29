@@ -52,8 +52,9 @@ test.describe("Progress smoke", () => {
     await expect(page.getByRole("heading", { name: "Add Progress Record" })).toBeVisible();
 
     await expect(page.getByText("Student *", { exact: true })).toBeVisible();
-    await expect(page.getByText("Year", { exact: true })).toBeVisible();
-    await expect(page.getByText("Class *", { exact: true })).toBeVisible();
+    await expect(page.getByText("New Year", { exact: true })).toBeVisible();
+    await expect(page.getByText("New Class *", { exact: true })).toBeVisible();
+    await expect(page.getByText("Previous Year Marks %", { exact: true })).toBeVisible();
     await expect(page.getByText("School *", { exact: true })).toBeVisible();
     await expect(page.getByText("Status", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Add Record" })).toBeVisible();
