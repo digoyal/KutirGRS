@@ -60,8 +60,12 @@
     grid-template-columns: 1fr !important;
   }
 
-  /* Tighten page padding */
-  .grs-page { padding: 14px 12px !important; }
+  /* Tighten page padding — longhands only so ≤768 hamburger clearance
+     (padding-top / padding-left) is not wiped by this shorthand. */
+  .grs-page {
+    padding-right: 12px !important;
+    padding-bottom: 14px !important;
+  }
 
   /* Icon-only buttons: hide text, tighten padding */
   .grs-ibtn .grs-lbl { display: none; }
@@ -136,12 +140,17 @@
     z-index: 299;
   }
 
-  /* Main content takes full width (sidebar is overlay now) */
+  /* Main content takes full width; clear fixed hamburger so Back stays tappable.
+   * Use .grs-main — many Detail pages omit .grs-page. padding-left keeps Back
+   * clear of the 40×40 menu (top/left 12) even when content scrolls. */
   .grs-main {
     flex: 1 1 auto !important;
     min-width: 0 !important;
     width: 100% !important;
     overflow-x: hidden !important;
+    padding-left: 56px !important;
+    padding-top: 12px !important;
+    box-sizing: border-box !important;
   }
 
   /* Show hamburger button */
@@ -163,6 +172,8 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.25);
   }
 
-  /* Push page content down slightly so hamburger doesn't overlap heading */
-  .grs-page { padding-top: 56px !important; }
+  .grs-page {
+    padding-top: 12px !important;
+    padding-left: 12px !important;
+  }
 }
