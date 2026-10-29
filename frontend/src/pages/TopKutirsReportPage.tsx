@@ -21,6 +21,8 @@ import {
 const today = () => new Date().toISOString().slice(0, 10);
 const yearStart = () => `${new Date().getFullYear()}-01-01`;
 
+type FilterId = number | "";
+
 const selectStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 6,
@@ -78,7 +80,9 @@ export default function TopKutirsReportPage() {
   const [dateFrom, setDateFrom] = useState(yearStart);
   const [dateTo, setDateTo] = useState(today);
   const [level, setLevel] = useState<TopKutirsGeoLevel>("district");
-  const [geoId, setGeoId] = useState<number | "">("");
+  const [zoneId, setZoneId] = useState<FilterId>("");
+  const [districtId, setDistrictId] = useState<FilterId>("");
+  const [clusterId, setClusterId] = useState<FilterId>("");
 
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ["zones"],
@@ -97,28 +101,20 @@ export default function TopKutirsReportPage() {
     queryFn: () => listClusters(),
   });
 
-  const areaById = useMemo(() => new Map(areas.map((a) => [a.id, a])), [areas]);
-  const districtById = useMemo(() => new Map(districts.map((d) => [d.id, d])), [districts]);
+  const districtsInZone = useMemo(
+    () => (zoneId === "" ? [] : districts.filter((d) => d.zone_id === zoneId)),
+    [districts, zoneId],
+  );
 
-  const entityOptions = useMemo(() => {
-    if (level === "zone") {
-      return zones.map((z) => ({ id: z.id, label: z.name }));
-    }
-    if (level === "district") {
-      return districts.map((d) => {
-        const zone = zones.find((z) => z.id === d.zone_id);
-        return { id: d.id, label: zone ? `${d.name} (${zone.name})` : d.name };
-      });
-    }
-    return clusters.map((c) => {
-      const area = areaById.get(c.area_id);
-      const dist = area ? districtById.get(area.district_id) : undefined;
-      return {
-        id: c.id,
-        label: dist ? `${c.name} (${dist.name})` : c.name,
-      };
-    });
-  }, [level, zones, districts, clusters, areaById, districtById]);
+  const clustersInDistrict = useMemo(() => {
+    if (districtId === "") return [];
+    const areaIds = new Set(areas.filter((a) => a.district_id === districtId).map((a) => a.id));
+    return clusters.filter((c) => areaIds.has(c.area_id));
+  }, [areas, clusters, districtId]);
+
+  /** Leaf geo id for the API — matches selected level. */
+  const geoId: FilterId =
+    level === "zone" ? zoneId : level === "district" ? districtId : clusterId;
 
   const enabled = geoId !== "" && !!dateFrom && !!dateTo && dateTo >= dateFrom;
 
@@ -136,8 +132,28 @@ export default function TopKutirsReportPage() {
 
   function onLevelChange(next: TopKutirsGeoLevel) {
     setLevel(next);
-    setGeoId("");
+    setZoneId("");
+    setDistrictId("");
+    setClusterId("");
   }
+
+  function onZoneChange(next: FilterId) {
+    setZoneId(next);
+    setDistrictId("");
+    setClusterId("");
+  }
+
+  function onDistrictChange(next: FilterId) {
+    setDistrictId(next);
+    setClusterId("");
+  }
+
+  const showZone = true; // always for all levels
+  const showDistrict = level === "district" || level === "cluster";
+  const showCluster = level === "cluster";
+
+  const promptLevel =
+    level === "zone" ? "zone" : level === "district" ? "zone and district" : "zone, district, and cluster";
 
   const hdrCol: React.CSSProperties = {
     padding: "9px 12px",
@@ -197,28 +213,66 @@ export default function TopKutirsReportPage() {
             <option value="cluster">Cluster</option>
           </select>
         </div>
-        <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-          <label style={labelStyle}>
-            {level === "zone" ? "Zone" : level === "district" ? "District" : "Cluster"}
-          </label>
-          <select
-            value={geoId === "" ? "" : String(geoId)}
-            onChange={(e) => setGeoId(e.target.value ? Number(e.target.value) : "")}
-            style={selectStyle}
-          >
-            <option value="">Select…</option>
-            {entityOptions.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
+        {showZone && (
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+            <label style={labelStyle}>Zone</label>
+            <select
+              value={zoneId === "" ? "" : String(zoneId)}
+              onChange={(e) => onZoneChange(e.target.value ? Number(e.target.value) : "")}
+              style={selectStyle}
+            >
+              <option value="">Select…</option>
+              {zones.map((z) => (
+                <option key={z.id} value={z.id}>
+                  {z.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {showDistrict && (
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+            <label style={labelStyle}>District</label>
+            <select
+              value={districtId === "" ? "" : String(districtId)}
+              onChange={(e) => onDistrictChange(e.target.value ? Number(e.target.value) : "")}
+              style={selectStyle}
+              disabled={zoneId === ""}
+            >
+              <option value="">{zoneId === "" ? "Select zone first…" : "Select…"}</option>
+              {districtsInZone.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {showCluster && (
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+            <label style={labelStyle}>Cluster</label>
+            <select
+              value={clusterId === "" ? "" : String(clusterId)}
+              onChange={(e) => setClusterId(e.target.value ? Number(e.target.value) : "")}
+              style={selectStyle}
+              disabled={districtId === ""}
+            >
+              <option value="">
+                {districtId === "" ? "Select district first…" : "Select…"}
               </option>
-            ))}
-          </select>
-        </div>
+              {clustersInDistrict.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {!enabled && (
         <p style={{ color: "var(--text-secondary)" }}>
-          Choose a time period and a {level} to see the top 10 kutirs by average performance.
+          Choose a time period and {promptLevel} to see the top 10 kutirs by average performance.
         </p>
       )}
 
