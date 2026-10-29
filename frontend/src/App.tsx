@@ -36,6 +36,7 @@ import ExamCentersPage from "./pages/ExamCentersPage";
 import ExamCenterDetailPage from "./pages/ExamCenterDetailPage";
 import ExamCenterAddPage from "./pages/ExamCenterAddPage";
 import FieldConfigPage from "./pages/FieldConfigPage";
+import ChangePasswordPage from "./pages/ChangePasswordPage";
 import DeployPage from "./pages/DeployPage";
 
 const queryClient = new QueryClient();
@@ -89,6 +90,7 @@ function AppRoutes() {
         <Route path="new-year-setup" element={<NewYearSetupPage />} />
         <Route path="import" element={<ImportDataPage />} />
         <Route path="admin/field-config" element={<FieldConfigPage />} />
+        <Route path="admin/change-password" element={<ChangePasswordPage />} />
         <Route path="admin/deploy" element={<DeployPage />} />
         <Route path="reports">
           <Route path="detailed" element={<ReportsPage />} />

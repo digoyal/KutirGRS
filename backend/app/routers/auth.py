@@ -91,6 +91,15 @@ class PasswordResetConfirmOut(BaseModel):
     detail: str = "Password updated. You can sign in with your new password."
 
 
+class ChangePasswordIn(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class ChangePasswordOut(BaseModel):
+    detail: str = "Password updated."
+
+
 TokenResponse.model_rebuild()
 
 
@@ -208,6 +217,29 @@ async def me(
     db: AsyncSession = Depends(get_db),
 ):
     return await _me_out(current_user, db)
+
+
+@router.post("/change-password", response_model=ChangePasswordOut)
+async def change_password(
+    body: ChangePasswordIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Any authenticated user may change their own password after verifying the current one."""
+    if not verify_password(body.current_password, current_user.password):
+        # 400 (not 401): wrong current password must not clear the session JWT on the client.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+    if body.new_password == body.current_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from the current password.",
+        )
+    current_user.password = hash_password(body.new_password)
+    await db.commit()
+    return ChangePasswordOut()
 
 
 @router.post("/request-password-reset", response_model=PasswordResetRequestOut)

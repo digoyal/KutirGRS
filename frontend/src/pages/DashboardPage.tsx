@@ -109,6 +109,7 @@ const navItems: {
   { to: "/geo", label: "Geography" },
   { to: "/lookups", label: "Lookups" }, // all roles may view; mutate Admin-only on page
   { to: "/users", label: "Users", usersOnly: true },
+  { to: "/admin/change-password", label: "Change Password" },
   { to: "/admin/field-config", label: "Column Settings", columnConfigOnly: true },
   { to: "/admin/deploy", label: "🚀 Deploy", sysAdminOnly: true },
   { to: "/import", label: "Import Data", adminOnly: true },
