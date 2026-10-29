@@ -127,3 +127,26 @@ class KutirVisitOut(KutirVisitBase):
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}
+
+
+# ── Top 10 Kutirs report ─────────────────────────────────────────────────────
+
+class TopKutirRow(BaseModel):
+    kutir_id: int
+    kutir_name: str
+    district_name: Optional[str] = None
+    cluster_name: Optional[str] = None
+    num_visits: int
+    avg_performance: float
+
+
+class TopKutirsReportOut(BaseModel):
+    title: str
+    level: str  # zone | district | cluster
+    geo_id: int
+    geo_path: list[str]
+    date_from: date
+    date_to: date
+    show_district: bool
+    show_cluster: bool
+    rows: list[TopKutirRow]

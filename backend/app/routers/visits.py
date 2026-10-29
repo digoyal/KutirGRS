@@ -1,17 +1,28 @@
-from typing import Optional
+from datetime import date
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 import os, uuid, shutil
 
 from app.database import get_db
-from app.auth import get_scope, require_roles, require_kutir_in_scope
+from app.auth import get_scope, get_geo_scope, require_roles, require_kutir_in_scope, GeoScope
 from app.roles import MANAGE_VISITS
 from app.models.visits import KutirVisit
-from app.schemas.visits import KutirVisitCreate, KutirVisitUpdate, KutirVisitOut
+from app.models.kutirs import Kutir
+from app.models.geo import Zone, District, Area, Cluster
+from app.schemas.visits import (
+    KutirVisitCreate,
+    KutirVisitUpdate,
+    KutirVisitOut,
+    TopKutirRow,
+    TopKutirsReportOut,
+)
 from app.config import settings
 
 router = APIRouter()
+
+GeoLevel = Literal["zone", "district", "cluster"]
 
 
 def _media(sub: str) -> str:
@@ -53,6 +64,128 @@ async def create_visit(
     await db.commit()
     await db.refresh(obj)
     return obj
+
+
+# ── Top 10 Kutirs by avg performance ─────────────────────────────────────────
+@router.get(
+    "/kutir-visits/top-kutirs",
+    response_model=TopKutirsReportOut,
+    tags=["Kutir Visits"],
+)
+async def top_kutirs_report(
+    date_from: date = Query(..., description="Inclusive visit start date"),
+    date_to: date = Query(..., description="Inclusive visit end date"),
+    level: GeoLevel = Query(..., description="Top-level geo pick: zone | district | cluster"),
+    geo_id: int = Query(..., description="Selected zone/district/cluster id"),
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+    gs: GeoScope = Depends(get_geo_scope),
+):
+    """Top 10 kutirs by average kutir_performance in [date_from, date_to] under geo.
+
+    Respects user kutir scope. Geo must be within caller's geo access.
+    """
+    if date_to < date_from:
+        raise HTTPException(400, "date_to must be on or after date_from")
+
+    # Resolve geo path + verify access; empty set means deny for scoped users
+    if level == "zone":
+        if gs.zone_ids is not None and geo_id not in gs.zone_ids:
+            raise HTTPException(404, "Zone not found")
+        zone = await db.get(Zone, geo_id)
+        if not zone:
+            raise HTTPException(404, "Zone not found")
+        geo_path = [zone.name]
+        show_district, show_cluster = True, True
+        geo_filter = District.zone_id == geo_id
+    elif level == "district":
+        if gs.district_ids is not None and geo_id not in gs.district_ids:
+            raise HTTPException(404, "District not found")
+        district = await db.get(District, geo_id)
+        if not district:
+            raise HTTPException(404, "District not found")
+        zone = await db.get(Zone, district.zone_id)
+        geo_path = [*( [zone.name] if zone else [] ), district.name]
+        show_district, show_cluster = False, True
+        geo_filter = Area.district_id == geo_id
+    else:  # cluster
+        if gs.cluster_ids is not None and geo_id not in gs.cluster_ids:
+            raise HTTPException(404, "Cluster not found")
+        cluster = await db.get(Cluster, geo_id)
+        if not cluster:
+            raise HTTPException(404, "Cluster not found")
+        area = await db.get(Area, cluster.area_id)
+        district = await db.get(District, area.district_id) if area else None
+        zone = await db.get(Zone, district.zone_id) if district else None
+        geo_path = [
+            *( [zone.name] if zone else [] ),
+            *( [district.name] if district else [] ),
+            cluster.name,
+        ]
+        show_district, show_cluster = False, False
+        geo_filter = Kutir.cluster_id == geo_id
+
+    title = "Top 10 Kutirs in " + " › ".join(geo_path)
+
+    q = (
+        select(
+            Kutir.id.label("kutir_id"),
+            Kutir.name.label("kutir_name"),
+            District.name.label("district_name"),
+            Cluster.name.label("cluster_name"),
+            func.count(KutirVisit.id).label("num_visits"),
+            func.avg(KutirVisit.kutir_performance).label("avg_performance"),
+        )
+        .select_from(KutirVisit)
+        .join(Kutir, KutirVisit.kutir_id == Kutir.id)
+        .join(Cluster, Kutir.cluster_id == Cluster.id)
+        .join(Area, Cluster.area_id == Area.id)
+        .join(District, Area.district_id == District.id)
+        .where(KutirVisit.visit_date >= date_from)
+        .where(KutirVisit.visit_date <= date_to)
+        .where(geo_filter)
+        .group_by(Kutir.id, Kutir.name, District.name, Cluster.name)
+        .order_by(func.avg(KutirVisit.kutir_performance).desc(), func.count(KutirVisit.id).desc())
+        .limit(10)
+    )
+    if scope is not None:
+        if not scope:
+            return TopKutirsReportOut(
+                title=title,
+                level=level,
+                geo_id=geo_id,
+                geo_path=geo_path,
+                date_from=date_from,
+                date_to=date_to,
+                show_district=show_district,
+                show_cluster=show_cluster,
+                rows=[],
+            )
+        q = q.where(Kutir.id.in_(scope))
+
+    result = await db.execute(q)
+    rows = [
+        TopKutirRow(
+            kutir_id=r.kutir_id,
+            kutir_name=r.kutir_name,
+            district_name=r.district_name if show_district else None,
+            cluster_name=r.cluster_name if show_cluster else None,
+            num_visits=int(r.num_visits),
+            avg_performance=round(float(r.avg_performance), 2),
+        )
+        for r in result.all()
+    ]
+    return TopKutirsReportOut(
+        title=title,
+        level=level,
+        geo_id=geo_id,
+        geo_path=geo_path,
+        date_from=date_from,
+        date_to=date_to,
+        show_district=show_district,
+        show_cluster=show_cluster,
+        rows=rows,
+    )
 
 
 # ── Get one ──────────────────────────────────────────────────────────────────

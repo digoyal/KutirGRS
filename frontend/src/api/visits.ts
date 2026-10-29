@@ -133,3 +133,36 @@ export async function uploadVisitPhoto(id: number, file: File): Promise<KutirVis
   });
   return data;
 }
+
+export type TopKutirsGeoLevel = "zone" | "district" | "cluster";
+
+export interface TopKutirRow {
+  kutir_id: number;
+  kutir_name: string;
+  district_name: string | null;
+  cluster_name: string | null;
+  num_visits: number;
+  avg_performance: number;
+}
+
+export interface TopKutirsReport {
+  title: string;
+  level: TopKutirsGeoLevel;
+  geo_id: number;
+  geo_path: string[];
+  date_from: string;
+  date_to: string;
+  show_district: boolean;
+  show_cluster: boolean;
+  rows: TopKutirRow[];
+}
+
+export async function fetchTopKutirsReport(params: {
+  date_from: string;
+  date_to: string;
+  level: TopKutirsGeoLevel;
+  geo_id: number;
+}): Promise<TopKutirsReport> {
+  const { data } = await api.get("/kutir-visits/top-kutirs", { params });
+  return data;
+}
