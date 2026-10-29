@@ -35,10 +35,10 @@ const controlStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-/** Extra right padding so the native calendar icon does not cover the date. */
+/** Right padding cleared via .top-kutirs-date CSS (icon must not cover YYYY-MM-DD). */
 const dateStyle: React.CSSProperties = {
   ...controlStyle,
-  padding: "6px 2rem 6px 8px",
+  padding: "6px 2.75rem 6px 8px",
 };
 
 const geoFieldStyle: React.CSSProperties = {
@@ -48,9 +48,9 @@ const geoFieldStyle: React.CSSProperties = {
 };
 
 const dateFieldStyle: React.CSSProperties = {
-  flex: "0 1 148px",
-  maxWidth: 160,
-  minWidth: 136,
+  flex: "0 0 168px",
+  maxWidth: 180,
+  minWidth: 160,
 };
 
 const labelStyle: React.CSSProperties = {
@@ -271,6 +271,7 @@ export default function TopKutirsReportPage() {
           <label style={labelStyle}>From</label>
           <input
             type="date"
+            className="top-kutirs-date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             style={dateStyle}
@@ -280,6 +281,7 @@ export default function TopKutirsReportPage() {
           <label style={labelStyle}>To</label>
           <input
             type="date"
+            className="top-kutirs-date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             style={dateStyle}
