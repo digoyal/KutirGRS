@@ -287,8 +287,8 @@ export function UserForm({
             onChange={e => setForm(f => ({ ...f, phone: e.target.value || null }))} />
         </div>
         <div>
-          <label style={grs.fieldLabel}>{userFieldLabel("email")}</label>
-          <input style={grs.input} type="email" value={form.email ?? ""}
+          <label style={grs.fieldLabel}>{userFieldLabel("email", { required: true })}</label>
+          <input style={grs.input} type="email" value={form.email ?? ""} required
             onChange={e => setForm(f => ({ ...f, email: e.target.value || null }))} />
         </div>
       </div>

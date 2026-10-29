@@ -56,8 +56,20 @@ function userColRenderers(): Record<string, UserColRenderer> {
       sortValue: (u) => (u.is_active ? 1 : 0),
     },
     email: {
-      render: (u) => u.email ?? "—",
+      render: (u) =>
+        u.email?.trim() ? (
+          u.email
+        ) : (
+          <span style={{
+            ...grs.badge,
+            background: "var(--badge-yellow-bg, #fef3c7)",
+            color: "var(--badge-yellow-fg, #92400e)",
+          }}>
+            Missing email
+          </span>
+        ),
       csvValue: (u) => u.email ?? "",
+      sortValue: (u) => (u.email?.trim() ? u.email.toLowerCase() : ""),
     },
   };
   if (import.meta.env.DEV) {
@@ -83,12 +95,14 @@ export default function UsersPage() {
   const saved = usePersistedFilterRestore<{
     role?: string;
     search?: string;
+    missingEmail?: boolean;
     page?: number;
   }>(STORAGE_KEY);
 
   const PAGE_SIZE = 50;
   const [page, setPage] = useState(saved?.page ?? 1);
   const [roleFilter, setRoleFilter] = useState(saved?.role ?? "");
+  const [missingEmailOnly, setMissingEmailOnly] = useState(!!saved?.missingEmail);
   const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -100,10 +114,11 @@ export default function UsersPage() {
   };
 
   const { data: usersPage, isLoading } = useQuery({
-    queryKey: ["users", debouncedSearch, roleFilter, page],
+    queryKey: ["users", debouncedSearch, roleFilter, missingEmailOnly, page],
     queryFn: () => listUsersPaged({
       search: debouncedSearch || undefined,
       role: roleFilter || undefined,
+      missing_email: missingEmailOnly || undefined,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     }),
@@ -120,6 +135,7 @@ export default function UsersPage() {
     persistFilters(STORAGE_KEY, {
       role: roleFilter,
       search: searchQuery,
+      missingEmail: missingEmailOnly,
       page,
     });
   }
@@ -164,19 +180,40 @@ export default function UsersPage() {
         searchPlaceholder="Search by name, username…"
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
-        activeFilterCount={roleFilter ? 1 : 0}
+        activeFilterCount={(roleFilter ? 1 : 0) + (missingEmailOnly ? 1 : 0)}
         filters={
-          <select
-            aria-label="Filter by role"
-            value={roleFilter}
-            onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
-            style={grs.filterSelect}
-          >
-            <option value="">All roles</option>
-            {TITLES.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
+          <>
+            <select
+              aria-label="Filter by role"
+              value={roleFilter}
+              onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+              style={grs.filterSelect}
+            >
+              <option value="">All roles</option>
+              {TITLES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
+              <input
+                type="checkbox"
+                checked={missingEmailOnly}
+                onChange={(e) => { setMissingEmailOnly(e.target.checked); setPage(1); }}
+                aria-label="Missing email"
+                style={{ width: 15, height: 15 }}
+              />
+              Missing email
+              {missingEmailOnly && !isLoading && (
+                <span style={{
+                  ...grs.badge,
+                  background: "var(--badge-yellow-bg, #fef3c7)",
+                  color: "var(--badge-yellow-fg, #92400e)",
+                }}>
+                  {userTotal}
+                </span>
+              )}
+            </label>
+          </>
         }
         exportFilename="users"
         printTitle="Users"

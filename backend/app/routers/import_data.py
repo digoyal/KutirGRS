@@ -258,13 +258,15 @@ async def _import_users(rows, db):
         if exists:
             skipped += 1; continue
         email = _str(r.get("email")) or None
-        if email:
-            email_exists = (await db.execute(
-                text("SELECT id FROM users WHERE email = :e"), {"e": email}
-            )).scalar_one_or_none()
-            if email_exists:
-                errors.append(f"Email '{email}' already exists — '{uname}' skipped")
-                skipped += 1; continue
+        if not email:
+            errors.append(f"Email required — '{uname}' skipped")
+            skipped += 1; continue
+        email_exists = (await db.execute(
+            text("SELECT id FROM users WHERE email = :e"), {"e": email}
+        )).scalar_one_or_none()
+        if email_exists:
+            errors.append(f"Email '{email}' already exists — '{uname}' skipped")
+            skipped += 1; continue
         title = _str(r.get("title"))
         if title and title not in VALID_TITLES:
             errors.append(f"Invalid title '{title}' for '{uname}' — imported without title")

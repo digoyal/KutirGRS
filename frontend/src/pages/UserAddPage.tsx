@@ -30,11 +30,12 @@ export default function UserAddPage() {
   function handleSave() {
     if (!form.username.trim()) { setSaveError("Username is required"); return; }
     if (!form.password.trim()) { setSaveError("Password is required"); return; }
+    if (!form.email?.trim()) { setSaveError("Email is required"); return; }
     setSaveError("");
     createMut.mutate({
       username: form.username, password: form.password,
       title: form.title || null, first_name: form.first_name, last_name: form.last_name,
-      phone: form.phone, email: form.email, is_active: form.is_active,
+      phone: form.phone, email: form.email.trim(), is_active: form.is_active,
       zone_ids: form.zone_ids, district_ids: form.district_ids,
       area_ids: form.area_ids, cluster_ids: form.cluster_ids, kutir_ids: form.kutir_ids,
     });

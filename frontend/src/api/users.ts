@@ -20,11 +20,12 @@ export interface User {
 export interface UserCreate {
   username: string;
   password: string;
+  /** Required on create (DB column still nullable for legacy blanks). */
+  email: string;
   title?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   phone?: string | null;
-  email?: string | null;
   zone_ids?: number[];
   district_ids?: number[];
   area_ids?: number[];
@@ -34,11 +35,12 @@ export interface UserCreate {
 }
 
 export interface UserUpdate {
+  /** Required on every update so blank legacy rows must be filled when editing. */
+  email: string;
   title?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   phone?: string | null;
-  email?: string | null;
   zone_ids?: number[];
   district_ids?: number[];
   area_ids?: number[];
@@ -54,6 +56,8 @@ export interface UsersListParams {
   /** Filter by role title (server `role` query param). */
   role?: string;
   search?: string;
+  /** When true, only users with null/blank email. */
+  missing_email?: boolean;
   limit?: number;
   offset?: number;
 }

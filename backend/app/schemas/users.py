@@ -1,12 +1,20 @@
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.roles import TITLES as VALID_TITLES
 
 
+def _require_nonblank_email(v: str) -> str:
+    """API create/update require email; DB column stays nullable until blanks are filled."""
+    s = (v or "").strip()
+    if not s:
+        raise ValueError("email is required")
+    return s
+
+
 class UserCreate(BaseModel):
     username: str
-    email: Optional[str] = None
+    email: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone: Optional[str] = None
@@ -22,9 +30,15 @@ class UserCreate(BaseModel):
     # Enforced in users router: only Admin/superuser may set True; stripped otherwise
     is_superuser: bool = False
 
+    @field_validator("email")
+    @classmethod
+    def email_required(cls, v: str) -> str:
+        return _require_nonblank_email(v)
+
 
 class UserUpdate(BaseModel):
-    email: Optional[str] = None
+    # Required on every update so blank legacy rows must be filled when editing.
+    email: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone: Optional[str] = None
@@ -40,10 +54,16 @@ class UserUpdate(BaseModel):
     is_superuser: Optional[bool] = None
     password: Optional[str] = None
 
+    @field_validator("email")
+    @classmethod
+    def email_required(cls, v: str) -> str:
+        return _require_nonblank_email(v)
+
 
 class UserOut(BaseModel):
     id: int
     username: str
+    # Still optional in responses — existing DB rows may be blank until filled.
     email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None

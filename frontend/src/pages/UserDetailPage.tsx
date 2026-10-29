@@ -117,13 +117,17 @@ export default function UserDetailPage() {
       setSaveError("Username is required");
       return;
     }
+    if (!form.email?.trim()) {
+      setSaveError("Email is required");
+      return;
+    }
     setSaveError("");
     const data: UserUpdate = {
       title: form.title || null,
       first_name: form.first_name,
       last_name: form.last_name,
       phone: form.phone,
-      email: form.email,
+      email: form.email.trim(),
       is_active: form.is_active,
       zone_ids: form.zone_ids,
       district_ids: form.district_ids,

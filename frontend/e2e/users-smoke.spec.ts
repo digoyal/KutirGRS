@@ -47,6 +47,7 @@ test.describe("Users smoke", () => {
 
     await expect(page.getByText("Username *", { exact: true })).toBeVisible();
     await expect(page.getByText("Password *", { exact: true })).toBeVisible();
+    await expect(page.getByText("Email *", { exact: true })).toBeVisible();
     await expect(page.getByText("First Name", { exact: true })).toBeVisible();
     await expect(page.getByText("Last Name", { exact: true })).toBeVisible();
     await expect(page.getByText("Role", { exact: true })).toBeVisible();
@@ -60,6 +61,7 @@ test.describe("Users smoke", () => {
 
     await expect(page.getByText("Username *", { exact: true })).toBeVisible();
     await expect(page.getByText("Password (leave blank to keep)", { exact: true })).toBeVisible();
+    await expect(page.getByText("Email *", { exact: true })).toBeVisible();
     await expect(page.getByText("First Name", { exact: true })).toBeVisible();
     await expect(page.getByText("Role", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Save Changes" })).toBeVisible();

@@ -13,7 +13,7 @@ export const USERS_FIELDS: FieldMeta[] = [
   { key: "title",     label: "Role",     hideable: true,  defaultVisible: true  },
   { key: "phone",     label: "Phone",    hideable: true,  defaultVisible: true  },
   { key: "is_active", label: "Status",   hideable: true,  defaultVisible: true  },
-  { key: "email",     label: "Email",    hideable: true,  defaultVisible: false },
+  { key: "email",     label: "Email",    hideable: true,  defaultVisible: true  },
 ];
 
 export const USERS_FIELD_KEYS = USERS_FIELDS.map((f) => f.key) as readonly string[];
