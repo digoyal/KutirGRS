@@ -23,6 +23,7 @@ from app.config import settings
 router = APIRouter()
 
 GeoLevel = Literal["zone", "district", "cluster"]
+KutirRank = Literal["top", "bottom"]
 
 
 def _media(sub: str) -> str:
@@ -66,7 +67,7 @@ async def create_visit(
     return obj
 
 
-# ── Top 10 Kutirs by avg performance ─────────────────────────────────────────
+# ── Top / Bottom 10 Kutirs by avg performance ────────────────────────────────
 @router.get(
     "/kutir-visits/top-kutirs",
     response_model=TopKutirsReportOut,
@@ -77,11 +78,12 @@ async def top_kutirs_report(
     date_to: date = Query(..., description="Inclusive visit end date"),
     level: GeoLevel = Query(..., description="Top-level geo pick: zone | district | cluster"),
     geo_id: int = Query(..., description="Selected zone/district/cluster id"),
+    rank: KutirRank = Query("top", description="top = highest avg; bottom = lowest avg"),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
     gs: GeoScope = Depends(get_geo_scope),
 ):
-    """Top 10 kutirs by average kutir_performance in [date_from, date_to] under geo.
+    """Top or Bottom 10 kutirs by average kutir_performance in date range under geo.
 
     Respects user kutir scope. Geo must be within caller's geo access.
     """
@@ -125,7 +127,17 @@ async def top_kutirs_report(
         show_district, show_cluster = False, False
         geo_filter = Kutir.cluster_id == geo_id
 
-    title = "Top 10 Kutirs in " + " › ".join(geo_path)
+    label = "Bottom 10 Kutirs" if rank == "bottom" else "Top 10 Kutirs"
+    title = f"{label} in " + " › ".join(geo_path)
+
+    avg_perf = func.avg(KutirVisit.kutir_performance)
+    visit_count = func.count(KutirVisit.id)
+    # Bottom: lowest avg first; Top: highest. Tie-break by more visits.
+    order = (
+        (avg_perf.asc(), visit_count.desc())
+        if rank == "bottom"
+        else (avg_perf.desc(), visit_count.desc())
+    )
 
     q = (
         select(
@@ -133,8 +145,8 @@ async def top_kutirs_report(
             Kutir.name.label("kutir_name"),
             District.name.label("district_name"),
             Cluster.name.label("cluster_name"),
-            func.count(KutirVisit.id).label("num_visits"),
-            func.avg(KutirVisit.kutir_performance).label("avg_performance"),
+            visit_count.label("num_visits"),
+            avg_perf.label("avg_performance"),
         )
         .select_from(KutirVisit)
         .join(Kutir, KutirVisit.kutir_id == Kutir.id)
@@ -145,7 +157,7 @@ async def top_kutirs_report(
         .where(KutirVisit.visit_date <= date_to)
         .where(geo_filter)
         .group_by(Kutir.id, Kutir.name, District.name, Cluster.name)
-        .order_by(func.avg(KutirVisit.kutir_performance).desc(), func.count(KutirVisit.id).desc())
+        .order_by(*order)
         .limit(10)
     )
     if scope is not None:

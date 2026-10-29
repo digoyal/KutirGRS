@@ -157,12 +157,17 @@ export interface TopKutirsReport {
   rows: TopKutirRow[];
 }
 
+export type KutirsRank = "top" | "bottom";
+
 export async function fetchTopKutirsReport(params: {
   date_from: string;
   date_to: string;
   level: TopKutirsGeoLevel;
   geo_id: number;
+  rank?: KutirsRank;
 }): Promise<TopKutirsReport> {
-  const { data } = await api.get("/kutir-visits/top-kutirs", { params });
+  const { data } = await api.get("/kutir-visits/top-kutirs", {
+    params: { rank: "top", ...params },
+  });
   return data;
 }

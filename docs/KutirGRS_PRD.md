@@ -167,7 +167,7 @@ Zone → District → Area → Cluster → Kutir
 
 - Summary: admission funnel by Kutir (by year) with the same six pipeline stages as Home (including Admit Card); visit summary metrics.
 - Detail: admitted students for a year.
-- Top 10 Kutirs: by average visit performance in a date range under a chosen Zone, District, or Cluster (scoped to the user’s geo); title shows the named geo path; columns include geo entities below the selected level, Kutir name, visit count, and average performance; CSV export.
+- Top / Bottom 10 Kutirs (under Kutir Visits → Reports): by highest / lowest average visit performance in a date range under a chosen Zone, District, or Cluster (scoped to the user’s geo); title shows the named geo path; columns include geo entities below the selected level, Kutir name, visit count, and average performance; Export / Print.
 - Shared table behaviours: sort, search, export, print.
 
 ### 5.9 Import

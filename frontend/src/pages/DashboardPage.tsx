@@ -104,6 +104,7 @@ const navItems: {
   { to: "/visits/detail", label: "Visit Details" },
   { to: "/reports/summary", label: "Reports" },
   { to: "/reports/top-kutirs", label: "Top 10 Kutirs", sub: true },
+  { to: "/reports/bottom-kutirs", label: "Bottom 10 Kutirs", sub: true },
   { divider: true, label: "ADMIN" },
   { to: "/schools", label: "Govt. Res. Schools" },
   { to: "/exam-centers", label: "Exam Centers" },

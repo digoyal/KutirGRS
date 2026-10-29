@@ -96,7 +96,8 @@ function AppRoutes() {
         <Route path="reports">
           <Route path="detailed" element={<ReportsPage />} />
           <Route path="summary" element={<ReportsPage />} />
-          <Route path="top-kutirs" element={<TopKutirsReportPage />} />
+          <Route path="top-kutirs" element={<TopKutirsReportPage rank="top" />} />
+          <Route path="bottom-kutirs" element={<TopKutirsReportPage rank="bottom" />} />
         </Route>
       </Route>
     </Routes>

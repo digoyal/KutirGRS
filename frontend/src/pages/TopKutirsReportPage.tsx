@@ -14,6 +14,7 @@ import {
 } from "../api/geo";
 import {
   fetchTopKutirsReport,
+  type KutirsRank,
   type TopKutirsGeoLevel,
   type TopKutirsReport,
 } from "../api/visits";
@@ -134,7 +135,8 @@ function exportCSV(report: TopKutirsReport) {
     .join("\n");
   const a = document.createElement("a");
   a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-  a.download = `top10_kutirs_${report.level}_${report.geo_id}_${report.date_from}_${report.date_to}.csv`;
+  const prefix = report.title.startsWith("Bottom") ? "bottom10_kutirs" : "top10_kutirs";
+  a.download = `${prefix}_${report.level}_${report.geo_id}_${report.date_from}_${report.date_to}.csv`;
   a.click();
 }
 
@@ -168,7 +170,8 @@ function printReport(report: TopKutirsReport) {
   w.print();
 }
 
-export default function TopKutirsReportPage() {
+export default function TopKutirsReportPage({ rank = "top" }: { rank?: KutirsRank }) {
+  const fallbackTitle = rank === "bottom" ? "Bottom 10 Kutirs" : "Top 10 Kutirs";
   const [dateFrom, setDateFrom] = useState(yearStart);
   const [dateTo, setDateTo] = useState(today);
   const [level, setLevel] = useState<TopKutirsGeoLevel>("district");
@@ -211,13 +214,14 @@ export default function TopKutirsReportPage() {
   const enabled = geoId !== "" && !!dateFrom && !!dateTo && dateTo >= dateFrom;
 
   const { data: report, isLoading, isFetching, error } = useQuery({
-    queryKey: ["top-kutirs", dateFrom, dateTo, level, geoId],
+    queryKey: ["ranked-kutirs", rank, dateFrom, dateTo, level, geoId],
     queryFn: () =>
       fetchTopKutirsReport({
         date_from: dateFrom,
         date_to: dateTo,
         level,
         geo_id: Number(geoId),
+        rank,
       }),
     enabled,
   });
@@ -271,7 +275,7 @@ export default function TopKutirsReportPage() {
         }}
       >
         <h2 style={{ margin: 0, color: "var(--text-primary)", minWidth: 0 }}>
-          {report?.title ?? "Top 10 Kutirs"}
+          {report?.title ?? fallbackTitle}
         </h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
           <button
@@ -404,7 +408,8 @@ export default function TopKutirsReportPage() {
 
       {!enabled && (
         <p style={{ color: "var(--text-secondary)" }}>
-          Choose a time period and {promptLevel} to see the top 10 kutirs by average performance.
+          Choose a time period and {promptLevel} to see the{" "}
+          {rank === "bottom" ? "bottom" : "top"} 10 kutirs by average performance.
         </p>
       )}
 
