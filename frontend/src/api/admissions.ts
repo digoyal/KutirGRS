@@ -68,7 +68,12 @@ export interface StudentExamCreate {
 }
 
 // ── StudentProgress ──────────────────────────────────────────────────────────
-export type ProgressStatus = "enrolled" | "transferred" | "dropped_out" | "graduated";
+export type ProgressStatus =
+  | "enrolled"
+  | "transferred"
+  | "dropped_out"
+  | "graduated"
+  | "admitted_to_college";
 
 export interface StudentProgress {
   id: number;

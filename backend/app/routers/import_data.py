@@ -1074,7 +1074,13 @@ async def _import_progress(rows, db):
         )).scalars().all()
 
         status = _str(r.get("status", "enrolled"))
-        if status not in ("enrolled", "transferred", "dropped_out", "graduated"):
+        if status not in (
+            "enrolled",
+            "transferred",
+            "dropped_out",
+            "graduated",
+            "admitted_to_college",
+        ):
             errors.append(f"Invalid status '{status}' for student id={sid} — defaulting to enrolled")
             status = "enrolled"
 

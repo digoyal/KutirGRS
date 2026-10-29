@@ -149,7 +149,7 @@ class StudentProgressBase(BaseModel):
     school_id: int
     academic_year: int
     class_in_year: Optional[int] = None
-    status: str = "enrolled"  # enrolled | transferred | dropped_out | graduated
+    status: str = "enrolled"  # enrolled | transferred | dropped_out | graduated | admitted_to_college
     transfer_school: Optional[str] = None
     exit_reason: Optional[str] = None
     previous_year_percentage: Optional[Decimal] = None

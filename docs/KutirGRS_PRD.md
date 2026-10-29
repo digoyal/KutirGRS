@@ -155,7 +155,7 @@ Zone → District → Area → Cluster → Kutir
 ### 5.6 Progress
 
 - List / add / detail with year and geo filters; student search with father-aware labels.
-- Statuses: enrolled | transferred | dropped out | graduated (and related transfer school / exit reason fields).
+- Statuses: enrolled | transferred | dropped out | graduated | admitted to college (and related transfer school / exit reason fields).
 - **Bulk Progress Update** (route `new-year-setup`): choose year; filter students; bulk-create progress rows. Inclusion = **Admitted** ∪ prior-year Progress (deduped); students who already have Progress for the **target** year are omitted from the list (API still rejects duplicates on save). Class promotion = prior class + 1 (see §8.2). Transfer/dropout handling still open.
 
 ### 5.7 Kutir visits

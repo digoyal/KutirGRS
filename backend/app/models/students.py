@@ -163,7 +163,7 @@ class StudentProgress(Base, TimestampMixin):
     )
     academic_year: Mapped[int] = mapped_column(Integer, nullable=False)
     class_in_year: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)  # class 1-12
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="enrolled")  # enrolled|transferred|dropped_out|graduated
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="enrolled")  # enrolled|transferred|dropped_out|graduated|admitted_to_college
     transfer_school: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     exit_reason: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)  # dropout reason
     previous_year_percentage: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)

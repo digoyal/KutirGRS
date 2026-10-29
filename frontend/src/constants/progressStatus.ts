@@ -5,6 +5,7 @@ export const PROGRESS_STATUSES: ProgressStatus[] = [
   "transferred",
   "dropped_out",
   "graduated",
+  "admitted_to_college",
 ];
 
 /** Short labels for badges, table cells, and summary tiles. */
@@ -13,6 +14,7 @@ export const STATUS_LABELS: Record<ProgressStatus, string> = {
   transferred: "Transferred",
   dropped_out: "Dropped out",
   graduated: "Graduated",
+  admitted_to_college: "Admitted to College",
 };
 
 /** Longer labels for the status `<select>` on add/edit forms. */
@@ -21,6 +23,7 @@ export const STATUS_OPTIONS: { value: ProgressStatus; label: string }[] = [
   { value: "transferred", label: "Transferred to a different school" },
   { value: "dropped_out", label: "Dropped out" },
   { value: "graduated", label: "Graduated" },
+  { value: "admitted_to_college", label: "Admitted to College" },
 ];
 
 export const STATUS_BADGES: Record<
@@ -34,6 +37,11 @@ export const STATUS_BADGES: Record<
     bg: "var(--badge-green-bg, #d1fae5)",
     fg: "var(--badge-green-fg, #065f46)",
     prefix: "🎓 ",
+  },
+  admitted_to_college: {
+    bg: "var(--badge-teal-bg)",
+    fg: "var(--badge-teal-fg)",
+    prefix: "🏛 ",
   },
 };
 
@@ -61,5 +69,10 @@ export const STATUS_TILES: Record<
     bg: "var(--badge-green-bg, #d1fae5)",
     border: "var(--badge-green-fg, #065f46)",
     fg: "var(--badge-green-fg, #065f46)",
+  },
+  admitted_to_college: {
+    bg: "var(--badge-teal-bg)",
+    border: "var(--badge-teal-fg)",
+    fg: "var(--badge-teal-fg)",
   },
 };
