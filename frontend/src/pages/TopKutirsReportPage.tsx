@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { RowCountBadge } from "@parivaar/ui";
+import { RowCountBadge, styles } from "@parivaar/ui";
 import {
   listZones,
   listDistricts,
@@ -17,6 +17,22 @@ import {
   type TopKutirsGeoLevel,
   type TopKutirsReport,
 } from "../api/visits";
+
+const IconDownload = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+const IconPrint = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="6 9 6 2 18 2 18 9" />
+    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+    <rect x="6" y="14" width="12" height="8" />
+  </svg>
+);
 
 const today = () => new Date().toISOString().slice(0, 10);
 const yearStart = () => `${new Date().getFullYear()}-01-01`;
@@ -90,31 +106,66 @@ function stars(n: number) {
   return "★".repeat(full) + "☆".repeat(5 - full);
 }
 
-function exportCSV(report: TopKutirsReport) {
-  const hdr = [
+function reportColumns(report: TopKutirsReport): string[] {
+  return [
     ...(report.show_district ? ["District"] : []),
     ...(report.show_cluster ? ["Cluster"] : []),
     "Kutir Name",
     "Num Visits",
     "Avg Performance",
   ];
-  const rows = report.rows.map((r) => [
+}
+
+function reportRowValues(report: TopKutirsReport, r: TopKutirsReport["rows"][number]): string[] {
+  return [
     ...(report.show_district ? [r.district_name ?? ""] : []),
     ...(report.show_cluster ? [r.cluster_name ?? ""] : []),
     r.kutir_name,
     String(r.num_visits),
     r.avg_performance.toFixed(2),
-  ]);
+  ];
+}
+
+function exportCSV(report: TopKutirsReport) {
+  const hdr = reportColumns(report);
+  const rows = report.rows.map((r) => reportRowValues(report, r));
   const csv = [hdr, ...rows]
     .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
     .join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
+  a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
   a.download = `top10_kutirs_${report.level}_${report.geo_id}_${report.date_from}_${report.date_to}.csv`;
   a.click();
-  URL.revokeObjectURL(url);
+}
+
+function printReport(report: TopKutirsReport) {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  const thStyle =
+    "border:1px solid #ccc;padding:6px 10px;font-size:12px;background:#eef2fb;text-align:left;font-weight:600";
+  const tdStyle = "border:1px solid #e5e7eb;padding:6px 10px;font-size:12px";
+  const cols = reportColumns(report);
+  const ths = cols.map((c) => `<th style="${thStyle}">${c}</th>`).join("");
+  const trs = report.rows
+    .map((r, i) => {
+      const cells = reportRowValues(report, r)
+        .map((v) => `<td style="${tdStyle}">${v}</td>`)
+        .join("");
+      return `<tr style="background:${i % 2 === 0 ? "#ffffff" : "#f9fafb"}">${cells}</tr>`;
+    })
+    .join("");
+  w.document.write(
+    `<html><head><title>${report.title}</title></head><body style="font-family:sans-serif;padding:20px">` +
+      `<h2 style="margin:0 0 8px">${report.title}</h2>` +
+      `<p style="color:#6b7280;font-size:12px;margin:0 0 16px">${report.date_from} → ${report.date_to}</p>` +
+      `<table style="border-collapse:collapse;width:100%">` +
+      `<thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>` +
+      `<p style="color:#6b7280;font-size:12px;margin-top:12px">${report.rows.length} records</p>` +
+      `</body></html>`,
+  );
+  w.document.close();
+  w.focus();
+  w.print();
 }
 
 export default function TopKutirsReportPage() {
@@ -210,9 +261,47 @@ export default function TopKutirsReportPage() {
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
-      <h2 style={{ margin: "0 0 16px", color: "var(--text-primary)" }}>
-        {report?.title ?? "Top 10 Kutirs"}
-      </h2>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 16,
+          gap: 8,
+        }}
+      >
+        <h2 style={{ margin: 0, color: "var(--text-primary)", minWidth: 0 }}>
+          {report?.title ?? "Top 10 Kutirs"}
+        </h2>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => report && exportCSV(report)}
+            style={{
+              ...styles.btnIcon,
+              opacity: report ? 1 : 0.45,
+              cursor: report ? "pointer" : "not-allowed",
+            }}
+            title="Export CSV"
+            disabled={!report}
+          >
+            <IconDownload />
+          </button>
+          <button
+            type="button"
+            onClick={() => report && printReport(report)}
+            style={{
+              ...styles.btnIcon,
+              opacity: report ? 1 : 0.45,
+              cursor: report ? "pointer" : "not-allowed",
+            }}
+            title="Print"
+            disabled={!report}
+          >
+            <IconPrint />
+          </button>
+        </div>
+      </div>
 
       <div
         className="grs-form"
@@ -334,37 +423,16 @@ export default function TopKutirsReportPage() {
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
               alignItems: "center",
               marginBottom: 12,
-              gap: 8,
+              gap: 10,
               flexWrap: "wrap",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <RowCountBadge count={report.rows.length} />
-              <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-                {dateFrom} → {dateTo}
-              </span>
-            </div>
-            {report.rows.length > 0 && (
-              <button
-                type="button"
-                onClick={() => exportCSV(report)}
-                style={{
-                  background: "var(--status-success-bg)",
-                  color: "var(--status-success-fg)",
-                  border: "1px solid var(--status-success-fg)",
-                  borderRadius: 6,
-                  padding: "6px 14px",
-                  cursor: "pointer",
-                  fontSize: "0.82rem",
-                  fontWeight: 600,
-                }}
-              >
-                ↓ Export CSV
-              </button>
-            )}
+            <RowCountBadge count={report.rows.length} />
+            <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+              {dateFrom} → {dateTo}
+            </span>
           </div>
 
           {report.rows.length === 0 ? (
