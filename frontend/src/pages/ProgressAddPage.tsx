@@ -41,7 +41,7 @@ export default function ProgressAddPage() {
   }
 
   return (
-    <div style={{ padding: "24px 28px", maxWidth: 560 }}>
+    <div className="grs-page" style={{ padding: "24px 28px", maxWidth: 560, width: "100%", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button
           onClick={() => navigate(-1)}

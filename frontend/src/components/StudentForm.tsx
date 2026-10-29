@@ -279,7 +279,7 @@ export function StudentForm({
   }
 
   return (
-    <div>
+    <div className={readOnly ? undefined : "grs-form"}>
       <section style={sec}>
         <div style={secTitle}>Location</div>
         {readOnly ? (

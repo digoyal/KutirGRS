@@ -54,7 +54,7 @@ export default function AdmissionAddPage() {
     (!schoolRequired || (!!form.school_type && !!form.admitted_school_id));
 
   return (
-    <div style={{ maxWidth: 640, padding: "16px 20px" }}>
+    <div className="grs-page" style={{ maxWidth: 640, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button
           onClick={() => navigate(-1)}

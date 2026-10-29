@@ -220,7 +220,7 @@ export function ProgressForm({
   const yearLabel = isAdd ? "Year" : "Academic Year";
 
   return (
-    <div>
+    <div className={readOnly ? undefined : "grs-form"}>
       {isAdd && (
         <>
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
@@ -533,7 +533,7 @@ const inp: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 6,
   padding: "7px 10px",
-  fontSize: "0.875rem",
+  fontSize: 16, // ≥16px — iOS Safari zooms focused controls under 16px
   boxSizing: "border-box",
   background: "var(--bg-input)",
   color: "var(--text-primary)",

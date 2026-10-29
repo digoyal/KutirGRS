@@ -100,7 +100,7 @@ export function ExamCenterForm({
   }
 
   return (
-    <div>
+    <div className={readOnly ? undefined : "grs-form"}>
       {wrapSection(
         "Details",
         field(

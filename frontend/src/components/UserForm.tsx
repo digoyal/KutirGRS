@@ -249,7 +249,7 @@ export function UserForm({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div className="grs-form" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {/* Username + Password */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div>

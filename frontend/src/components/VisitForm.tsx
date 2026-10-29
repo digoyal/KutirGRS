@@ -594,7 +594,7 @@ export function VisitForm({
 
   // ── ADD / EDIT ─────────────────────────────────────────────────────────────
   return (
-    <div>
+    <div className="grs-form">
       <SectionHead label="Visit Info" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
         <div>

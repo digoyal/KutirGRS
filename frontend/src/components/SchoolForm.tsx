@@ -92,7 +92,7 @@ export function SchoolForm({ form, setForm, mode, districtName }: SchoolFormProp
   }
 
   return (
-    <div>
+    <div className={readOnly ? undefined : "grs-form"}>
       {wrapSection(
         "Details",
         <>

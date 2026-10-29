@@ -30,7 +30,7 @@ export default function VisitAddPage() {
   }
 
   return (
-    <div className="grs-page" style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px" }}>
+    <div className="grs-page" style={{ maxWidth: 720, width: "100%", boxSizing: "border-box", margin: "0 auto", padding: "24px 16px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button
           onClick={() => navigate(-1)}

@@ -687,7 +687,7 @@ export function AdmissionForm({
 
   // ── ADD / EDIT ─────────────────────────────────────────────────────────────
   return (
-    <div>
+    <div className="grs-form">
       {/* Student */}
       <section style={sec}>
         <div style={secTitle}>Student</div>

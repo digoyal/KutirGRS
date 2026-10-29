@@ -56,7 +56,8 @@ Entity list columns, Column Config, CSV export, and form field labels must come 
 
 - UI must work on **~375px phone and desktop**. Keep viewport meta (`width=device-width, initial-scale=1`).
 - Touch targets ≥ ~40px where practical. No hover-only critical actions.
-- Forms: full-width controls; stack fields on narrow screens; avoid multi-column grids that crush below ~640px.
+- **Input font-size ≥16px on mobile** (and prefer ≥16px in shared `input`/`select` tokens). iOS Safari auto-zooms focused text controls under 16px and often leaves the page zoomed until the user pinches out — Add/Edit forms then look cropped. View mode is usually fine because it uses `ViewField` (no inputs). Do not “fix” with `maximum-scale=1` / `user-scalable=no` (hurts accessibility).
+- Forms: most entities share one `*Form` for Add/Edit/View (`mode`); Users share `UserForm` for Add/Edit only (View is separate on Detail). Put `className="grs-form"` on the Add/Edit root (not View). Full-width controls; stack fields on narrow screens via `.grs-form` / avoid multi-column grids that crush below ~640px. Form shells: `max-width: 100%`, `box-sizing: border-box`, `min-width: 0`.
 - No document-level horizontal overflow: scroll **inside** tables/cards; use `min-width: 0` on flex children.
 - Preserve hamburger / drawer nav behavior on phone (open, overlay dismiss, close on navigate). Desktop sidebar stays visible; hamburger hidden.
 - **Collapsible filters (≤640px):** list-page filters in GrsTable / `@parivaar/ui` Table collapse behind a Filters toggle with an active-count badge; desktop stays expanded. Prefer Table `filters` slot + `activeFilterCount` — do not reinvent per page. Pass `activeFilterCount` when page filters are set so the badge works. Persistence stays page-level (`usePersistedFilters`).

@@ -48,7 +48,7 @@ export default function ExamCenterAddPage() {
   }
 
   return (
-    <div style={{ maxWidth: 600, padding: "16px 20px" }}>
+    <div className="grs-page" style={{ maxWidth: 600, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
         <button
           style={{

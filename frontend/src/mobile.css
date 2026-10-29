@@ -30,6 +30,36 @@
 }
 
 @media (max-width: 640px) {
+  /*
+   * iOS Safari zooms the viewport when a focused text control is <16px.
+   * That zoom often sticks after blur, so Add/Edit forms look "zoomed in"
+   * until the user pinches out. Keep controls ≥16px; !important beats
+   * inline fontSize: 14 overrides on form fields.
+   */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Form / page shells: fit the phone width; avoid horizontal overflow */
+  .grs-page {
+    max-width: 100% !important;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+  }
+
+  /* Add/Edit only (.grs-form) — View uses ViewField and already fits */
+  .grs-form {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .grs-form [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
   /* Tighten page padding */
   .grs-page { padding: 14px 12px !important; }
 

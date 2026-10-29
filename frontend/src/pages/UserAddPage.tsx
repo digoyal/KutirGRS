@@ -41,7 +41,7 @@ export default function UserAddPage() {
   }
 
   return (
-    <div style={{ maxWidth: 640, padding: "16px 20px" }}>
+    <div className="grs-page" style={{ maxWidth: 640, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
         <button style={{ background: "none", border: "none", color: "var(--link-color)", cursor: "pointer", fontSize: 14, padding: 0 }}
           onClick={() => navigate(-1)}>← Back</button>

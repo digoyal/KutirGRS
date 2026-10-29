@@ -38,7 +38,7 @@ export default function StudentAddPage() {
   }
 
   return (
-    <div style={{ padding: "16px 20px", maxWidth: 600 }}>
+    <div className="grs-page" style={{ padding: "16px 20px", maxWidth: 600, width: "100%", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
         <button
           onClick={() => navigate(-1)}
