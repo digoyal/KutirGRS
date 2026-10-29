@@ -43,8 +43,8 @@ const dateStyle: React.CSSProperties = {
   padding: "8px 1.35rem 8px 10px",
 };
 
-/** Geo level / Zone / District / Cluster — only these look accented. */
-const geoSelectStyle: React.CSSProperties = {
+/** Accent only on Geo Level — Zone/District/Cluster use defaultControlStyle. */
+const geoLevelSelectStyle: React.CSSProperties = {
   border: "1.5px solid var(--badge-blue-fg)",
   borderRadius: 6,
   padding: "6px 8px",
@@ -229,7 +229,7 @@ export default function TopKutirsReportPage() {
           <select
             value={level}
             onChange={(e) => onLevelChange(e.target.value as TopKutirsGeoLevel)}
-            style={geoSelectStyle}
+            style={geoLevelSelectStyle}
           >
             <option value="zone">Zone</option>
             <option value="district">District</option>
@@ -238,11 +238,11 @@ export default function TopKutirsReportPage() {
         </div>
         {showZone && (
           <div style={geoFieldStyle}>
-            <label style={geoLabelStyle}>Zone</label>
+            <label style={labelStyle}>Zone</label>
             <select
               value={zoneId === "" ? "" : String(zoneId)}
               onChange={(e) => onZoneChange(e.target.value ? Number(e.target.value) : "")}
-              style={geoSelectStyle}
+              style={defaultControlStyle}
             >
               <option value="">Select…</option>
               {zones.map((z) => (
@@ -255,11 +255,11 @@ export default function TopKutirsReportPage() {
         )}
         {showDistrict && (
           <div style={geoFieldStyle}>
-            <label style={geoLabelStyle}>District</label>
+            <label style={labelStyle}>District</label>
             <select
               value={districtId === "" ? "" : String(districtId)}
               onChange={(e) => onDistrictChange(e.target.value ? Number(e.target.value) : "")}
-              style={geoSelectStyle}
+              style={defaultControlStyle}
               disabled={zoneId === ""}
             >
               <option value="">{zoneId === "" ? "Select zone first…" : "Select…"}</option>
@@ -273,11 +273,11 @@ export default function TopKutirsReportPage() {
         )}
         {showCluster && (
           <div style={geoFieldStyle}>
-            <label style={geoLabelStyle}>Cluster</label>
+            <label style={labelStyle}>Cluster</label>
             <select
               value={clusterId === "" ? "" : String(clusterId)}
               onChange={(e) => setClusterId(e.target.value ? Number(e.target.value) : "")}
-              style={geoSelectStyle}
+              style={defaultControlStyle}
               disabled={districtId === ""}
             >
               <option value="">
