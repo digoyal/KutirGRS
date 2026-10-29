@@ -26,14 +26,18 @@ type FilterId = number | "";
 const selectStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 6,
-  padding: "8px 12px",
+  padding: "8px 10px",
   fontSize: "16px",
   minWidth: 0,
   width: "100%",
-  maxWidth: 280,
   background: "var(--bg-input)",
   color: "var(--text-primary)",
   boxSizing: "border-box",
+};
+
+const fieldStyle: React.CSSProperties = {
+  flex: "1 1 0",
+  minWidth: 120,
 };
 
 const labelStyle: React.CSSProperties = {
@@ -178,30 +182,12 @@ export default function TopKutirsReportPage() {
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: 12,
+          gap: 10,
           marginBottom: 20,
           alignItems: "flex-end",
         }}
       >
-        <div style={{ flex: "1 1 140px", minWidth: 0 }}>
-          <label style={labelStyle}>From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            style={selectStyle}
-          />
-        </div>
-        <div style={{ flex: "1 1 140px", minWidth: 0 }}>
-          <label style={labelStyle}>To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            style={selectStyle}
-          />
-        </div>
-        <div style={{ flex: "1 1 140px", minWidth: 0 }}>
+        <div style={fieldStyle}>
           <label style={labelStyle}>Geo level</label>
           <select
             value={level}
@@ -214,7 +200,7 @@ export default function TopKutirsReportPage() {
           </select>
         </div>
         {showZone && (
-          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+          <div style={fieldStyle}>
             <label style={labelStyle}>Zone</label>
             <select
               value={zoneId === "" ? "" : String(zoneId)}
@@ -231,7 +217,7 @@ export default function TopKutirsReportPage() {
           </div>
         )}
         {showDistrict && (
-          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+          <div style={fieldStyle}>
             <label style={labelStyle}>District</label>
             <select
               value={districtId === "" ? "" : String(districtId)}
@@ -249,7 +235,7 @@ export default function TopKutirsReportPage() {
           </div>
         )}
         {showCluster && (
-          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+          <div style={fieldStyle}>
             <label style={labelStyle}>Cluster</label>
             <select
               value={clusterId === "" ? "" : String(clusterId)}
@@ -268,6 +254,24 @@ export default function TopKutirsReportPage() {
             </select>
           </div>
         )}
+        <div style={fieldStyle}>
+          <label style={labelStyle}>From</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={selectStyle}
+          />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>To</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            style={selectStyle}
+          />
+        </div>
       </div>
 
       {!enabled && (
