@@ -23,11 +23,13 @@ const yearStart = () => `${new Date().getFullYear()}-01-01`;
 
 type FilterId = number | "";
 
-const controlStyle: React.CSSProperties = {
+/** From/To — light outline, regular weight (distinct from geo). */
+const dateControlStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 6,
   padding: "6px 8px",
   fontSize: "14px",
+  fontWeight: 400,
   minWidth: 0,
   width: "100%",
   background: "var(--bg-input)",
@@ -37,8 +39,22 @@ const controlStyle: React.CSSProperties = {
 
 /** End padding tuned with .top-kutirs-date CSS — clear of icon, no large gap. */
 const dateStyle: React.CSSProperties = {
-  ...controlStyle,
+  ...dateControlStyle,
   padding: "6px 1.65rem 6px 8px",
+};
+
+/** Geo level / Zone / District / Cluster — darker outline + bold. */
+const geoSelectStyle: React.CSSProperties = {
+  border: "1.5px solid var(--badge-blue-fg)",
+  borderRadius: 6,
+  padding: "6px 8px",
+  fontSize: "14px",
+  fontWeight: 700,
+  minWidth: 0,
+  width: "100%",
+  background: "var(--badge-blue-bg)",
+  color: "var(--badge-blue-fg)",
+  boxSizing: "border-box",
 };
 
 const geoFieldStyle: React.CSSProperties = {
@@ -53,11 +69,19 @@ const dateFieldStyle: React.CSSProperties = {
   minWidth: 140,
 };
 
-const labelStyle: React.CSSProperties = {
+const dateLabelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "0.78rem",
   fontWeight: 600,
   color: "var(--text-secondary)",
+  marginBottom: 4,
+};
+
+const geoLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "0.78rem",
+  fontWeight: 700,
+  color: "var(--badge-blue-fg)",
   marginBottom: 4,
 };
 
@@ -201,11 +225,11 @@ export default function TopKutirsReportPage() {
         }}
       >
         <div style={geoFieldStyle}>
-          <label style={labelStyle}>Geo level</label>
+          <label style={geoLabelStyle}>Geo level</label>
           <select
             value={level}
             onChange={(e) => onLevelChange(e.target.value as TopKutirsGeoLevel)}
-            style={controlStyle}
+            style={geoSelectStyle}
           >
             <option value="zone">Zone</option>
             <option value="district">District</option>
@@ -214,11 +238,11 @@ export default function TopKutirsReportPage() {
         </div>
         {showZone && (
           <div style={geoFieldStyle}>
-            <label style={labelStyle}>Zone</label>
+            <label style={geoLabelStyle}>Zone</label>
             <select
               value={zoneId === "" ? "" : String(zoneId)}
               onChange={(e) => onZoneChange(e.target.value ? Number(e.target.value) : "")}
-              style={controlStyle}
+              style={geoSelectStyle}
             >
               <option value="">Select…</option>
               {zones.map((z) => (
@@ -231,11 +255,11 @@ export default function TopKutirsReportPage() {
         )}
         {showDistrict && (
           <div style={geoFieldStyle}>
-            <label style={labelStyle}>District</label>
+            <label style={geoLabelStyle}>District</label>
             <select
               value={districtId === "" ? "" : String(districtId)}
               onChange={(e) => onDistrictChange(e.target.value ? Number(e.target.value) : "")}
-              style={controlStyle}
+              style={geoSelectStyle}
               disabled={zoneId === ""}
             >
               <option value="">{zoneId === "" ? "Select zone first…" : "Select…"}</option>
@@ -249,11 +273,11 @@ export default function TopKutirsReportPage() {
         )}
         {showCluster && (
           <div style={geoFieldStyle}>
-            <label style={labelStyle}>Cluster</label>
+            <label style={geoLabelStyle}>Cluster</label>
             <select
               value={clusterId === "" ? "" : String(clusterId)}
               onChange={(e) => setClusterId(e.target.value ? Number(e.target.value) : "")}
-              style={controlStyle}
+              style={geoSelectStyle}
               disabled={districtId === ""}
             >
               <option value="">
@@ -268,7 +292,7 @@ export default function TopKutirsReportPage() {
           </div>
         )}
         <div style={dateFieldStyle}>
-          <label style={labelStyle}>From</label>
+          <label style={dateLabelStyle}>From</label>
           <input
             type="date"
             className="top-kutirs-date"
@@ -278,7 +302,7 @@ export default function TopKutirsReportPage() {
           />
         </div>
         <div style={dateFieldStyle}>
-          <label style={labelStyle}>To</label>
+          <label style={dateLabelStyle}>To</label>
           <input
             type="date"
             className="top-kutirs-date"
