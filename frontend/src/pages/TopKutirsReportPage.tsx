@@ -35,10 +35,10 @@ const controlStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-/** Right padding cleared via .top-kutirs-date CSS (icon must not cover YYYY-MM-DD). */
+/** End padding tuned with .top-kutirs-date CSS — clear of icon, no large gap. */
 const dateStyle: React.CSSProperties = {
   ...controlStyle,
-  padding: "6px 2.75rem 6px 8px",
+  padding: "6px 1.65rem 6px 8px",
 };
 
 const geoFieldStyle: React.CSSProperties = {
@@ -48,9 +48,9 @@ const geoFieldStyle: React.CSSProperties = {
 };
 
 const dateFieldStyle: React.CSSProperties = {
-  flex: "0 0 168px",
-  maxWidth: 180,
-  minWidth: 160,
+  flex: "0 0 148px",
+  maxWidth: 156,
+  minWidth: 140,
 };
 
 const labelStyle: React.CSSProperties = {
