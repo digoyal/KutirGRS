@@ -191,6 +191,48 @@
 
   .visit-add-card {
     padding: 14px 16px !important;
+    min-width: 0;
+  }
+
+  .visit-form-materials-grid,
+  .visit-form-registers-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .visit-form-detail-grid {
+    grid-template-columns: 1fr !important;
+    gap: 4px 0 !important;
+  }
+
+  .visit-form-rating-row {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+  }
+
+  .visit-form-rating-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+  }
+
+  .visit-form-stars {
+    flex-shrink: 0 !important;
+    gap: 1px !important;
+  }
+
+  .visit-form-stars > span {
+    font-size: 1rem !important;
+    line-height: 1;
+  }
+
+  .visit-form-ratings {
+    min-width: 0;
+    max-width: 100%;
   }
 }
 
@@ -346,13 +388,16 @@
     z-index: 299;
   }
 
-  /* Main content takes full width; clear fixed hamburger so Back stays tappable.
-   * Use .grs-main — many Detail pages omit .grs-page. padding-left keeps Back
-   * clear of the 40×40 menu (top/left 12) even when content scrolls. */
+  /*
+   * Full-width content with normal horizontal inset. Fixed hamburger overlays the
+   * top-left corner — use padding-top (not padding-left) so rows below the menu
+   * are not pushed into a permanent left gutter.
+   */
   .grs-main {
     min-width: 0 !important;
-    padding-left: 56px !important;
-    padding-top: 12px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    padding-top: 56px !important;
     box-sizing: border-box !important;
   }
 
@@ -375,15 +420,11 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.25);
   }
 
-  /*
-   * Hamburger clearance lives on .grs-main (padding-left 56). Do not add a second
-   * left inset on .grs-page — that double-count looked like a wide empty gutter
-   * on Geography / Lookups vs Kutirs / Students.
-   */
+  /* Page shells: horizontal inset comes from .grs-main; avoid double left gutter. */
   .grs-main .grs-page {
     padding-top: 0 !important;
     padding-left: 0 !important;
-    padding-right: 12px !important;
+    padding-right: 0 !important;
     padding-bottom: 14px !important;
     width: 100% !important;
     max-width: 100% !important;

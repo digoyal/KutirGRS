@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, devices, type Page } from "@playwright/test";
 import { loginAsAdmin } from "./helpers";
 
 /**
@@ -121,4 +121,76 @@ test.describe("Forms mobile layout (~390px)", () => {
       await assertNoHorizontalOverflow(page, `${label} (${path})`);
     }
   });
+});
+
+test("visit edit ratings — iPhone 16 Pro layout", async ({ browser }) => {
+  const context = await browser.newContext({ ...devices["iPhone 16 Pro"] });
+  const page = await context.newPage();
+  try {
+    await loginAsAdmin(page);
+    const visitId = await firstListId(page, "/kutir-visits");
+    await page.goto(`/visits/detail/${visitId}?edit=1`);
+    await page.waitForLoadState("domcontentloaded");
+    await page.getByText("Ratings (1 = Poor").scrollIntoViewIfNeeded();
+
+    const layout = await page.evaluate(() => {
+      const root = document.documentElement;
+      const main = document.querySelector(".grs-main");
+      const pageEl = document.querySelector(".visit-add-page");
+      const card = document.querySelector(".visit-add-card");
+      const mainCs = main ? getComputedStyle(main) : null;
+      const pageCs = pageEl ? getComputedStyle(pageEl) : null;
+      const cardCs = card ? getComputedStyle(card) : null;
+      const rows = Array.from(document.querySelectorAll(".visit-form-rating-row"));
+      const vw = root.clientWidth;
+      const starsClip = rows.some((row) => {
+        const stars = row.querySelector(".visit-form-stars");
+        if (!stars) return false;
+        const r = stars.getBoundingClientRect();
+        return r.right > vw + 1 || r.left < 0;
+      });
+      const ratingRowsSameLine = rows.every((row) => {
+        const cs = getComputedStyle(row);
+        if (cs.flexDirection.startsWith("column")) return false;
+        const label = row.querySelector(".visit-form-rating-label");
+        const stars = row.querySelector(".visit-form-stars");
+        if (!label || !stars) return false;
+        const lr = label.getBoundingClientRect();
+        const sr = stars.getBoundingClientRect();
+        return Math.abs(lr.top - sr.top) < 10 && sr.left >= lr.left - 1;
+      });
+      const mainRect = main?.getBoundingClientRect();
+      const pageLeft = pageEl?.getBoundingClientRect().left ?? null;
+      const mainPadLeft = mainCs ? parseFloat(mainCs.paddingLeft) : 0;
+      const contentInsetFromMain =
+        mainRect && pageLeft != null ? pageLeft - (mainRect.left + mainPadLeft) : null;
+      return {
+        scrollOverflow: root.scrollWidth - root.clientWidth,
+        mainPaddingLeft: mainCs?.paddingLeft ?? null,
+        mainPaddingTop: mainCs?.paddingTop ?? null,
+        pagePaddingLeft: pageCs?.paddingLeft ?? null,
+        pageContentLeft: pageLeft,
+        contentInsetFromMain,
+        cardPaddingLeft: cardCs?.paddingLeft ?? null,
+        cardPaddingRight: cardCs?.paddingRight ?? null,
+        starsClip,
+        ratingRowsSameLine,
+        ratingRowCount: rows.length,
+      };
+    });
+
+    expect(layout.ratingRowCount, "expected visit rating rows").toBeGreaterThan(0);
+    expect(layout.mainPaddingLeft, "shell uses small inset, not menu column").toBe("12px");
+    expect(layout.mainPaddingTop, "clear fixed hamburger vertically").toBe("56px");
+    expect(layout.pagePaddingLeft).toBe("0px");
+    expect(layout.pageContentLeft, "no 56px reserved menu column").toBeLessThan(44);
+    expect(layout.contentInsetFromMain, ".grs-page aligns with .grs-main content box").toBeLessThanOrEqual(2);
+    expect(layout.cardPaddingLeft, "visit card keeps inner padding").toBe("16px");
+    expect(layout.cardPaddingRight).toBe("16px");
+    expect(layout.scrollOverflow).toBeLessThanOrEqual(OVERFLOW_TOLERANCE_PX);
+    expect(layout.starsClip, "star rows must not clip at viewport edge").toBe(false);
+    expect(layout.ratingRowsSameLine, "label and stars stay on one row").toBe(true);
+  } finally {
+    await context.close();
+  }
 });

@@ -106,7 +106,7 @@ function StarRating({
   readOnly?: boolean;
 }) {
   return (
-    <span style={{ display: "inline-flex", gap: 2 }}>
+    <span className="visit-form-stars" style={{ display: "inline-flex", gap: 2, flexShrink: 0 }}>
       {[1, 2, 3, 4, 5].map((n) => (
         <span
           key={n}
@@ -173,15 +173,19 @@ function RatingRow({
 }) {
   return (
     <div
+      className="visit-form-rating-row"
       style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         padding: "6px 0",
         borderBottom: "1px solid var(--border)",
+        minWidth: 0,
       }}
     >
-      <span style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>{label}</span>
+      <span className="visit-form-rating-label" style={{ color: "var(--text-primary)", minWidth: 0 }}>
+        {label}
+      </span>
       <StarRating value={value} onChange={onChange} readOnly={readOnly} />
     </div>
   );
@@ -364,7 +368,7 @@ export function VisitForm({
         )}
 
         <ViewSectionHead label="Visit Info" />
-        <div style={detailGrid}>
+        <div className="visit-form-detail-grid" style={detailGrid}>
           <span style={detailLabel}>{visitFieldLabel("kutir_id")}</span>
           <span style={detailValue}>{resolvedKutirName}</span>
           <span style={detailLabel}>{visitFieldLabel("visit_date")}</span>
@@ -562,7 +566,7 @@ export function VisitForm({
         </div>
 
         <ViewSectionHead label="Ratings (1 = Poor, 5 = Excellent)" />
-        <div>
+        <div className="visit-form-ratings">
           {RATING_FIELD_KEYS.map((key) => (
             <RatingRow
               key={key}
@@ -914,7 +918,10 @@ export function VisitForm({
         )}
 
         <SectionHead label="Registers & Materials" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+        <div
+          className="visit-form-materials-grid"
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}
+        >
           <div>
             <label style={grs.fieldLabel}>{visitFieldLabel("physical_vs_registered")}</label>
             <select
@@ -969,7 +976,10 @@ export function VisitForm({
           </div>
         </div>
         <SectionHead label="Registers Checked" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 24px", marginBottom: 4 }}>
+        <div
+          className="visit-form-registers-grid"
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 24px", marginBottom: 4 }}
+        >
           {REGISTER_FIELDS.map(([key, label]) => (
             <CheckRow
               key={key}
@@ -981,7 +991,7 @@ export function VisitForm({
         </div>
 
         <SectionHead label="Ratings (1 = Poor, 5 = Excellent)" />
-        <div>
+        <div className="visit-form-ratings">
           {RATING_FIELD_KEYS.map((key) => (
             <RatingRow
               key={key}
