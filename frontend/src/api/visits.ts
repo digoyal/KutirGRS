@@ -101,9 +101,26 @@ export const BLANK_VISIT: KutirVisitCreate = {
   final_remarks: null,
 };
 
-export async function listVisits(params: { kutir_id?: number; limit?: number } = {}): Promise<KutirVisit[]> {
-  const { data } = await api.get("/kutir-visits", { params: { limit: 200, ...params } });
+export interface VisitsListParams {
+  kutir_id?: number;
+  visited_by_id?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface VisitsPage {
+  items: KutirVisit[];
+  total: number;
+}
+
+export async function listVisits(params: VisitsListParams = {}): Promise<KutirVisit[]> {
+  const { data } = await api.get("/kutir-visits", { params });
   return data;
+}
+
+export async function listVisitsPaged(params: VisitsListParams = {}): Promise<VisitsPage> {
+  const { data, headers } = await api.get("/kutir-visits", { params });
+  return { items: data, total: parseInt(headers["x-total-count"] ?? "0", 10) };
 }
 
 export async function getVisit(id: number): Promise<KutirVisit> {

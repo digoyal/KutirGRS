@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100vh",
+    minHeight: "100svh",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",

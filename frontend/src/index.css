@@ -50,9 +50,13 @@
   }
 }
 
+html {
+  overflow-x: clip;
+}
+
 #root {
-  width: 1126px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 1126px;
   margin: 0 auto;
   text-align: left;
   border-inline: 1px solid var(--border);
@@ -64,6 +68,7 @@
 
 body {
   margin: 0;
+  overflow-x: clip;
 }
 
 h1,
@@ -240,6 +245,17 @@ input.top-kutirs-date[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 /* @parivaar/ui table-shell: filter row fits beside search without card clip */
+/* Touch-friendly horizontal scroll for wide tables (list pages) */
+.ui-table-shell > div:nth-child(2) > div:last-child {
+  -webkit-overflow-scrolling: touch;
+}
+
+.grs-scroll-x {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
 @media (min-width: 641px) {
   .grs-filter-row > .grs-search-input {
     --grs-search-w: 200px;

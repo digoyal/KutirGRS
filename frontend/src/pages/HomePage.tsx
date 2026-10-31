@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import api from "../api/client";
 import { getAdmissionFunnel } from "../api/admissions";
+import { listKutirsPaged } from "../api/kutirs";
+import { listStudentsPaged } from "../api/students";
+import { listVisitsPaged } from "../api/visits";
 import { STAGES, FUNNEL_STAGE_LABELS, type StageKey } from "../components/admissions-pipeline";
 import { useAuth } from "../context/AuthContext";
 
@@ -129,19 +131,19 @@ export default function HomePage() {
   const { user } = useAuth();
   const currentYear = new Date().getFullYear();
 
-  const { data: students = [] } = useQuery({
-    queryKey: ["students-all"],
-    queryFn: async () => (await api.get("/students", { params: { limit: 5000 } })).data as any[],
+  const { data: studentTotal = 0 } = useQuery({
+    queryKey: ["home-student-count"],
+    queryFn: async () => (await listStudentsPaged({ limit: 1 })).total,
   });
 
-  const { data: kutirs = [] } = useQuery({
-    queryKey: ["kutirs"],
-    queryFn: async () => (await api.get("/kutirs", { params: { limit: 500 } })).data as any[],
+  const { data: kutirTotal = 0 } = useQuery({
+    queryKey: ["home-kutir-count"],
+    queryFn: async () => (await listKutirsPaged({ limit: 1 })).total,
   });
 
-  const { data: visits = [] } = useQuery({
-    queryKey: ["visits-recent"],
-    queryFn: async () => (await api.get("/kutir-visits", { params: { limit: 10 } })).data as any[],
+  const { data: visitTotal = 0 } = useQuery({
+    queryKey: ["home-visit-count"],
+    queryFn: async () => (await listVisitsPaged({ limit: 1 })).total,
   });
 
   const { data: funnel } = useQuery({
@@ -159,7 +161,7 @@ export default function HomePage() {
   const statCards: StatCard[] = [
     {
       label: "Total Students",
-      value: students.length,
+      value: studentTotal,
       sub: "enrolled in kutirs",
       color: "var(--text-primary)",
       bg: "var(--badge-blue-bg)",
@@ -167,7 +169,7 @@ export default function HomePage() {
     },
     {
       label: "Active Kutirs",
-      value: kutirs.length,
+      value: kutirTotal,
       sub: "centres",
       color: "var(--status-success-fg)",
       bg: "var(--status-success-bg)",
@@ -183,7 +185,7 @@ export default function HomePage() {
     },
     {
       label: "Visits Logged",
-      value: visits.length,
+      value: visitTotal,
       sub: "total records",
       color: "var(--badge-purple-fg)",
       bg: "var(--badge-purple-bg)",
@@ -192,7 +194,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 960 }}>
+    <div className="grs-page" style={{ padding: "28px 32px", maxWidth: 960, width: "100%", boxSizing: "border-box" }}>
       <div style={{ marginBottom: 28 }}>
         <h2 style={{ margin: 0, color: "var(--text-primary)", fontSize: "1.35rem" }}>
           Welcome back, {user?.username}

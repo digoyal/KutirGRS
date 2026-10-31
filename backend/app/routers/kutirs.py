@@ -1,6 +1,6 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -54,22 +54,35 @@ async def _get_kutir_detail(db: AsyncSession, kutir_id: int) -> KutirDetail:
 
 @router.get("", response_model=list[KutirOut])
 async def list_kutirs(
+    response: Response,
     cluster_id: Optional[int] = Query(None),
     district_id: Optional[int] = Query(None),
     kutir_type: Optional[str] = Query(None),
+    limit: Optional[int] = Query(None),
+    offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
-    q = select(Kutir).order_by(Kutir.name)
-    if scope is not None:
-        q = q.where(Kutir.id.in_(scope))
-    if cluster_id:
-        q = q.where(Kutir.cluster_id == cluster_id)
-    if district_id:
-        q = q.where(Kutir.district_id == district_id)
-    if kutir_type:
-        q = q.where(Kutir.kutir_type == kutir_type)
-    result = await db.execute(q)
+    def _apply_filters(q):
+        if scope is not None:
+            q = q.where(Kutir.id.in_(scope))
+        if cluster_id:
+            q = q.where(Kutir.cluster_id == cluster_id)
+        if district_id:
+            q = q.where(Kutir.district_id == district_id)
+        if kutir_type:
+            q = q.where(Kutir.kutir_type == kutir_type)
+        return q
+
+    count_q = _apply_filters(select(func.count()).select_from(Kutir))
+    total = (await db.execute(count_q)).scalar_one()
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
+
+    data_q = _apply_filters(select(Kutir)).order_by(Kutir.name)
+    if limit is not None:
+        data_q = data_q.limit(limit).offset(offset)
+    result = await db.execute(data_q)
     return result.scalars().all()
 
 

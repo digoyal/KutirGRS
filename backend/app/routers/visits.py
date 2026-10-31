@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Literal, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 import os, uuid, shutil
@@ -71,19 +71,32 @@ def _media(sub: str) -> str:
 # ── List ─────────────────────────────────────────────────────────────────────
 @router.get("/kutir-visits", response_model=list[KutirVisitOut], tags=["Kutir Visits"])
 async def list_visits(
+    response: Response,
     kutir_id: Optional[int] = Query(None),
     visited_by_id: Optional[int] = Query(None),
+    limit: Optional[int] = Query(None),
+    offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
-    q = select(KutirVisit)
-    if scope is not None:
-        q = q.where(KutirVisit.kutir_id.in_(scope))
-    if kutir_id:
-        q = q.where(KutirVisit.kutir_id == kutir_id)
-    if visited_by_id:
-        q = q.where(KutirVisit.visited_by_id == visited_by_id)
-    result = await db.execute(q.order_by(KutirVisit.visit_date.desc()))
+    def _apply_filters(q):
+        if scope is not None:
+            q = q.where(KutirVisit.kutir_id.in_(scope))
+        if kutir_id:
+            q = q.where(KutirVisit.kutir_id == kutir_id)
+        if visited_by_id:
+            q = q.where(KutirVisit.visited_by_id == visited_by_id)
+        return q
+
+    count_q = _apply_filters(select(func.count()).select_from(KutirVisit))
+    total = (await db.execute(count_q)).scalar_one()
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
+
+    data_q = _apply_filters(select(KutirVisit)).order_by(KutirVisit.visit_date.desc())
+    if limit is not None:
+        data_q = data_q.limit(limit).offset(offset)
+    result = await db.execute(data_q)
     return result.scalars().all()
 
 

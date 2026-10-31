@@ -30,7 +30,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={styles.layout}>
+    <div style={styles.layout} className="grs-dashboard">
       {/* Mobile hamburger */}
       <button className="grs-hamburger" onClick={() => setNavOpen(o => !o)} aria-label="Menu">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -119,7 +119,13 @@ const navItems: {
 ];
 
 const styles: Record<string, React.CSSProperties> = {
-  layout: { display: "flex", height: "100vh", overflow: "hidden", fontFamily: "sans-serif" },
+  layout: {
+    display: "flex",
+    height: "100svh",
+    overflow: "hidden",
+    fontFamily: "sans-serif",
+    minHeight: 0,
+  },
   sidebar: {
     width: 220,
     background: "var(--nav-bg)",
@@ -133,5 +139,5 @@ const styles: Record<string, React.CSSProperties> = {
   },
   nav: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
   userInfo: { marginTop: "auto", padding: "8px 0", borderTop: "1px solid #2d4a7a", textAlign: "left" as const },
-  main: { flex: 1, padding: "0", overflowY: "auto" },
+  main: { flex: 1, padding: "0", overflowY: "auto", minHeight: 0, minWidth: 0 },
 };

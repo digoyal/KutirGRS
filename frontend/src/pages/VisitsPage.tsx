@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import api from "../api/client";
 import { listVisits, deleteVisit } from "../api/visits";
+import { listKutirs, type Kutir } from "../api/kutirs";
 import type { KutirVisit } from "../api/visits";
 import { useAuth } from "../context/AuthContext";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
@@ -20,8 +20,6 @@ import { countActiveFilters, scopeClusters, scopeDistricts, type FilterId } from
 
 const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
 const STORAGE_KEY = "visits_filter_state";
-
-interface Kutir { id: number; name: string; code: string; cluster_id: number; }
 
 function StarRating({ value, readOnly }: { value: number; readOnly?: boolean; }) {
   return (
@@ -65,7 +63,7 @@ export default function VisitsPage() {
 
   const { data: kutirs = [] } = useQuery<Kutir[]>({
     queryKey: ["kutirs"],
-    queryFn: async () => (await api.get("/kutirs", { params: { limit: 500 } })).data,
+    queryFn: () => listKutirs(),
   });
   const kutirMap = useMemo(() => new Map(kutirs.map((k) => [k.id, k])), [kutirs]);
 
@@ -153,7 +151,6 @@ export default function VisitsPage() {
         return (
           <>
             <span style={{ fontWeight: 600, color: "var(--badge-blue-fg)" }}>{kutir?.name ?? `#${v.kutir_id}`}</span>
-            {kutir && <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: 6 }}>{kutir.code}</span>}
           </>
         );
       },

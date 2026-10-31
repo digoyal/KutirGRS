@@ -40,8 +40,26 @@ export interface KutirCreate {
   enrollment_5th?: number | null; enrollment_8th?: number | null;
 }
 
-export const listKutirs = async (params?: { cluster_id?: number; district_id?: number }): Promise<Kutir[]> =>
+export interface KutirsListParams {
+  cluster_id?: number;
+  district_id?: number;
+  kutir_type?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface KutirsPage {
+  items: Kutir[];
+  total: number;
+}
+
+export const listKutirs = async (params?: KutirsListParams): Promise<Kutir[]> =>
   (await api.get("/kutirs", { params })).data;
+
+export const listKutirsPaged = async (params: KutirsListParams = {}): Promise<KutirsPage> => {
+  const { data, headers } = await api.get("/kutirs", { params });
+  return { items: data, total: parseInt(headers["x-total-count"] ?? "0", 10) };
+};
 export const getKutir = async (id: number): Promise<KutirDetail> => (await api.get(`/kutirs/${id}`)).data;
 export const createKutir = async (data: KutirCreate): Promise<Kutir> => (await api.post("/kutirs", data)).data;
 export const updateKutir = async (id: number, data: Partial<KutirCreate>): Promise<Kutir> => (await api.put(`/kutirs/${id}`, data)).data;

@@ -3,6 +3,18 @@
 /* Keep icon-button text visible on desktop */
 .grs-ibtn { white-space: nowrap; }
 
+/*
+ * Dashboard flex shell: without min-height: 0 the main pane cannot shrink and
+ * long pages clip instead of scrolling (desktop nested scroll + mobile trap).
+ */
+.grs-dashboard {
+  min-height: 0;
+}
+.grs-main {
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Filter bar toggle/fbar/badge: @parivaar/ui/table-shell.css (main.tsx) */
 
 @media (max-width: 640px) {
@@ -60,16 +72,58 @@
 }
 
 @media (max-width: 768px) {
-  /* Sidebar slides in as overlay */
+  /*
+   * On phone, use document scroll instead of a nested main scroller — avoids
+   * iOS 100vh traps and unreachable form footers when nested overflow fails.
+   */
+  .grs-dashboard {
+    height: auto !important;
+    min-height: 100svh !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .grs-main {
+    overflow: visible !important;
+    overflow-x: clip !important;
+    flex: none !important;
+    width: 100% !important;
+    padding-bottom: 24px !important;
+  }
+
+  /* Route shells without .grs-page still fit the viewport width */
+  .grs-main > * {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Sidebar slides in as overlay — full column scroll so nav + Sign out are reachable on iOS */
   .grs-sidebar {
     position: fixed !important;
     left: -240px !important;
     top: 0 !important;
-    height: 100vh !important;
+    height: 100svh !important;
+    max-height: 100svh !important;
     z-index: 300 !important;
     transition: left 0.22s ease !important;
     box-shadow: none !important;
     overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    box-sizing: border-box !important;
+    min-height: 0 !important;
+    padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem)) !important;
+  }
+
+  /* Inline flex:1 + margin-top:auto pins footer inside 100vh and clips long nav lists */
+  .grs-sidebar > nav {
+    flex: 0 0 auto !important;
+    min-height: auto !important;
+  }
+
+  .grs-sidebar > nav + div {
+    margin-top: 0 !important;
   }
   .grs-sidebar--open {
     left: 0 !important;
@@ -89,10 +143,7 @@
    * Use .grs-main — many Detail pages omit .grs-page. padding-left keeps Back
    * clear of the 40×40 menu (top/left 12) even when content scrolls. */
   .grs-main {
-    flex: 1 1 auto !important;
     min-width: 0 !important;
-    width: 100% !important;
-    overflow-x: hidden !important;
     padding-left: 56px !important;
     padding-top: 12px !important;
     box-sizing: border-box !important;
@@ -120,5 +171,12 @@
   .grs-page {
     padding-top: 12px !important;
     padding-left: 12px !important;
+  }
+
+  /* Auth pages (login / reset) scroll when the keyboard shrinks the viewport */
+  #root > div[style*="min-height"] {
+    min-height: 100svh !important;
+    box-sizing: border-box;
+    padding: 16px;
   }
 }
