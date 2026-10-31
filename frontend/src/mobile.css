@@ -89,9 +89,15 @@
 
   .grs-report-filters .grs-filter-chevron {
     flex-shrink: 0;
-    font-size: 0.65rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 20px;
+    font-weight: 600;
     line-height: 1;
-    color: var(--text-muted, #718096);
+    color: var(--text-secondary, #4a5568);
   }
 
   /* Tighten page padding — longhands only so ≤768 hamburger clearance
