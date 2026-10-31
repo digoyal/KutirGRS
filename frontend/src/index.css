@@ -238,3 +238,18 @@ input.top-kutirs-date[type="date"]::-webkit-calendar-picker-indicator {
   margin: 0;
   cursor: pointer;
 }
+
+/* @parivaar/ui table-shell: filter row fits beside search without card clip */
+@media (min-width: 641px) {
+  .grs-filter-row > .grs-search-input {
+    --grs-search-w: 200px;
+    flex: 0 0 var(--grs-search-w) !important;
+    width: var(--grs-search-w) !important;
+    max-width: var(--grs-search-w) !important;
+  }
+
+  .grs-filter-row > .grs-filter-controls {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}

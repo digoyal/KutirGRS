@@ -403,11 +403,15 @@ export function AdmissionForm({
   function toggleStage(updates: Partial<Record<StageKey, boolean>>) {
     if (updates.admitted === true && mode === "edit") {
       const alreadyAdmitted = siblingExams.find(
-        (e) => e.student_id === form.student_id && e.admitted && e.id !== currentExamId,
+        (e) =>
+          e.student_id === form.student_id &&
+          e.admitted &&
+          e.school_start_year === form.school_start_year &&
+          e.id !== currentExamId,
       );
       if (alreadyAdmitted) {
         onAdmitBlockMsg?.(
-          `This student is already admitted via ${alreadyAdmitted.school_type ?? "another school"}. Only one admission is allowed.`,
+          `This student already has an admitted record for academic year ${form.school_start_year}.`,
         );
         return;
       }

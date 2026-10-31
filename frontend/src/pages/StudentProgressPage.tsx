@@ -17,7 +17,6 @@ import { hasGlobalDataScope } from "../constants/roles";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { GeoFilterBar } from "../components/GeoFilterBar";
-import { grs } from "../styles/grs";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
@@ -287,6 +286,16 @@ export default function StudentProgressPage() {
       });
   }, [orderedMetas, isVisible, studentMap2, schoolMap]);
 
+  const filterSelectStyle: React.CSSProperties = {
+    padding: "7px 10px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-input)",
+    color: "var(--text-primary)",
+    fontSize: 14,
+    flexShrink: 0,
+  };
+
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
       {/* Status summary tiles */}
@@ -327,7 +336,11 @@ export default function StudentProgressPage() {
         filters={
           <GeoFilterBar
             leading={
-              <select style={grs.filterSelect} value={filterYear} onChange={e => { setFilterYear(Number(e.target.value)); setPage(1); }}>
+              <select
+                style={{ ...filterSelectStyle, width: 110 }}
+                value={filterYear}
+                onChange={e => { setFilterYear(Number(e.target.value)); setPage(1); }}
+              >
                 {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map(y => (
                   <option key={y} value={y}>{formatAcademicYear(y)}</option>
                 ))}
@@ -350,6 +363,10 @@ export default function StudentProgressPage() {
             clusterDisable="no-district-unless-kutir"
             kutirDisable="never"
             kutirVisibility="when-cluster"
+            selectStyle={filterSelectStyle}
+            districtStyle={{ width: 140 }}
+            clusterStyle={{ width: 140 }}
+            kutirStyle={{ width: 130 }}
           />
         }
         exportFilename="progress"

@@ -236,5 +236,5 @@ export function GeoFilterBar({
     </>
   );
 
-  return content;
+  return <div className="grs-filter-controls">{content}</div>;
 }

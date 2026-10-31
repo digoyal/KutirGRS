@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState, useMemo, useRef, type ReactNode } from "react";
+import React, { useState, useMemo, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listStudentsPaged, deleteStudent, type Student } from "../api/students";
 import { listKutirs } from "../api/kutirs";
@@ -229,6 +229,16 @@ export default function StudentsPage() {
       });
   }, [orderedMetas, isVisible, kutirMap]);
 
+  const filterSelectStyle: React.CSSProperties = {
+    padding: "7px 10px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-input)",
+    color: "var(--text-primary)",
+    fontSize: 14,
+    flexShrink: 0,
+  };
+
   const geoFilters = (
     <GeoFilterBar
       district={filterDistrict}
@@ -249,6 +259,10 @@ export default function StudentsPage() {
       kutirDisable="no-cluster-unless-default-kutir"
       defaultCluster={defaultCluster}
       defaultKutir={defaultKutir}
+      selectStyle={filterSelectStyle}
+      districtStyle={{ width: 140 }}
+      clusterStyle={{ width: 140 }}
+      kutirStyle={{ width: 130 }}
     />
   );
 

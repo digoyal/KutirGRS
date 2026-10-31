@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_admin
 from app.database import get_db
+from app.admission_uniqueness import admission_uniqueness_violation
 from app.roles import TITLES as _ROLE_TITLES
 
 router = APIRouter(prefix="/import", tags=["Import"])
@@ -959,8 +960,33 @@ async def _import_admissions(rows, db):
             errors.append(f"Invalid admission_class '{adm_class}' — must be 5 or 8, ignored")
             adm_class = None
 
+        exam_type_name = _str(r.get("exam_type_name"))
+        exam_type_id = (
+            await db.execute(
+                text("SELECT id FROM exam_types WHERE lower(name)=lower(:n) LIMIT 1"),
+                {"n": exam_type_name},
+            )
+        ).scalar_one_or_none() if exam_type_name else None
+
+        admitted_flag = _yn(r.get("admitted"))
+        uniq_err = await admission_uniqueness_violation(
+            db,
+            student_id=sid,
+            school_start_year=year,
+            admitted=admitted_flag,
+            exam_type_id=exam_type_id,
+            school_id=school_id,
+            admitted_school_id=adm_school_id,
+            exclude_exam_id=exists,
+        )
+        if uniq_err:
+            ref = f"{first} {last}".strip() or "(unnamed)"
+            errors.append(f"{uniq_err} — admissions row for '{ref}' skipped")
+            continue
+
         params = {
             "si": sid, "sc": school_id, "st": stype, "yr": year,
+            "et": exam_type_id,
             "ec": exam_cat_id,
             "el": _yn(r.get("eligible", "yes")),
             "ap": _yn(r.get("applied")),
@@ -968,7 +994,7 @@ async def _import_admissions(rows, db):
             "ap2": _yn(r.get("appeared")),
             "ne": no_exam_id,
             "se": _yn(r.get("selected")),
-            "ad": _yn(r.get("admitted")),
+            "ad": admitted_flag,
             "na": no_admit_id,
             "an": _str(r.get("application_number")) or None,
             "rn": _str(r.get("roll_number")) or None,
@@ -979,7 +1005,7 @@ async def _import_admissions(rows, db):
         if exists:
             await db.execute(text("""
                 UPDATE student_exams SET
-                    school_id=:sc, exam_category_id=:ec, eligible=:el, applied=:ap, admit_card=:ac,
+                    school_id=:sc, exam_type_id=:et, exam_category_id=:ec, eligible=:el, applied=:ap, admit_card=:ac,
                     appeared=:ap2, no_exam_reason_id=:ne, selected=:se, admitted=:ad,
                     no_admit_reason_id=:na, application_number=:an, roll_number=:rn,
                     exam_center_id=:cen, admitted_school_id=:as_, admission_class=:cls,
@@ -992,14 +1018,14 @@ async def _import_admissions(rows, db):
             res = await db.execute(text("""
                 INSERT INTO student_exams (
                     student_id, school_id, school_type, school_start_year,
-                    exam_category_id, eligible, applied, admit_card,
+                    exam_type_id, exam_category_id, eligible, applied, admit_card,
                     appeared, no_exam_reason_id, selected, admitted,
                     no_admit_reason_id, application_number, roll_number,
                     exam_center_id, admitted_school_id, admission_class,
                     created_at, updated_at)
                 VALUES (
                     :si, :sc, :st, :yr,
-                    :ec, :el, :ap, :ac,
+                    :et, :ec, :el, :ap, :ac,
                     :ap2, :ne, :se, :ad,
                     :na, :an, :rn,
                     :cen, :as_, :cls,

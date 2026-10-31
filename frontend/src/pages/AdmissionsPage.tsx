@@ -225,11 +225,13 @@ export default function AdmissionsPage() {
     {
       key: "school", label: "", sortable: true,
       sortValue: (exam) => {
-        const sc = exam.school_id != null ? schoolMap[exam.school_id] : null;
+        const grsId = exam.admitted_school_id ?? exam.school_id;
+        const sc = grsId != null ? schoolMap[grsId] : null;
         return sc?.name ?? exam.school_type ?? "";
       },
       render: (exam) => {
-        const sc = exam.school_id != null ? schoolMap[exam.school_id] : null;
+        const grsId = exam.admitted_school_id ?? exam.school_id;
+        const sc = grsId != null ? schoolMap[grsId] : null;
         if (sc) return (
           <span>
             {sc.name}
@@ -239,7 +241,8 @@ export default function AdmissionsPage() {
         return exam.school_type ?? "—";
       },
       csvValue: (exam) => {
-        const sc = exam.school_id != null ? schoolMap[exam.school_id] : null;
+        const grsId = exam.admitted_school_id ?? exam.school_id;
+        const sc = grsId != null ? schoolMap[grsId] : null;
         return sc?.name ?? exam.school_type ?? "";
       },
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },

@@ -56,8 +56,6 @@ export interface UsersListParams {
   /** Filter by role title (server `role` query param). */
   role?: string;
   search?: string;
-  /** When true, only users with null/blank email. */
-  missing_email?: boolean;
   limit?: number;
   offset?: number;
 }

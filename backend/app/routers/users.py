@@ -226,9 +226,6 @@ async def list_users(
     title: Optional[str] = Query(None),
     role: Optional[str] = Query(None, description="Filter by role title (alias of title)"),
     search: Optional[str] = Query(None),
-    missing_email: Optional[bool] = Query(
-        None, description="When true, only users with null/blank email"
-    ),
     limit: Optional[int] = Query(50),
     offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
@@ -242,8 +239,6 @@ async def list_users(
             q = q.where(User.is_active == is_active)
         if role_title:
             q = q.where(User.title == role_title)
-        if missing_email is True:
-            q = q.where(or_(User.email.is_(None), User.email == ""))
         if search:
             term = f"%{search}%"
             q = q.where(

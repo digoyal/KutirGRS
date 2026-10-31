@@ -35,7 +35,7 @@ class Zone(Base, TimestampMixin):
 
 
     districts: Mapped[list["District"]] = relationship(
-        "District", back_populates="zone", cascade="all, delete-orphan"
+        "District", back_populates="zone"
     )
 
     def __repr__(self):
@@ -55,10 +55,10 @@ class District(Base, TimestampMixin):
     zone: Mapped["Zone"] = relationship("Zone", back_populates="districts")
     state: Mapped["State"] = relationship("State", back_populates="districts")
     areas: Mapped[list["Area"]] = relationship(
-        "Area", back_populates="district", cascade="all, delete-orphan"
+        "Area", back_populates="district"
     )
     exam_centers: Mapped[list["ExamCenter"]] = relationship(
-        "ExamCenter", back_populates="district", cascade="all, delete-orphan"
+        "ExamCenter", back_populates="district"
     )
 
     def __repr__(self):
@@ -75,7 +75,7 @@ class Area(Base, TimestampMixin):
 
     district: Mapped["District"] = relationship("District", back_populates="areas")
     clusters: Mapped[list["Cluster"]] = relationship(
-        "Cluster", back_populates="area", cascade="all, delete-orphan"
+        "Cluster", back_populates="area"
     )
 
     def __repr__(self):

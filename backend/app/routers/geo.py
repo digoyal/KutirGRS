@@ -6,6 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.auth import get_current_user, require_roles, get_geo_scope, GeoScope
 from app.roles import MANAGE_GEOGRAPHY, MANAGE_EXAM_CENTERS
+from app.geo_delete import (
+    delete_area_if_allowed,
+    delete_cluster_if_allowed,
+    delete_district_if_allowed,
+    delete_zone_if_allowed,
+)
 from app.models.geo import State, Zone, District, Area, Cluster, ExamCenter
 from app.schemas.geo import (
     StateCreate, StateUpdate, StateOut,
@@ -102,8 +108,7 @@ async def delete_zone(zone_id: int, db: AsyncSession = Depends(get_db), _=Depend
     obj = await db.get(Zone, zone_id)
     if not obj:
         raise HTTPException(404, "Zone not found")
-    await db.delete(obj)
-    await db.commit()
+    await delete_zone_if_allowed(db, obj)
 
 
 # ── Districts ─────────────────────────────────────────────────────────────────
@@ -158,8 +163,7 @@ async def delete_district(district_id: int, db: AsyncSession = Depends(get_db), 
     obj = await db.get(District, district_id)
     if not obj:
         raise HTTPException(404, "District not found")
-    await db.delete(obj)
-    await db.commit()
+    await delete_district_if_allowed(db, obj)
 
 
 # ── Areas ─────────────────────────────────────────────────────────────────────
@@ -209,8 +213,7 @@ async def delete_area(area_id: int, db: AsyncSession = Depends(get_db), _=Depend
     obj = await db.get(Area, area_id)
     if not obj:
         raise HTTPException(404, "Area not found")
-    await db.delete(obj)
-    await db.commit()
+    await delete_area_if_allowed(db, obj)
 
 
 # ── Clusters ──────────────────────────────────────────────────────────────────
@@ -260,8 +263,7 @@ async def delete_cluster(cluster_id: int, db: AsyncSession = Depends(get_db), _=
     obj = await db.get(Cluster, cluster_id)
     if not obj:
         raise HTTPException(404, "Cluster not found")
-    await db.delete(obj)
-    await db.commit()
+    await delete_cluster_if_allowed(db, obj)
 
 
 # ── ExamCenters ───────────────────────────────────────────────────────────────

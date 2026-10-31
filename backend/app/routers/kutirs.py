@@ -14,6 +14,7 @@ from app.auth import (
     require_cluster_in_geo_scope,
 )
 from app.roles import MANAGE_KUTIRS
+from app.geo_delete import delete_kutir_if_allowed
 from app.models.kutirs import Kutir
 from app.models.geo import Cluster, Area, District, Zone
 from app.models.users import User, user_kutirs
@@ -131,5 +132,4 @@ async def delete_kutir(
     obj = await db.get(Kutir, kutir_id)
     if not obj:
         raise HTTPException(404, "Kutir not found")
-    await db.delete(obj)
-    await db.commit()
+    await delete_kutir_if_allowed(db, obj)

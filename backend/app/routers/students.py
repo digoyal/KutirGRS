@@ -24,6 +24,7 @@ from app.schemas.students import (
 )
 import os, uuid, shutil
 from app.config import settings
+from app.admission_uniqueness import assert_admission_uniqueness, admission_duplicate_detail
 
 router = APIRouter()
 
@@ -352,17 +353,18 @@ async def create_exam(
     await _require_student_in_scope(db, data.student_id, scope, detail="StudentExam not found")
     scores = data.scores
     exam_data = data.model_dump(exclude={"scores"})
-    # Prevent double-admission: student can only be admitted to one school
     if exam_data.get("admitted"):
         _require_admission_class_when_admitted(True, exam_data.get("admission_class"))
-        existing_admitted = await db.execute(
-            select(StudentExam).where(
-                StudentExam.student_id == exam_data["student_id"],
-                StudentExam.admitted == True,
-            )
-        )
-        if existing_admitted.scalars().first():
-            raise HTTPException(409, "This student is already admitted to another school.")
+
+    await assert_admission_uniqueness(
+        db,
+        student_id=exam_data["student_id"],
+        school_start_year=exam_data["school_start_year"],
+        admitted=bool(exam_data.get("admitted")),
+        exam_type_id=exam_data.get("exam_type_id"),
+        school_id=exam_data.get("school_id"),
+        admitted_school_id=exam_data.get("admitted_school_id"),
+    )
 
     exam = StudentExam(**exam_data)
     db.add(exam)
@@ -370,7 +372,7 @@ async def create_exam(
         await db.flush()  # get exam.id
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(409, "An admission record for this student, school type, and year already exists.")
+        raise HTTPException(409, admission_duplicate_detail(exam_data["school_start_year"]))
 
     for s in scores:
         db.add(StudentExamScore(exam_id=exam.id, subject_id=s.subject_id, score=s.score))
@@ -379,7 +381,7 @@ async def create_exam(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(409, "An admission record for this student, school type, and year already exists.")
+        raise HTTPException(409, admission_duplicate_detail(exam_data["school_start_year"]))
     await db.refresh(exam)
     return exam
 
@@ -414,17 +416,21 @@ async def update_exam(
     final_class = update["admission_class"] if "admission_class" in update else obj.admission_class
     _require_admission_class_when_admitted(bool(final_admitted), final_class)
 
-    # Prevent double-admission: if setting admitted=True, ensure no other record is admitted
-    if update.get("admitted") is True:
-        existing_admitted = await db.execute(
-            select(StudentExam).where(
-                StudentExam.student_id == obj.student_id,
-                StudentExam.admitted == True,
-                StudentExam.id != id,
-            )
-        )
-        if existing_admitted.scalars().first():
-            raise HTTPException(409, "This student is already admitted to another school. A student can only be admitted to one school.")
+    final_exam_type = update["exam_type_id"] if "exam_type_id" in update else obj.exam_type_id
+    final_admitted_school = (
+        update["admitted_school_id"] if "admitted_school_id" in update else obj.admitted_school_id
+    )
+
+    await assert_admission_uniqueness(
+        db,
+        student_id=obj.student_id,
+        school_start_year=obj.school_start_year,
+        admitted=bool(final_admitted),
+        exam_type_id=final_exam_type,
+        school_id=obj.school_id,
+        admitted_school_id=final_admitted_school,
+        exclude_exam_id=id,
+    )
 
     for k, v in update.items():
         setattr(obj, k, v)
@@ -435,7 +441,11 @@ async def update_exam(
         )
         for s in scores:
             db.add(StudentExamScore(exam_id=id, subject_id=s["subject_id"], score=s.get("score")))
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, admission_duplicate_detail(obj.school_start_year))
     await db.refresh(obj)
     return obj
 
