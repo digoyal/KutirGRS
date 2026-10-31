@@ -151,8 +151,11 @@ def test_deployment_success_and_recovery(tmp_path, monkeypatch, failure):
     (root / "backend/frontend_dist/assets/old.js").write_text("old asset")
     (tmp_path / "parivaar-ui/.git").mkdir(parents=True)
     calls = []
+    preview_calls = []
     def run(args, **kwargs):
         calls.append(args)
+        if args[-1] == "--dry-run":
+            preview_calls.append((args, kwargs))
         if args[:2] == ["git", "status"]:
             return ""
         if args[:2] == ["git", "rev-parse"]:
@@ -195,4 +198,7 @@ def test_deployment_success_and_recovery(tmp_path, monkeypatch, failure):
         assert (root / "backend/frontend_dist/assets/old.js").exists()
         assert job["target_commit"] == "target" and job["backup"] == "test.dump"
         health.assert_called_once()
+        preview = next((args, kwargs) for args, kwargs in preview_calls)
+        assert preview[1]["cwd"] == root / ".deploy/workspaces/test/app/backend"
+        assert "DATABASE_URL" in preview[1]["env"]
     assert not (root / ".deploy/workspaces/test").exists()

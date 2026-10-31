@@ -85,13 +85,17 @@ def deploy(job: dict):
         command([str(python), "-m", "pip", "install", "-r", str(workspace / "app" / "backend" / "requirements.txt"), "--quiet"])
         migration_env = env.copy()
         migration_env["PYTHONPATH"] = str(workspace / "app" / "backend")
+        # `python -m` searches cwd before PYTHONPATH. Use the staged backend for
+        # preview, but explicitly retain the LIVE database configuration.
+        from app.config import settings
+        migration_env["DATABASE_URL"] = settings.DATABASE_URL
 
         print("[3/6] Backing up the database", flush=True)
         from app.sql_migrations import _psql_env_and_args
         db_env, psql = _psql_env_and_args()
         backup = directory / "backups" / (job["id"] + ".dump")
         backup.parent.mkdir(mode=0o700, exist_ok=True)
-        command([str(python), "-m", "app.sql_migrations", "--dry-run"], cwd=ROOT / "backend", env=migration_env)
+        command([str(python), "-m", "app.sql_migrations", "--dry-run"], cwd=workspace / "app" / "backend", env=migration_env)
         stopped = True
         command(["sudo", "-n", "systemctl", "stop", "sevakutir"])
         with backup.open("xb") as stream:

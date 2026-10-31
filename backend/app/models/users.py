@@ -10,7 +10,7 @@ Title (role) maps to geo assignment via M2M tables:
   Teacher               → user_kutirs M2M (single kutir)
 """
 from typing import Optional
-from sqlalchemy import String, Boolean, Integer, Table, Column, ForeignKey
+from sqlalchemy import String, Boolean, Integer, Table, Column, ForeignKey, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -68,10 +68,14 @@ TITLE_CHOICES = [
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("email IS NOT NULL AND length(btrim(email)) > 0", name="users_email_required"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(150), nullable=False, unique=True)
-    email: Mapped[str] = mapped_column(String(254), nullable=False, unique=True)
+    # Legacy reads may contain NULL; the check and API require email on new writes.
+    email: Mapped[Optional[str]] = mapped_column(String(254), nullable=True, unique=True)
     first_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

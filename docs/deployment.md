@@ -74,6 +74,20 @@ The button deploys main, so merge feature branches first.
 
 ## Failures and recovery
 
+### Legacy users without email (migration 025)
+
+The original 025 assumed every user already had email and failed on older live
+databases. Its pending-upgrade SQL is corrected to create reset-token storage and
+add a `NOT VALID` email check instead of failing on old rows. Migration 027 aligns
+databases where the original 025 was already applied. Neither migration changes
+user records or generates placeholder addresses. New inserts/updates require a
+non-blank email; legacy list/detail/login reads accept a missing address. Password
+reset cannot send a link until an administrator records that user's real email.
+Do not mark a failed 025 as applied or use `--sync-ledger` to skip it. After merging
+the correction into main, retry Deploy Now; the failed file remains pending and
+will run again. The preview now reads the staged target's scripts against the live
+database, rather than incorrectly reporting only the old checkout's pending SQL.
+
 Backups, logs, and the saved job are private under `/opt/sevakutir/.deploy/` and
 ignored by Git. Retain backups according to available disk space; no automatic
 deletion is performed. Failed frontend builds do not stop the running site or run SQL.

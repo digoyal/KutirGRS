@@ -5,7 +5,7 @@ from app.roles import TITLES as VALID_TITLES
 
 
 def _require_nonblank_email(v: str) -> str:
-    """API create/update require a non-blank email (DB column is NOT NULL after 025)."""
+    """Create/update require email; reads preserve legacy accounts without one."""
     s = (v or "").strip()
     if not s:
         raise ValueError("email is required")
@@ -63,7 +63,7 @@ class UserUpdate(BaseModel):
 class UserOut(BaseModel):
     id: int
     username: str
-    email: str
+    email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone: Optional[str] = None
