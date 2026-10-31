@@ -106,13 +106,12 @@ function StarRating({
   readOnly?: boolean;
 }) {
   return (
-    <span className="visit-form-stars" style={{ display: "inline-flex", gap: 2, flexShrink: 0 }}>
+    <span className="visit-form-stars" style={{ display: "inline-flex", flexShrink: 0 }}>
       {[1, 2, 3, 4, 5].map((n) => (
         <span
           key={n}
           onClick={() => !readOnly && onChange?.(n)}
           style={{
-            fontSize: "1.2rem",
             cursor: readOnly ? "default" : "pointer",
             color: n <= value ? "var(--star-active)" : "var(--star-inactive)",
           }}

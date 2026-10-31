@@ -142,7 +142,14 @@ test("visit edit ratings — iPhone 16 Pro layout", async ({ browser }) => {
       const pageCs = pageEl ? getComputedStyle(pageEl) : null;
       const cardCs = card ? getComputedStyle(card) : null;
       const rows = Array.from(document.querySelectorAll(".visit-form-rating-row"));
-      const vw = root.clientWidth;
+      const vw = window.visualViewport?.width ?? root.clientWidth;
+      const lastStarEdges = rows.map((row) => {
+        const stars = row.querySelector(".visit-form-stars");
+        const last = stars?.querySelector("span:last-child");
+        if (!last) return { right: 0, ok: true };
+        const r = last.getBoundingClientRect();
+        return { right: r.right, ok: r.right <= vw - 2 };
+      });
       const starsClip = rows.some((row) => {
         const stars = row.querySelector(".visit-form-stars");
         if (!stars) return false;
@@ -174,6 +181,8 @@ test("visit edit ratings — iPhone 16 Pro layout", async ({ browser }) => {
         cardPaddingLeft: cardCs?.paddingLeft ?? null,
         cardPaddingRight: cardCs?.paddingRight ?? null,
         starsClip,
+        lastStarEdges,
+        viewportWidth: vw,
         ratingRowsSameLine,
         ratingRowCount: rows.length,
       };
@@ -189,6 +198,12 @@ test("visit edit ratings — iPhone 16 Pro layout", async ({ browser }) => {
     expect(layout.cardPaddingRight).toBe("16px");
     expect(layout.scrollOverflow).toBeLessThanOrEqual(OVERFLOW_TOLERANCE_PX);
     expect(layout.starsClip, "star rows must not clip at viewport edge").toBe(false);
+    for (const [i, edge] of layout.lastStarEdges.entries()) {
+      expect(
+        edge.ok,
+        `row ${i + 1} last star right (${edge.right}px) must be ≤ viewport (${layout.viewportWidth}px) - 2`,
+      ).toBe(true);
+    }
     expect(layout.ratingRowsSameLine, "label and stars stay on one row").toBe(true);
   } finally {
     await context.close();
