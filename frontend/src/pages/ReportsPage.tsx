@@ -7,7 +7,9 @@ import { listExams, type StudentExam } from "../api/admissions";
 import { listVisits, type KutirVisit } from "../api/visits";
 import { STAGES, FUNNEL_STAGE_LABELS, type StageKey } from "../components/admissions-pipeline";
 import { GrsTabs } from "../components/GrsTabs";
+import { ReportFiltersBar } from "../components/ReportFiltersBar";
 import { RowCountBadge } from "@parivaar/ui";
+import { countActiveFilters } from "../utils/geoFilters";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -360,23 +362,51 @@ export default function ReportsPage() {
     { key: "admitted", label: "Admitted Students" },
   ];
 
+  const yearSelect = (
+    <div style={{ flex: "1 1 140px", maxWidth: 180, minWidth: 120 }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: "0.78rem",
+          fontWeight: 600,
+          color: "var(--text-secondary)",
+          marginBottom: 4,
+        }}
+      >
+        School year
+      </label>
+      <select
+        value={year}
+        onChange={(e) => setYear(Number(e.target.value))}
+        style={{
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          padding: "8px 10px",
+          fontSize: "16px",
+          width: "100%",
+          boxSizing: "border-box",
+          background: "var(--bg-input)",
+          color: "var(--text-primary)",
+        }}
+      >
+        {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map((y) => (
+          <option key={y} value={y}>
+            {y}-{String(y + 1).slice(2)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
   if (isDetailed) {
     const tabs = detailedTabs;
     const tab = detailedTab;
     return (
-      <div style={{ padding: "24px 28px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h2 style={{ margin: 0, color: "var(--text-primary)" }}>Detailed Reports</h2>
-          <select
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: "0.875rem" }}
-          >
-            {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map((y) => (
-              <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
-            ))}
-          </select>
-        </div>
+      <div className="grs-page" style={{ padding: "24px 28px" }}>
+        <h2 style={{ margin: "0 0 16px", color: "var(--text-primary)" }}>Detailed Reports</h2>
+        <ReportFiltersBar activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}>
+          {yearSelect}
+        </ReportFiltersBar>
         <GrsTabs
           value={tab}
           onChange={_setDetailedTab}
@@ -390,21 +420,13 @@ export default function ReportsPage() {
 
   // Summary view
   return (
-    <div style={{ padding: "24px 28px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2 style={{ margin: 0, color: "var(--text-primary)" }}>Summary Reports</h2>
-        {summaryTab === "funnel" && (
-          <select
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: "0.875rem" }}
-          >
-            {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map((y) => (
-              <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>
-            ))}
-          </select>
-        )}
-      </div>
+    <div className="grs-page" style={{ padding: "24px 28px" }}>
+      <h2 style={{ margin: "0 0 16px", color: "var(--text-primary)" }}>Summary Reports</h2>
+      {summaryTab === "funnel" && (
+        <ReportFiltersBar activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}>
+          {yearSelect}
+        </ReportFiltersBar>
+      )}
       <GrsTabs
         value={summaryTab}
         onChange={setSummaryTab}

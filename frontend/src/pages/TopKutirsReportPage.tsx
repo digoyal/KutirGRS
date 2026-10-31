@@ -18,6 +18,8 @@ import {
   type TopKutirsGeoLevel,
   type TopKutirsReport,
 } from "../api/visits";
+import { ReportFiltersBar } from "../components/ReportFiltersBar";
+import { countActiveFilters } from "../utils/geoFilters";
 
 const IconDownload = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -307,15 +309,12 @@ export default function TopKutirsReportPage({ rank = "top" }: { rank?: KutirsRan
         </div>
       </div>
 
-      <div
-        className="grs-form"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 10,
-          marginBottom: 20,
-          alignItems: "flex-end",
-        }}
+      <ReportFiltersBar
+        activeFilterCount={countActiveFilters(
+          zoneId,
+          showDistrict ? districtId : "",
+          showCluster ? clusterId : "",
+        )}
       >
         <div style={geoFieldStyle}>
           <label style={geoLabelStyle}>Geo level</label>
@@ -404,7 +403,7 @@ export default function TopKutirsReportPage({ rank = "top" }: { rank?: KutirsRan
             style={dateStyle}
           />
         </div>
-      </div>
+      </ReportFiltersBar>
 
       {!enabled && (
         <p style={{ color: "var(--text-secondary)" }}>

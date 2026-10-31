@@ -1,4 +1,5 @@
 import api from "./client";
+import { apiV1Base } from "./apiBase";
 
 export interface SheetResult {
   sheet: string;
@@ -47,9 +48,7 @@ export async function fetchLastImport(): Promise<ImportResponse | null> {
 }
 
 export function getTemplateUrl(): string {
-  const base =
-    (import.meta.env.VITE_API_URL as string | undefined) ??
-    "http://localhost:8001/api/v1";
+  const base = apiV1Base();
   const token = localStorage.getItem("access_token") ?? "";
   // We'll trigger download programmatically with auth header
   return `${base}/import/template?token=${encodeURIComponent(token)}`;
@@ -57,9 +56,7 @@ export function getTemplateUrl(): string {
 
 export async function downloadTemplate(): Promise<void> {
   const token = localStorage.getItem("access_token") ?? "";
-  const base =
-    (import.meta.env.VITE_API_URL as string | undefined) ??
-    "http://localhost:8001/api/v1";
+  const base = apiV1Base();
   const res = await fetch(`${base}/import/template`, {
     headers: { Authorization: `Bearer ${token}` },
   });

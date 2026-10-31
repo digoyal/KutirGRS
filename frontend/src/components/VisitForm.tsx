@@ -17,11 +17,9 @@ import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
 import { visitFieldLabel } from "../constants/visitsFields";
 import { grs } from "../styles/grs";
+import { mediaBase } from "../api/apiBase";
 
-const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace(
-  "/api/v1",
-  "",
-);
+const MEDIA_BASE = mediaBase();
 
 /** Rating keys — labels from VISITS_FIELDS via visitFieldLabel. */
 const RATING_FIELD_KEYS: (keyof KutirVisitCreate)[] = [

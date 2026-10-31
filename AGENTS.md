@@ -110,4 +110,32 @@ Checkout: `/Users/dineshgoyal/projects/KutirGRS` · PRD: [`docs/KutirGRS_PRD.md`
 
 Local login is **`admin` / `admin`** (`backend/.env` `ADMIN_PASSWORD=admin`). API must be up on `:8001` (`bash backend/start.sh`). Startup creates admin only if missing — it does not rehash on every restart. If the UI says invalid password, check `/docs` first (API down / bad `ALLOWED_ORIGINS` env often looks like a bad password).
 
+#### Local verify (frontend)
+
+**User:** one command from repo root — `bash scripts/dev-ui.sh` (same as `cd frontend && npm run dev:ui`). Opens **http://localhost:5173** with Vite **HMR** (live source, not frozen `dist/`). Hard refresh once (Cmd+Shift+R) if the tab was open while `vite preview` was running.
+
+**Agents/workers:** **MUST** run `bash scripts/dev-ui.sh` (or equivalent: kill anything on **5173**, then `npm run dev` from `frontend/`) before asking the user to verify UI changes. **Never** start `vite preview` / `npm run preview` for routine UI work — preview serves stale built assets. Use preview only when explicitly testing a production build (`npm run build` first).
+
+If CSS or layout changes are “not visible,” assume preview or a dead dev server — rerun `bash scripts/dev-ui.sh`; do not tell the user to rebuild for normal fixes.
+
+#### Mobile / responsive UI
+
+When changing frontend layout or CSS, treat these as **agent requirements** (see also **Mobile (laptop + phone)** above):
+
+- **Full width on phones:** Main content must use the full viewport width on ~375px devices (≤768px). No centered narrow column with large empty gutters left/right — the shell should span the usable width after hamburger clearance only.
+- **Geography & Lookups (agent requirement):** **Geography** (`GeoPage` — Zones / Districts / Areas / Clusters tab strip + `GrsTable` card) and **Lookups** (tab strip + table/list card) must match Kutirs/Students on phone: full-width main + table card, not a squeezed center column. Use `className="grs-page"` on the route shell; hamburger inset lives on `.grs-main` only (`frontend/src/mobile.css` — do not stack extra left padding on `.grs-page`). On ≤768px, `#root` must not stay at the desktop max-width column. After layout/CSS changes, hard-refresh **http://localhost:5173/geo** (Zones tab) at ~375–390px alongside Lookups.
+- **Scrollable mobile nav:** The hamburger drawer / mobile sidebar must scroll vertically so users can reach **Sign out** and every nav item at the bottom.
+- **Full mobile access:** All pages and forms (Add, Edit, View, lists, modals) must stay fully usable on phone width — no desktop-only CRUD layouts, clipped fields, or unreachable actions.
+- **Scroll where needed:** Allow vertical and horizontal scrolling **inside** tables, long forms, filter rows, and cards as appropriate. Do not clip content; keep scrolling off the document body (no page-level horizontal overflow).
+
+#### Mobile device testing (real phone, same Wi‑Fi)
+
+On a **physical iPhone/Android**, `localhost` and `127.0.0.1` point at the phone — not your Mac. Use the Mac’s **LAN URL** instead.
+
+1. Start API and UI as usual: `bash backend/start.sh`, then `bash scripts/dev-ui.sh`. Vite must listen on all interfaces (`npm run dev` / `dev-ui.sh` pass **`--host`**; confirm with `lsof -nP -iTCP:5173 -sTCP:LISTEN` → `*:5173`).
+2. Find the Mac’s Wi‑Fi IP: `ipconfig getifaddr en0` (or System Settings → Network). Optional hostnames: `Mac.lan` / `*.local` (Bonjour; IP is more reliable).
+3. On the phone browser, open **`http://<Mac-LAN-IP>:5173`** (not localhost). Example: `http://192.168.31.121:5173`.
+4. In dev, the SPA uses same-origin **`/api/v1`** (Vite proxy to `:8001`; optional override `VITE_API_URL` in a local `frontend/.env.development.local`) — **no backend CORS change** needed for login from the phone. Only add `http://<Mac-LAN-IP>:5173` to `ALLOWED_ORIGINS` in `backend/.env` if you bypass the proxy (e.g. point the SPA directly at `http://<Mac-LAN-IP>:8001`).
+5. **macOS firewall:** if the phone gets “connection refused” while curl from the Mac to the LAN IP works, allow incoming connections for **Node** once (System Settings → Network → Firewall → Options, or the prompt when Vite first listens on the network).
+
 **Forgot password (magic link):** set `FRONTEND_BASE_URL` and optional `SMTP_*` in `backend/.env` (see `.env.example`). With no `SMTP_HOST`, the API logs the reset URL to the server log instead of sending email.

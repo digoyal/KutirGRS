@@ -16,8 +16,8 @@ Start if needed (examples):
 # API (from repo backend/)
 cd backend && bash start.sh   # or your usual uvicorn/start
 
-# Frontend — use whatever already serves main on 5173
-cd frontend && npx vite --host localhost --port 5173
+# Frontend — Vite dev (HMR); npm run preview only after npm run build
+cd frontend && npm run dev
 ```
 
 Leave servers running after the test if you were already using them.

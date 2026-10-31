@@ -22,6 +22,8 @@ import {
   type KutirPerformanceMetricKey,
   visitFieldLabel,
 } from "../constants/visitsFields";
+import { ReportFiltersBar } from "../components/ReportFiltersBar";
+import { countActiveFilters } from "../utils/geoFilters";
 
 const IconDownload = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -329,15 +331,12 @@ export default function KutirPerformanceReportPage() {
         </div>
       </div>
 
-      <div
-        className="grs-form"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 6,
-          marginBottom: 14,
-          alignItems: "flex-end",
-        }}
+      <ReportFiltersBar
+        activeFilterCount={countActiveFilters(
+          zoneId,
+          showDistrict ? districtId : "",
+          showCluster ? clusterId : "",
+        )}
       >
         <div style={metricFieldStyle}>
           <label style={metricLabelStyle}>Attribute</label>
@@ -440,7 +439,7 @@ export default function KutirPerformanceReportPage() {
             style={dateStyle}
           />
         </div>
-      </div>
+      </ReportFiltersBar>
 
       {!enabled && (
         <p style={filterHintStyle}>

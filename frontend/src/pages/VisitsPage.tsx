@@ -18,7 +18,9 @@ import { canManageVisits as roleCanManageVisits, hasGlobalDataScope } from "../c
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { countActiveFilters, scopeClusters, scopeDistricts, type FilterId } from "../utils/geoFilters";
 
-const MEDIA_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8001/api/v1").replace("/api/v1", "");
+import { mediaBase } from "../api/apiBase";
+
+const MEDIA_BASE = mediaBase();
 const STORAGE_KEY = "visits_filter_state";
 
 function StarRating({ value, readOnly }: { value: number; readOnly?: boolean; }) {

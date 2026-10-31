@@ -4,10 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsc -b && vite build && vite preview --port 5173",
+    "dev": "vite --port 5173 --host",
+    "dev:ui": "bash ../scripts/dev-ui.sh",
+    "dev:check": "tsc -b && vite --port 5173 --host",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview",
+    "preview": "vite preview --port 5173",
     "test:e2e": "playwright test",
     "test:e2e:headed": "HEADED=1 playwright test"
   },
