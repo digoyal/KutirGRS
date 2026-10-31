@@ -113,6 +113,130 @@
 
   /* Make primary action button text not overflow */
   .grs-primary-btn { white-space: nowrap; }
+
+  /* Log / Edit Visit — date row, implementation rows, actions */
+  .visit-form-date-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .visit-form-date-field {
+    flex: none !important;
+    width: 100%;
+  }
+  .visit-form-open-closed {
+    width: 100%;
+    max-width: 100%;
+    height: 40px !important;
+    flex-shrink: 1;
+    box-sizing: border-box;
+  }
+  .visit-form-open-closed button {
+    flex: 1;
+    min-height: 40px;
+  }
+
+  .visit-form-label-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+  .visit-form-label-row > span {
+    min-width: 0 !important;
+  }
+  .visit-form-teaching-plan-row {
+    flex-wrap: wrap !important;
+  }
+  .visit-form-teaching-plan-row label {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .visit-form-attendance {
+    grid-template-columns: 1fr !important;
+  }
+
+  .visit-form-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .visit-form-actions button {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .visit-add-card {
+    padding: 14px 16px !important;
+  }
+}
+
+/* Visit form — class-based layouts (not affected by .grs-form inline-grid override) */
+.visit-form-attendance {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+.visit-form-shift-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.visit-form-shift-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.visit-add-card {
+  background: var(--bg-card);
+  border-radius: 8;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.visit-form-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.grs-page-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  min-height: 40px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.grs-page-back {
+  background: none;
+  border: none;
+  color: var(--link-color);
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  min-width: 40px;
+  padding: 8px 10px 8px 0;
+  margin: -4px 0;
+  flex-shrink: 0;
+}
+.grs-page-title {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
 }
 
 /* ── Dashboard sidebar – mobile overlay ──────────────────────────── */

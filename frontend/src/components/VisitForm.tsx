@@ -592,11 +592,11 @@ export function VisitForm({
 
   // ── ADD / EDIT ─────────────────────────────────────────────────────────────
   return (
-    <div className="grs-form">
+    <div className="grs-form visit-form">
       <SectionHead label="Visit Info" />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+      <div className="visit-form-geo-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
         <div>
-          <label style={grs.fieldLabel}>District</label>
+          <label style={grs.fieldLabel}>District *</label>
           <select
             value={filterDistrict}
             onChange={(e) => {
@@ -615,7 +615,7 @@ export function VisitForm({
           </select>
         </div>
         <div>
-          <label style={grs.fieldLabel}>Cluster</label>
+          <label style={grs.fieldLabel}>Cluster *</label>
           <select
             value={filterCluster}
             onChange={(e) => {
@@ -640,7 +640,7 @@ export function VisitForm({
             onChange={(e) => set("kutir_id", Number(e.target.value))}
             style={grs.select}
           >
-            <option value="">Select kutir…</option>
+            <option value="">— Select Kutir —</option>
             {filteredKutirs.map((k) => (
               <option key={k.id} value={k.id}>
                 {k.name}
@@ -649,17 +649,18 @@ export function VisitForm({
           </select>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 10 }}>
-        <div style={{ flex: 1 }}>
+      <div className="visit-form-date-row" style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 10 }}>
+        <div className="visit-form-date-field" style={{ flex: 1, minWidth: 0 }}>
           <label style={grs.fieldLabel}>{visitFieldLabel("visit_date", { required: true })}</label>
           <input
             type="date"
             value={form.visit_date}
             onChange={(e) => set("visit_date", e.target.value)}
-            style={grs.input}
+            style={{ ...grs.input, width: "100%", boxSizing: "border-box" }}
           />
         </div>
         <div
+          className="visit-form-open-closed"
           style={{
             display: "flex",
             alignItems: "center",
@@ -704,62 +705,66 @@ export function VisitForm({
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "110px 1fr 1fr",
-          gap: "6px 10px",
-          alignItems: "center",
-          marginBottom: 10,
-        }}
-      >
-        <div />
-        <div style={{ ...grs.fieldLabel, textAlign: "center" as const }}>Avg Last Week Attendance</div>
-        <div style={{ ...grs.fieldLabel, textAlign: "center" as const }}>
-          Regular (&gt;8 days) Students
+      <SectionHead label="Attendance" />
+      <div className="visit-form-attendance">
+        <div className="visit-form-shift-block">
+          <div className="visit-form-shift-title">Morning Shift</div>
+          <div>
+            <label style={grs.fieldLabel}>Avg Last Week Attendance</label>
+            <input
+              type="number"
+              min={0}
+              value={form.avg_attendance_morning ?? ""}
+              onChange={(e) =>
+                set("avg_attendance_morning", e.target.value === "" ? null : Number(e.target.value))
+              }
+              style={{ ...grs.input, width: "100%", boxSizing: "border-box" }}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label style={grs.fieldLabel}>Regular (&gt;8 days) Students</label>
+            <input
+              type="number"
+              min={0}
+              value={form.regular_students_morning ?? ""}
+              onChange={(e) =>
+                set("regular_students_morning", e.target.value === "" ? null : Number(e.target.value))
+              }
+              style={{ ...grs.input, width: "100%", boxSizing: "border-box" }}
+              placeholder="—"
+            />
+          </div>
         </div>
-        <div style={{ ...grs.fieldLabel, paddingTop: 2 }}>Morning Shift</div>
-        <input
-          type="number"
-          min={0}
-          value={form.avg_attendance_morning ?? ""}
-          onChange={(e) =>
-            set("avg_attendance_morning", e.target.value === "" ? null : Number(e.target.value))
-          }
-          style={grs.input}
-          placeholder="0"
-        />
-        <input
-          type="number"
-          min={0}
-          value={form.regular_students_morning ?? ""}
-          onChange={(e) =>
-            set("regular_students_morning", e.target.value === "" ? null : Number(e.target.value))
-          }
-          style={grs.input}
-          placeholder="—"
-        />
-        <div style={{ ...grs.fieldLabel, paddingTop: 2 }}>Evening Shift</div>
-        <input
-          type="number"
-          min={0}
-          value={form.avg_attendance_evening ?? ""}
-          onChange={(e) =>
-            set("avg_attendance_evening", e.target.value === "" ? null : Number(e.target.value))
-          }
-          style={grs.input}
-          placeholder="0"
-        />
-        <input
-          type="number"
-          min={0}
-          value={form.regular_students_evening ?? ""}
-          onChange={(e) =>
-            set("regular_students_evening", e.target.value === "" ? null : Number(e.target.value))
-          }
-          style={grs.input}
-          placeholder="—"
-        />
+        <div className="visit-form-shift-block">
+          <div className="visit-form-shift-title">Evening Shift</div>
+          <div>
+            <label style={grs.fieldLabel}>Avg Last Week Attendance</label>
+            <input
+              type="number"
+              min={0}
+              value={form.avg_attendance_evening ?? ""}
+              onChange={(e) =>
+                set("avg_attendance_evening", e.target.value === "" ? null : Number(e.target.value))
+              }
+              style={{ ...grs.input, width: "100%", boxSizing: "border-box" }}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label style={grs.fieldLabel}>Regular (&gt;8 days) Students</label>
+            <input
+              type="number"
+              min={0}
+              value={form.regular_students_evening ?? ""}
+              onChange={(e) =>
+                set("regular_students_evening", e.target.value === "" ? null : Number(e.target.value))
+              }
+              style={{ ...grs.input, width: "100%", boxSizing: "border-box" }}
+              placeholder="—"
+            />
+          </div>
+        </div>
       </div>
 
       {form.kutir_closed && (
@@ -789,7 +794,7 @@ export function VisitForm({
         }}
       >
         <SectionHead label="Implementation" />
-        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "4px 0" }}>
+        <div className="visit-form-label-row" style={{ display: "flex", alignItems: "center", gap: 16, padding: "4px 0" }}>
           <span style={{ ...grs.fieldLabel, margin: 0, minWidth: 180 }}>{visitFieldLabel("follow_timetable")}</span>
           <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, cursor: "pointer" }}>
             <input
@@ -801,7 +806,7 @@ export function VisitForm({
             Yes
           </label>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "4px 0" }}>
+        <div className="visit-form-label-row visit-form-teaching-plan-row" style={{ display: "flex", alignItems: "center", gap: 16, padding: "4px 0" }}>
           <span style={{ ...grs.fieldLabel, margin: 0, minWidth: 180 }}>
             Follows Monthly Teaching Plan
           </span>

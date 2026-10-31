@@ -130,32 +130,20 @@ export default function VisitDetailPage() {
 
   // ── EDIT MODE ─────────────────────────────────────────────────────────────
   return (
-    <div className="grs-page" style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <button
-          onClick={handleCancel}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-secondary)",
-            fontSize: "1.1rem",
-            padding: 0,
-          }}
-        >
-          ←
+    <div
+      className="grs-page visit-add-page"
+      style={{ maxWidth: 720, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}
+    >
+      <div className="grs-page-topbar visit-add-topbar">
+        <button type="button" className="grs-page-back" onClick={handleCancel}>
+          ← Back
         </button>
-        <h2 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>Edit Visit</h2>
+        <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20, color: "var(--text-primary)" }}>
+          Edit Visit
+        </h2>
       </div>
 
-      <div
-        style={{
-          background: "var(--bg-card)",
-          borderRadius: 8,
-          padding: "16px 20px",
-          border: "1px solid var(--border)",
-        }}
-      >
+      <div className="visit-add-card">
         {error && <div style={grs.errorBox}>{error}</div>}
 
         <VisitForm
@@ -168,11 +156,11 @@ export default function VisitDetailPage() {
           kutirName={kutirName}
         />
 
-        <div style={{ marginTop: 20, display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={handleCancel} style={grs.btnSecondary} disabled={saving}>
+        <div className="visit-form-actions">
+          <button type="button" onClick={handleCancel} style={grs.btnSecondary} disabled={saving}>
             Cancel
           </button>
-          <button onClick={handleSave} style={grs.btnPrimary} disabled={saving}>
+          <button type="button" onClick={handleSave} style={grs.btnPrimary} disabled={saving}>
             {saving ? "Saving…" : "Save Changes"}
           </button>
         </div>
