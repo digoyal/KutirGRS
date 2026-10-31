@@ -152,7 +152,7 @@ export function KutirForm({
   // ── VIEW ───────────────────────────────────────────────────────────────────
   if (readOnly) {
     return (
-      <div>
+      <div className="grs-form-layout">
         <ViewSection title="Location">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <ViewField label="Zone">{locationLabels?.zone}</ViewField>
@@ -202,7 +202,7 @@ export function KutirForm({
 
   // ── ADD / EDIT ─────────────────────────────────────────────────────────────
   return (
-    <div className="grs-form">
+    <div className={readOnly ? "grs-form-layout" : "grs-form"}>
       <section style={sec}>
         <div style={secTitle}>Location</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>

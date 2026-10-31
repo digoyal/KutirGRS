@@ -87,6 +87,7 @@ Entity list columns, Column Config, CSV export, and form field labels must come 
 - For UI: verify loading, empty, and error paths — not only the happy path.
 - Before asking for browser verification of a UI change: check out the PR branch locally (or merge to main first), ensure Vite is serving that checkout, and say which branch is running. Unmerged PR work will not appear on Vite still on main.
 - Mobile: use the checklist in **Mobile** above; do not ship desktop-only CRUD layouts.
+- After mobile form/shell layout changes: `cd frontend && npx playwright test e2e/forms-mobile.spec.ts` (see [`docs/smoke-test.md`](docs/smoke-test.md)).
 
 ## Process (PRs / branches)
 

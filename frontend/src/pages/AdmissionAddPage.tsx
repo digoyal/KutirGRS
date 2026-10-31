@@ -55,21 +55,11 @@ export default function AdmissionAddPage() {
 
   return (
     <div className="grs-page" style={{ maxWidth: 640, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-secondary)",
-            fontSize: "1.1rem",
-            padding: 0,
-          }}
-        >
-          ←
+      <div className="grs-page-topbar">
+        <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
+          ← Back
         </button>
-        <h2 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
+        <h2 className="grs-page-title" style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
           Add Admission
         </h2>
       </div>
@@ -98,7 +88,7 @@ export default function AdmissionAddPage() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
+      <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
         <button onClick={() => navigate(-1)} style={grs.btnSecondary}>
           Cancel
         </button>

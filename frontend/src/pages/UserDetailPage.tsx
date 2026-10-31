@@ -170,22 +170,14 @@ export default function UserDetailPage() {
   const displayName = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username;
 
   return (
-    <div style={{ maxWidth: 640, padding: "16px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        <button
-          style={{
-            background: "none",
-            border: "none",
-            color: "var(--link-color)",
-            cursor: "pointer",
-            fontSize: 14,
-            padding: 0,
-          }}
-          onClick={() => navigate("/users")}
-        >
+    <div className="grs-page" style={{ maxWidth: 640, padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
+      <div className="grs-page-topbar">
+        <button type="button" className="grs-page-back" onClick={() => navigate("/users")}>
           ← Back
         </button>
-        <h2 style={{ margin: 0, fontSize: 20 }}>{displayName}</h2>
+        <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20 }}>
+          {displayName}
+        </h2>
         {!editing && canManage && (
           <button
             style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }}
@@ -228,7 +220,7 @@ export default function UserDetailPage() {
             filterCluster={filterCluster}
             setFilterCluster={setFilterCluster}
           />
-          <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
+          <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
             <button style={grs.btnSecondary} onClick={handleCancel}>
               Cancel
             </button>
@@ -238,7 +230,7 @@ export default function UserDetailPage() {
           </div>
         </>
       ) : (
-        <>
+        <div className="grs-form-layout">
           <ViewSection title="Account">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
               <ViewField label={userFieldLabel("username")}>{u.username}</ViewField>
@@ -294,7 +286,7 @@ export default function UserDetailPage() {
               </div>
             </ViewSection>
           )}
-        </>
+        </div>
       )}
     </div>
   );

@@ -489,7 +489,7 @@ export function AdmissionForm({
   // ── VIEW ───────────────────────────────────────────────────────────────────
   if (readOnly) {
     return (
-      <div>
+      <div className="grs-form-layout">
         <div
           style={{
             ...sec,

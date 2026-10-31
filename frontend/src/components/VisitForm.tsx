@@ -331,7 +331,7 @@ export function VisitForm({
   // ── VIEW ───────────────────────────────────────────────────────────────────
   if (readOnly) {
     return (
-      <div>
+      <div className="grs-form-layout">
         {existingPhoto && (
           <img
             src={`${MEDIA_BASE}/media/${existingPhoto}`}

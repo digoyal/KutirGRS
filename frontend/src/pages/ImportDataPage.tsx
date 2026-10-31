@@ -36,6 +36,9 @@ const s = {
     padding: "28px 24px",
     maxWidth: 1100,
     margin: "0 auto",
+    width: "100%",
+    boxSizing: "border-box",
+    minWidth: 0,
   } as React.CSSProperties,
 
   h1: {
@@ -449,7 +452,7 @@ export default function ImportDataPage() {
   const hasErrors = results?.some((r) => r.errors.length > 0);
 
   return (
-    <div style={s.page}>
+    <div className="grs-page" style={s.page}>
       <h1 style={s.h1}>Import Data</h1>
       <p style={s.sub}>
         Upload the GRS Import Template (.xlsx) to bulk-import all master data.

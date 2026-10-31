@@ -42,21 +42,11 @@ export default function ProgressAddPage() {
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px", maxWidth: 560, width: "100%", boxSizing: "border-box" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-secondary)",
-            fontSize: "1.1rem",
-            padding: 0,
-          }}
-        >
-          ←
+      <div className="grs-page-topbar">
+        <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
+          ← Back
         </button>
-        <h2 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
+        <h2 className="grs-page-title" style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
           Add Progress Record
         </h2>
       </div>
@@ -79,7 +69,7 @@ export default function ProgressAddPage() {
 
       <ProgressForm form={form} setForm={setForm} mode="add" />
 
-      <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+      <div className="grs-form-actions" style={{ display: "flex", gap: 8, marginTop: 20 }}>
         <button onClick={handleSave} style={grs.btnPrimary} disabled={saving}>
           {saving ? "Saving…" : "Add Record"}
         </button>

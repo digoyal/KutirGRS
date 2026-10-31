@@ -226,7 +226,7 @@ export function ProgressForm({
     : progressFieldLabel("previous_year_percentage");
 
   return (
-    <div className={readOnly ? undefined : "grs-form"}>
+    <div className={readOnly ? "grs-form-layout" : "grs-form"}>
       {isAdd && (
         <>
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>

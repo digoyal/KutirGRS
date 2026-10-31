@@ -113,30 +113,14 @@ export default function ExamCenterDetailPage() {
   const districtName = districts.find((d) => d.id === center.district_id)?.name;
 
   return (
-    <div style={{ maxWidth: 600, padding: "16px 20px" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        <button
-          style={{
-            background: "none",
-            border: "none",
-            color: "var(--link-color)",
-            cursor: "pointer",
-            fontSize: 14,
-            padding: 0,
-          }}
-          onClick={() => navigate("/exam-centers")}
-        >
+    <div className="grs-page" style={{ maxWidth: 600, padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
+      <div className="grs-page-topbar">
+        <button type="button" className="grs-page-back" onClick={() => navigate("/exam-centers")}>
           ← Back
         </button>
-        <h2 style={{ margin: 0, fontSize: 20 }}>{center.name}</h2>
+        <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20 }}>
+          {center.name}
+        </h2>
         {!editing && canManage && (
           <button
             style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }}
@@ -171,7 +155,7 @@ export default function ExamCenterDetailPage() {
       />
 
       {editing && (
-        <div style={{ display: "flex", gap: 10, marginTop: 12, justifyContent: "flex-end" }}>
+        <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 12, justifyContent: "flex-end" }}>
           <button style={grs.btnSecondary} onClick={handleCancel}>
             Cancel
           </button>

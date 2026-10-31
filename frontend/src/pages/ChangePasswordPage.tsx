@@ -72,12 +72,14 @@ export default function ChangePasswordPage() {
         : `Strength: too short (${password.length}/${MIN_LEN})`;
 
   return (
-    <div style={{ maxWidth: 480, padding: "24px 16px", minWidth: 0 }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 20 }}>
-        <button type="button" style={grs.btnSecondary} onClick={() => navigate(-1)}>
+    <div className="grs-page" style={{ maxWidth: 480, padding: "24px 16px", minWidth: 0, width: "100%", boxSizing: "border-box" }}>
+      <div className="grs-page-topbar">
+        <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
           ← Back
         </button>
-        <h2 style={{ margin: 0, fontSize: 20 }}>Change Password</h2>
+        <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20 }}>
+          Change Password
+        </h2>
       </div>
 
       <div

@@ -134,6 +134,7 @@ export default function AdmissionDetailPage() {
           }}
         >
           <div
+            className="grs-admission-header"
             style={{
               display: "flex",
               justifyContent: "space-between",
@@ -214,22 +215,12 @@ export default function AdmissionDetailPage() {
 
   // ── EDIT ───────────────────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 640, padding: "16px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <button
-          onClick={handleCancel}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-secondary)",
-            fontSize: "1.1rem",
-            padding: 0,
-          }}
-        >
-          ←
+    <div className="grs-page" style={{ maxWidth: 640, padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
+      <div className="grs-page-topbar">
+        <button type="button" className="grs-page-back" onClick={handleCancel}>
+          ← Back
         </button>
-        <h2 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
+        <h2 className="grs-page-title" style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
           Edit Admission
         </h2>
       </div>
@@ -262,7 +253,7 @@ export default function AdmissionDetailPage() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
+      <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
         <button style={grs.btnSecondary} onClick={handleCancel}>
           Cancel
         </button>

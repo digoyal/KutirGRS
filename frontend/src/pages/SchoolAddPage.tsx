@@ -34,21 +34,13 @@ export default function SchoolAddPage() {
 
   return (
     <div className="grs-page" style={{ maxWidth: 600, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-        <button
-          style={{
-            background: "none",
-            border: "none",
-            color: "var(--link-color)",
-            cursor: "pointer",
-            fontSize: 14,
-            padding: 0,
-          }}
-          onClick={() => navigate(-1)}
-        >
+      <div className="grs-page-topbar">
+        <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
           ← Back
         </button>
-        <h2 style={{ margin: 0, fontSize: 20 }}>Add School</h2>
+        <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20 }}>
+          Add School
+        </h2>
       </div>
 
       {saveError && (
@@ -69,7 +61,7 @@ export default function SchoolAddPage() {
 
       <SchoolForm form={form} setForm={setForm} mode="add" />
 
-      <div style={{ display: "flex", gap: 10, marginTop: 12, justifyContent: "flex-end" }}>
+      <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 12, justifyContent: "flex-end" }}>
         <button style={grs.btnSecondary} onClick={() => navigate(-1)}>
           Cancel
         </button>

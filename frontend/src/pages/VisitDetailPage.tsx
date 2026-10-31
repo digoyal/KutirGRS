@@ -84,27 +84,9 @@ export default function VisitDetailPage() {
   // ── VIEW MODE ─────────────────────────────────────────────────────────────
   if (!editing) {
     return (
-      <div style={{ maxWidth: 720, padding: "16px 20px" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--link-color)",
-              cursor: "pointer",
-              fontSize: 14,
-              padding: 0,
-            }}
-            onClick={() => navigate("/visits/detail")}
-          >
+      <div className="grs-page visit-add-page" style={{ maxWidth: 720, padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
+        <div className="grs-page-topbar visit-add-topbar">
+          <button type="button" className="grs-page-back" onClick={() => navigate("/visits/detail")}>
             ← Back
           </button>
           {canManageVisits && (

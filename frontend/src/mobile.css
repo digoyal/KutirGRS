@@ -58,14 +58,38 @@
     min-width: 0;
   }
 
-  /* Add/Edit only (.grs-form) — View uses ViewField and already fits */
-  .grs-form {
+  /* Add/Edit (.grs-form) and View (.grs-form-layout) — stack inline grids on phone */
+  .grs-form,
+  .grs-form-layout {
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
   }
-  .grs-form [style*="grid-template-columns"] {
+  .grs-form [style*="grid-template-columns"],
+  .grs-form-layout [style*="grid-template-columns"] {
     grid-template-columns: 1fr !important;
+  }
+
+  .visit-form-geo-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Entity Add/Edit footers (Cancel / Save) — full-width tap targets */
+  .grs-form-actions {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+  }
+  .grs-form-actions button {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* Admission view header — keep Back / Edit tappable on navy bar */
+  .grs-admission-header button {
+    min-height: 40px;
+    min-width: 40px;
+    box-sizing: border-box;
   }
 
   /* Report filter fields: stack full width; dates/geo selects stay tappable */

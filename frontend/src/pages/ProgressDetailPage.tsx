@@ -110,22 +110,12 @@ export default function ProgressDetailPage() {
     (record.school ?? schools.find((s) => s.id === record.school_id))?.name ?? "—";
 
   return (
-    <div style={{ padding: "24px 28px", maxWidth: 560 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-secondary)",
-            fontSize: "1.1rem",
-            padding: 0,
-          }}
-        >
-          ←
+    <div className="grs-page" style={{ padding: "24px 28px", maxWidth: 560, width: "100%", boxSizing: "border-box" }}>
+      <div className="grs-page-topbar">
+        <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
+          ← Back
         </button>
-        <div>
+        <div className="grs-page-title" style={{ minWidth: 0 }}>
           <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: 2 }}>
             Progress Record
           </div>
@@ -168,7 +158,7 @@ export default function ProgressDetailPage() {
       />
 
       {editing && (
-        <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+        <div className="grs-form-actions" style={{ display: "flex", gap: 8, marginTop: 20 }}>
           <button onClick={handleSave} style={grs.btnPrimary} disabled={saving}>
             {saving ? "Saving…" : "Save Changes"}
           </button>
