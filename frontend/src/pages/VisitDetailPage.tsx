@@ -105,6 +105,7 @@ export default function VisitDetailPage() {
           mode="view"
           existingPhoto={visit.visit_photo}
           kutirName={kutirName}
+          visitedById={visit.visited_by_id}
         />
       </div>
     );
@@ -136,6 +137,7 @@ export default function VisitDetailPage() {
           setPhotoFile={setPhotoFile}
           existingPhoto={visit.visit_photo}
           kutirName={kutirName}
+          visitedById={visit.visited_by_id}
         />
 
         <div className="visit-form-actions">

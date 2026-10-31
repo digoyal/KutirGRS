@@ -12,6 +12,7 @@ import {
 } from "../api/visits";
 import { listKutirs } from "../api/kutirs";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
+import { getUser } from "../api/users";
 import { ViewField, viewStyles } from "@parivaar/ui";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
@@ -206,6 +207,81 @@ const detailGrid: React.CSSProperties = {
 const detailLabel: React.CSSProperties = viewStyles.label;
 const detailValue: React.CSSProperties = viewStyles.value;
 
+const visitorSummaryCard: React.CSSProperties = {
+  background: "var(--bg-card)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  padding: "12px 14px",
+  marginBottom: 16,
+  minWidth: 0,
+  boxSizing: "border-box",
+};
+
+function userDisplayName(parts: {
+  first_name: string | null;
+  last_name: string | null;
+  username: string;
+}): string {
+  const name = [parts.first_name, parts.last_name].filter(Boolean).join(" ").trim();
+  return name || parts.username;
+}
+
+function VisitVisitorSummary({
+  visitedById,
+  kutirId,
+  kutirNameOverride,
+  districts,
+  clusters,
+  areas,
+  kutirs,
+}: {
+  visitedById: number | null;
+  kutirId: number;
+  kutirNameOverride?: string;
+  districts: { id: number; name: string }[];
+  clusters: { id: number; name: string; area_id: number }[];
+  areas: { id: number; district_id: number }[];
+  kutirs: { id: number; name: string; cluster_id: number }[];
+}) {
+  const { data: visitor } = useQuery({
+    queryKey: ["user", visitedById],
+    queryFn: () => getUser(visitedById!),
+    enabled: visitedById != null && visitedById > 0,
+  });
+
+  const kutir = kutirs.find((k) => k.id === kutirId);
+  const cluster = kutir ? clusters.find((c) => c.id === kutir.cluster_id) : undefined;
+  const area = cluster ? areas.find((a) => a.id === cluster.area_id) : undefined;
+  const district = area ? districts.find((d) => d.id === area.district_id) : undefined;
+
+  const kutirLabel =
+    kutirNameOverride ?? kutir?.name ?? (kutirId ? `Kutir #${kutirId}` : "—");
+  const visitorName = visitor
+    ? userDisplayName(visitor)
+    : visitedById
+      ? `User #${visitedById}`
+      : "—";
+  const visitorRole = visitor?.title?.trim() || "—";
+
+  return (
+    <div className="visit-visitor-summary">
+      <div style={{ ...viewStyles.sectionTitle, marginTop: 0, marginBottom: 8 }}>Visitor & Location</div>
+      <div className="visit-form-detail-grid" style={{ ...detailGrid, ...visitorSummaryCard, marginTop: 0, marginBottom: 0 }}>
+        <span style={detailLabel}>Visitor</span>
+        <span style={detailValue}>{visitorName}</span>
+        <span style={detailLabel}>Role</span>
+        <span style={detailValue}>{visitorRole}</span>
+        <span style={detailLabel}>District</span>
+        <span style={detailValue}>{district?.name ?? "—"}</span>
+        <span style={detailLabel}>Cluster</span>
+        <span style={detailValue}>{cluster?.name ?? "—"}</span>
+        <span style={detailLabel}>{visitFieldLabel("kutir_id")}</span>
+        <span style={detailValue}>{kutirLabel}</span>
+      </div>
+    </div>
+  );
+}
+
 interface VisitFormProps {
   form: VisitFormState;
   setForm: React.Dispatch<React.SetStateAction<VisitFormState>>;
@@ -216,6 +292,8 @@ interface VisitFormProps {
   existingPhoto?: string | null;
   /** Display name for view mode when kutir cannot be changed. */
   kutirName?: string;
+  /** Logged visitor (edit/view only; omit on add). */
+  visitedById?: number | null;
 }
 
 export function VisitForm({
@@ -226,6 +304,7 @@ export function VisitForm({
   setPhotoFile,
   existingPhoto = null,
   kutirName,
+  visitedById,
 }: VisitFormProps) {
   const readOnly = mode === "view";
   const { user } = useAuth();
@@ -331,10 +410,24 @@ export function VisitForm({
   const resolvedKutirName =
     kutirName ?? kutirs.find((k) => k.id === form.kutir_id)?.name ?? (form.kutir_id ? `Kutir #${form.kutir_id}` : "—");
 
+  const visitorSummary =
+    mode !== "add" ? (
+      <VisitVisitorSummary
+        visitedById={visitedById ?? null}
+        kutirId={form.kutir_id}
+        kutirNameOverride={kutirName}
+        districts={allDistricts}
+        clusters={allClusters}
+        areas={allAreas}
+        kutirs={kutirs}
+      />
+    ) : null;
+
   // ── VIEW ───────────────────────────────────────────────────────────────────
   if (readOnly) {
     return (
       <div className="grs-form-layout">
+        {visitorSummary}
         {existingPhoto && (
           <img
             src={`${MEDIA_BASE}/media/${existingPhoto}`}
@@ -596,6 +689,7 @@ export function VisitForm({
   // ── ADD / EDIT ─────────────────────────────────────────────────────────────
   return (
     <div className="grs-form visit-form">
+      {visitorSummary}
       <SectionHead label="Visit Info" />
       <div className="visit-form-geo-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
         <div>
