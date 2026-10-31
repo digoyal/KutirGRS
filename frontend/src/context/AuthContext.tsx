@@ -10,7 +10,7 @@ import api from "../api/client";
 interface User {
   id: number;
   username: string;
-  email: string;
+  email: string | null;
   title: string;
   /** From /auth/me (API field name). */
   is_admin: boolean;
