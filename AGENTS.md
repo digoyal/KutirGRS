@@ -66,6 +66,7 @@ Entity list columns, Column Config, CSV export, and form field labels must come 
 - **Collapsible filters (≤640px):** list-page filters in GrsTable / `@parivaar/ui` Table collapse behind a **Filters** toggle (**collapsed by default** on phone) with a visible **▼/▲** chevron and an active-count badge; desktop stays expanded. Prefer Table `filters` slot + `activeFilterCount` — do not reinvent per page. Pass `activeFilterCount` when page filters are set so the badge works. Persistence stays page-level (`usePersistedFilters`). **Reports** use the same pattern via `ReportFiltersBar` (see **Mobile / responsive UI → Reports**).
 - **Reports (phone):** Report geo/date filter rows use the collapsible filter bar above (collapsed by default, chevron on toggle). Match other list pages for **full-width** main content; allow normal **vertical page scroll** and **horizontal scroll inside** wide report tables/cards — no document-level horizontal overflow.
 - Dense filter rows must not leave permanent page overflow from chips/selects on small screens.
+- **Visit photo (Add/Edit):** on ≤768px, `VisitForm` shows **Take photo** (`input capture="environment"`) and **Choose file** (gallery); desktop keeps a single file input. Same `photoFile` → `uploadVisitPhoto` pipeline on save.
 - After UI changes, smoke-test phone (~375px) and desktop (≥1024px): nav, one Add form, one filtered list, modals if touched.
 
 ## Security & secrets

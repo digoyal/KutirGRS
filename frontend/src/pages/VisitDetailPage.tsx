@@ -84,7 +84,7 @@ export default function VisitDetailPage() {
   // ── VIEW MODE ─────────────────────────────────────────────────────────────
   if (!editing) {
     return (
-      <div className="grs-page visit-add-page" style={{ maxWidth: 720, padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
+      <div className="grs-page visit-add-page" style={{ maxWidth: 720, padding: "12px 16px", width: "100%", boxSizing: "border-box" }}>
         <div className="grs-page-topbar visit-add-topbar">
           <button type="button" className="grs-page-back" onClick={() => navigate("/visits/detail")}>
             ← Back
@@ -117,7 +117,7 @@ export default function VisitDetailPage() {
   return (
     <div
       className="grs-page visit-add-page"
-      style={{ maxWidth: 720, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}
+      style={{ maxWidth: 720, width: "100%", boxSizing: "border-box", padding: "12px 16px" }}
     >
       <div className="grs-page-topbar visit-add-topbar">
         <button type="button" className="grs-page-back" onClick={handleCancel}>

@@ -3,7 +3,7 @@
  * Caller owns form state; this component is presentational + interactive.
  * Modes: add (empty/editable), edit (editable), view (read-only).
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BLANK_VISIT,
@@ -74,6 +74,7 @@ export function visitFormFromVisit(visit: KutirVisit): VisitFormState {
 function SectionHead({ label }: { label: string }) {
   return (
     <div
+      className="visit-form-section-head"
       style={{
         fontSize: "0.72rem",
         fontWeight: 700,
@@ -81,9 +82,9 @@ function SectionHead({ label }: { label: string }) {
         textTransform: "uppercase",
         color: "var(--link-color)",
         borderBottom: "2px solid var(--badge-blue-bg)",
-        paddingBottom: 5,
-        marginBottom: 12,
-        marginTop: 22,
+        paddingBottom: 4,
+        marginBottom: 8,
+        marginTop: 14,
         textAlign: "left",
       }}
     >
@@ -94,7 +95,11 @@ function SectionHead({ label }: { label: string }) {
 
 /** View-mode section title — shared chip/label size blue title. */
 function ViewSectionHead({ label }: { label: string }) {
-  return <div style={{ ...viewStyles.sectionTitle, marginTop: 16 }}>{label}</div>;
+  return (
+    <div className="visit-form-section-head" style={{ ...viewStyles.sectionTitle, marginTop: 10, marginBottom: 6 }}>
+      {label}
+    </div>
+  );
 }
 
 function StarRating({
@@ -200,7 +205,7 @@ function workbookColor(wc: string | null) {
 const detailGrid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "140px 1fr",
-  gap: "6px 12px",
+  gap: "4px 10px",
   fontSize: "0.875rem",
   color: "var(--text-primary)",
 };
@@ -211,8 +216,8 @@ const visitorSummaryCard: React.CSSProperties = {
   background: "var(--bg-card)",
   border: "1px solid var(--border)",
   borderRadius: 8,
-  padding: "12px 14px",
-  marginBottom: 16,
+  padding: "10px 12px",
+  marginBottom: 0,
   minWidth: 0,
   boxSizing: "border-box",
 };
@@ -307,7 +312,6 @@ function VisitVisitorSummary({
 
   return (
     <div className="visit-visitor-summary">
-      <div style={{ ...viewStyles.sectionTitle, marginTop: 0, marginBottom: 8 }}>Visitor & Location</div>
       <div style={visitorSummaryCard}>
         <div
           style={{
@@ -318,11 +322,11 @@ function VisitVisitorSummary({
             wordBreak: "break-word",
           }}
         >
-          {visitorLine}
+          Visited by: {visitorLine}
         </div>
         <div
           style={{
-            marginTop: 6,
+            marginTop: 4,
             fontSize: "0.875rem",
             color: "var(--text-secondary)",
             lineHeight: 1.35,
@@ -366,6 +370,13 @@ export function VisitForm({
 }: VisitFormProps) {
   const readOnly = mode === "view";
   const { user } = useAuth();
+  const visitCameraInputRef = useRef<HTMLInputElement>(null);
+  const visitGalleryInputRef = useRef<HTMLInputElement>(null);
+
+  function onVisitPhotoSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    setPhotoFile?.(e.target.files?.[0] ?? null);
+    e.target.value = "";
+  }
 
   const [filterDistrict, setFilterDistrict] = useState<number | "">("");
   const [filterCluster, setFilterCluster] = useState<number | "">("");
@@ -485,7 +496,7 @@ export function VisitForm({
   // ── VIEW ───────────────────────────────────────────────────────────────────
   if (readOnly) {
     return (
-      <div className="grs-form-layout">
+      <div className="grs-form-layout visit-form">
         {visitorSummary}
         {existingPhoto && (
           <img
@@ -494,7 +505,7 @@ export function VisitForm({
             style={{
               width: "100%",
               borderRadius: 8,
-              marginBottom: 16,
+              marginBottom: 10,
               maxHeight: 220,
               objectFit: "cover",
             }}
@@ -1188,12 +1199,51 @@ export function VisitForm({
             </div>
           )}
           {setPhotoFile && (
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-              style={{ fontSize: "0.85rem" }}
-            />
+            <>
+              <div className="visit-photo-upload-desktop">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={onVisitPhotoSelected}
+                  style={{ fontSize: "0.85rem" }}
+                />
+              </div>
+              <div className="visit-photo-upload-mobile">
+                <input
+                  ref={visitCameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="visit-photo-input-hidden"
+                  aria-hidden
+                  tabIndex={-1}
+                  onChange={onVisitPhotoSelected}
+                />
+                <input
+                  ref={visitGalleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="visit-photo-input-hidden"
+                  aria-hidden
+                  tabIndex={-1}
+                  onChange={onVisitPhotoSelected}
+                />
+                <button
+                  type="button"
+                  style={grs.btnPrimary}
+                  onClick={() => visitCameraInputRef.current?.click()}
+                >
+                  Take photo
+                </button>
+                <button
+                  type="button"
+                  style={grs.btnSecondary}
+                  onClick={() => visitGalleryInputRef.current?.click()}
+                >
+                  Choose file
+                </button>
+              </div>
+            </>
           )}
           {photoFile && (
             <div style={{ marginTop: 8 }}>

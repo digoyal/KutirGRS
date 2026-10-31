@@ -32,7 +32,7 @@ export default function VisitAddPage() {
   return (
     <div
       className="grs-page visit-add-page"
-      style={{ maxWidth: 720, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}
+      style={{ maxWidth: 720, width: "100%", boxSizing: "border-box", padding: "12px 16px" }}
     >
       <div className="grs-page-topbar visit-add-topbar">
         <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>

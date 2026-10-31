@@ -190,7 +190,7 @@
   }
 
   .visit-add-card {
-    padding: 14px 16px !important;
+    padding: 12px 14px !important;
     min-width: 0;
   }
 
@@ -246,11 +246,21 @@
 }
 
 /* Visit form — class-based layouts (not affected by .grs-form inline-grid override) */
+.visit-visitor-summary {
+  margin-bottom: 10px;
+}
+
+.visit-form .visit-visitor-summary + .visit-form-section-head,
+.grs-form-layout.visit-form .visit-visitor-summary + .visit-form-section-head,
+.grs-form-layout.visit-form .visit-visitor-summary + img + .visit-form-section-head {
+  margin-top: 8px;
+}
+
 .visit-form-attendance {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 8px;
   min-width: 0;
 }
 .visit-form-shift-block {
@@ -266,17 +276,37 @@
   margin-bottom: 2px;
 }
 
+.visit-add-page .grs-page-topbar {
+  margin-bottom: 10px;
+}
+
+/* Visit photo — camera vs gallery on phone; desktop keeps native file input */
+.visit-photo-upload-mobile {
+  display: none;
+}
+.visit-photo-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .visit-add-card {
   background: var(--bg-card);
   border-radius: 8;
-  padding: 16px 20px;
+  padding: 12px 16px;
   border: 1px solid var(--border);
   box-sizing: border-box;
   min-width: 0;
 }
 
 .visit-form-actions {
-  margin-top: 20px;
+  margin-top: 14px;
   display: flex;
   gap: 10px;
   justify-content: flex-end;
@@ -323,6 +353,19 @@
 }
 
 @media (max-width: 768px) {
+  .visit-photo-upload-desktop {
+    display: none;
+  }
+  .visit-photo-upload-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .visit-photo-upload-mobile button {
+    width: 100%;
+    min-height: 44px;
+  }
+
   /* App shell uses full viewport width on phone (no centered #root column). */
   #root {
     max-width: none !important;
