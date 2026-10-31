@@ -3,6 +3,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 import os, uuid, shutil
 
 from app.database import get_db
@@ -68,6 +69,25 @@ def _media(sub: str) -> str:
     return path
 
 
+async def _visit_to_out(visit: KutirVisit, db: AsyncSession) -> KutirVisitOut:
+    """Include visitor display fields for clients that cannot call GET /users/{id}."""
+    visited_by_name: Optional[str] = None
+    visited_by_role: Optional[str] = None
+    visitor = visit.visited_by
+    # After commit/refresh the relationship is often expired; load explicitly when id is set.
+    if visitor is None and visit.visited_by_id is not None:
+        visitor = await db.get(User, visit.visited_by_id)
+    if visitor is not None:
+        parts = [p for p in (visitor.first_name, visitor.last_name) if p]
+        visited_by_name = " ".join(parts).strip() or None
+        title = (visitor.title or "").strip()
+        visited_by_role = title or None
+    out = KutirVisitOut.model_validate(visit)
+    return out.model_copy(
+        update={"visited_by_name": visited_by_name, "visited_by_role": visited_by_role}
+    )
+
+
 # ── List ─────────────────────────────────────────────────────────────────────
 @router.get("/kutir-visits", response_model=list[KutirVisitOut], tags=["Kutir Visits"])
 async def list_visits(
@@ -93,11 +113,15 @@ async def list_visits(
     response.headers["X-Total-Count"] = str(total)
     response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
 
-    data_q = _apply_filters(select(KutirVisit)).order_by(KutirVisit.visit_date.desc())
+    data_q = (
+        _apply_filters(select(KutirVisit).options(selectinload(KutirVisit.visited_by)))
+        .order_by(KutirVisit.visit_date.desc())
+    )
     if limit is not None:
         data_q = data_q.limit(limit).offset(offset)
     result = await db.execute(data_q)
-    return result.scalars().all()
+    visits = result.scalars().all()
+    return [await _visit_to_out(v, db) for v in visits]
 
 
 # ── Create ───────────────────────────────────────────────────────────────────
@@ -118,7 +142,7 @@ async def create_visit(
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
-    return obj
+    return await _visit_to_out(obj, db)
 
 
 # ── Top / Bottom 10 Kutirs by avg performance ────────────────────────────────
@@ -519,7 +543,7 @@ async def visit_detailed_report(
                 cluster_name=r.cluster_name,
                 kutir_id=r.kutir_id,
                 kutir_name=r.kutir_name,
-                visit=KutirVisitOut.model_validate(visit),
+                visit=await _visit_to_out(visit, db),
             )
         )
     return VisitDetailedReportOut(
@@ -540,11 +564,11 @@ async def get_visit(
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
-    obj = await db.get(KutirVisit, id)
+    obj = await db.get(KutirVisit, id, options=[selectinload(KutirVisit.visited_by)])
     if not obj:
         raise HTTPException(404, "KutirVisit not found")
     require_kutir_in_scope(obj.kutir_id, scope, detail="KutirVisit not found")
-    return obj
+    return await _visit_to_out(obj, db)
 
 
 # ── Update ───────────────────────────────────────────────────────────────────
@@ -563,7 +587,7 @@ async def update_visit(
         setattr(obj, k, v)
     await db.commit()
     await db.refresh(obj)
-    return obj
+    return await _visit_to_out(obj, db)
 
 
 # ── Delete ───────────────────────────────────────────────────────────────────
@@ -603,4 +627,4 @@ async def upload_visit_photo(
     obj.visit_photo = f"visit_photos/{filename}"
     await db.commit()
     await db.refresh(obj)
-    return obj
+    return await _visit_to_out(obj, db)

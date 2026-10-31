@@ -15,7 +15,7 @@ import { listDistricts, listAreas, listClusters } from "../api/geo";
 import { getUser } from "../api/users";
 import { ViewField, viewStyles } from "@parivaar/ui";
 import { useAuth } from "../context/AuthContext";
-import { hasGlobalDataScope } from "../constants/roles";
+import { canViewUsers, hasGlobalDataScope } from "../constants/roles";
 import { visitFieldLabel } from "../constants/visitsFields";
 import { grs } from "../styles/grs";
 import { mediaBase } from "../api/apiBase";
@@ -217,36 +217,59 @@ const visitorSummaryCard: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-function userDisplayName(parts: {
-  first_name: string | null;
-  last_name: string | null;
-  username: string;
-}): string {
+/** First + last only — username is not shown on the visitor summary line. */
+function visitVisitorPersonName(parts: {
+  first_name?: string | null;
+  last_name?: string | null;
+}): string | null {
   const name = [parts.first_name, parts.last_name].filter(Boolean).join(" ").trim();
-  return name || parts.username;
+  return name || null;
+}
+
+function formatVisitorSummaryLine(
+  displayName: string | null,
+  role: string | null,
+  visitedById: number | null,
+): string {
+  const name = displayName?.trim() || null;
+  const r = role?.trim() || null;
+  if (name && r) return `${name} (${r})`;
+  if (name) return name;
+  if (r) return `— (${r})`;
+  if (visitedById != null && visitedById > 0) return `User #${visitedById}`;
+  return "—";
 }
 
 function VisitVisitorSummary({
   visitedById,
+  visitedByName,
+  visitedByRole,
   kutirId,
-  kutirNameOverride,
   districts,
   clusters,
   areas,
   kutirs,
 }: {
   visitedById: number | null;
+  visitedByName?: string | null;
+  visitedByRole?: string | null;
   kutirId: number;
-  kutirNameOverride?: string;
   districts: { id: number; name: string }[];
   clusters: { id: number; name: string; area_id: number }[];
   areas: { id: number; district_id: number }[];
   kutirs: { id: number; name: string; cluster_id: number }[];
 }) {
+  const { user: authUser } = useAuth();
+  const needsUserFetch =
+    visitedById != null &&
+    visitedById > 0 &&
+    canViewUsers(authUser?.title) &&
+    (!visitedByName?.trim() || !visitedByRole?.trim());
+
   const { data: visitor } = useQuery({
     queryKey: ["user", visitedById],
     queryFn: () => getUser(visitedById!),
-    enabled: visitedById != null && visitedById > 0,
+    enabled: needsUserFetch,
   });
 
   const kutir = kutirs.find((k) => k.id === kutirId);
@@ -254,29 +277,60 @@ function VisitVisitorSummary({
   const area = cluster ? areas.find((a) => a.id === cluster.area_id) : undefined;
   const district = area ? districts.find((d) => d.id === area.district_id) : undefined;
 
-  const kutirLabel =
-    kutirNameOverride ?? kutir?.name ?? (kutirId ? `Kutir #${kutirId}` : "—");
-  const visitorName = visitor
-    ? userDisplayName(visitor)
-    : visitedById
-      ? `User #${visitedById}`
-      : "—";
-  const visitorRole = visitor?.title?.trim() || "—";
+  const resolvedName = (() => {
+    const fromApi = visitedByName?.trim();
+    if (fromApi) return fromApi;
+    if (visitor) return visitVisitorPersonName(visitor);
+    if (visitedById != null && visitedById > 0 && authUser?.id === visitedById) {
+      const u = authUser as { first_name?: string | null; last_name?: string | null };
+      return visitVisitorPersonName(u);
+    }
+    return null;
+  })();
+
+  const resolvedRole = (() => {
+    const fromApi = visitedByRole?.trim();
+    if (fromApi) return fromApi;
+    if (visitor?.title?.trim()) return visitor.title.trim();
+    if (visitedById != null && visitedById > 0 && authUser?.id === visitedById) {
+      return authUser.title?.trim() || null;
+    }
+    return null;
+  })();
+
+  const visitorLine = formatVisitorSummaryLine(resolvedName, resolvedRole, visitedById);
+
+  const geoParts = [district?.name, cluster?.name].filter(
+    (p): p is string => Boolean(p && p !== "—"),
+  );
+  const geoLine = geoParts.length > 0 ? geoParts.join(" · ") : "—";
 
   return (
     <div className="visit-visitor-summary">
       <div style={{ ...viewStyles.sectionTitle, marginTop: 0, marginBottom: 8 }}>Visitor & Location</div>
-      <div className="visit-form-detail-grid" style={{ ...detailGrid, ...visitorSummaryCard, marginTop: 0, marginBottom: 0 }}>
-        <span style={detailLabel}>Visitor</span>
-        <span style={detailValue}>{visitorName}</span>
-        <span style={detailLabel}>Role</span>
-        <span style={detailValue}>{visitorRole}</span>
-        <span style={detailLabel}>District</span>
-        <span style={detailValue}>{district?.name ?? "—"}</span>
-        <span style={detailLabel}>Cluster</span>
-        <span style={detailValue}>{cluster?.name ?? "—"}</span>
-        <span style={detailLabel}>{visitFieldLabel("kutir_id")}</span>
-        <span style={detailValue}>{kutirLabel}</span>
+      <div style={visitorSummaryCard}>
+        <div
+          style={{
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--text-primary)",
+            lineHeight: 1.35,
+            wordBreak: "break-word",
+          }}
+        >
+          {visitorLine}
+        </div>
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: "0.875rem",
+            color: "var(--text-secondary)",
+            lineHeight: 1.35,
+            wordBreak: "break-word",
+          }}
+        >
+          {geoLine}
+        </div>
       </div>
     </div>
   );
@@ -294,6 +348,8 @@ interface VisitFormProps {
   kutirName?: string;
   /** Logged visitor (edit/view only; omit on add). */
   visitedById?: number | null;
+  visitedByName?: string | null;
+  visitedByRole?: string | null;
 }
 
 export function VisitForm({
@@ -305,6 +361,8 @@ export function VisitForm({
   existingPhoto = null,
   kutirName,
   visitedById,
+  visitedByName,
+  visitedByRole,
 }: VisitFormProps) {
   const readOnly = mode === "view";
   const { user } = useAuth();
@@ -414,8 +472,9 @@ export function VisitForm({
     mode !== "add" ? (
       <VisitVisitorSummary
         visitedById={visitedById ?? null}
+        visitedByName={visitedByName}
+        visitedByRole={visitedByRole}
         kutirId={form.kutir_id}
-        kutirNameOverride={kutirName}
         districts={allDistricts}
         clusters={allClusters}
         areas={allAreas}

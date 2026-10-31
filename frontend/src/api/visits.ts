@@ -4,6 +4,9 @@ export interface KutirVisit {
   id: number;
   kutir_id: number;
   visited_by_id: number | null;
+  /** Populated by API for display (no GET /users/{id} required). */
+  visited_by_name?: string | null;
+  visited_by_role?: string | null;
   visit_date: string;
   avg_attendance_morning: number | null;
   avg_attendance_evening: number | null;

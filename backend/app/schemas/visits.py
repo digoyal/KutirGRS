@@ -126,6 +126,8 @@ class KutirVisitOut(KutirVisitBase):
     visit_photo: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    visited_by_name: Optional[str] = None
+    visited_by_role: Optional[str] = None
     model_config = {"from_attributes": True}
 
 

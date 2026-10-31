@@ -106,6 +106,8 @@ export default function VisitDetailPage() {
           existingPhoto={visit.visit_photo}
           kutirName={kutirName}
           visitedById={visit.visited_by_id}
+          visitedByName={visit.visited_by_name}
+          visitedByRole={visit.visited_by_role}
         />
       </div>
     );
@@ -138,6 +140,8 @@ export default function VisitDetailPage() {
           existingPhoto={visit.visit_photo}
           kutirName={kutirName}
           visitedById={visit.visited_by_id}
+          visitedByName={visit.visited_by_name}
+          visitedByRole={visit.visited_by_role}
         />
 
         <div className="visit-form-actions">
