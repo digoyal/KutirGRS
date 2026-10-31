@@ -142,7 +142,7 @@ export default function SchoolsPage() {
   }, [orderedMetas, isVisible]);
 
   return (
-    <div style={{ padding: "24px 28px" }}>
+    <div className="grs-page" style={{ padding: "24px 28px" }}>
       <GrsTable
         title="Schools"
         columns={columns}

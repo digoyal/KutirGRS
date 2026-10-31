@@ -182,40 +182,43 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
       {error && <div style={{ ...grs.errorBox, marginBottom: 10 }}>{error}</div>}
 
       {isAdmin && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div className="grs-lookup-add-row">
           {tab.hasParent && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
               <label style={grs.fieldLabel}>Category</label>
-              <select style={{ ...grs.select, width: "auto", minWidth: 160 }} value={addParent} onChange={e => setAddParent(Number(e.target.value) || "")} disabled={saving}>
+              <select style={{ ...grs.select, width: "100%", maxWidth: "100%" }} value={addParent} onChange={e => setAddParent(Number(e.target.value) || "")} disabled={saving}>
                 <option value="">— select —</option>
                 {safeParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
           )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 200 }}>
-            <label style={grs.fieldLabel}>New {tab.nameField === "reason" ? "reason" : "name"}</label>
-            <input
-              style={grs.input}
-              value={addValue}
-              onChange={e => setAddValue(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void handleAdd();
-                }
-              }}
-              placeholder={`Add new ${tab.nameField === "reason" ? "reason" : "name"}…`}
-              disabled={saving}
-            />
+          <div className="grs-lookup-add-row__main">
+            <div className="grs-lookup-add-row__grow">
+              <label style={grs.fieldLabel}>New {tab.nameField === "reason" ? "reason" : "name"}</label>
+              <input
+                style={grs.input}
+                value={addValue}
+                onChange={e => setAddValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleAdd();
+                  }
+                }}
+                placeholder={`Add new ${tab.nameField === "reason" ? "reason" : "name"}…`}
+                disabled={saving}
+              />
+            </div>
+            <button
+              type="button"
+              className="grs-lookup-add-row__btn"
+              onClick={() => { void handleAdd(); }}
+              style={{ ...grs.btnPrimary, whiteSpace: "nowrap", opacity: saving ? 0.7 : 1 }}
+              disabled={!addValue.trim() || saving}
+            >
+              {saving ? "Adding…" : "+ Add"}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => { void handleAdd(); }}
-            style={{ ...grs.btnPrimary, whiteSpace: "nowrap", opacity: saving ? 0.7 : 1 }}
-            disabled={!addValue.trim() || saving}
-          >
-            {saving ? "Adding…" : "+ Add"}
-          </button>
         </div>
       )}
 
@@ -568,11 +571,14 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
       {isAdmin && (
         <div style={{ marginBottom: 16, padding: 14, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }}>
           <p style={{ margin: "0 0 10px", fontWeight: 600, fontSize: "0.85rem" }}>Add Exam Type</p>
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 180 }}>
-              <label style={grs.fieldLabel}>Name</label>
-              <input style={grs.input} value={addName} onChange={e => setAddName(e.target.value)}
-                placeholder="e.g. MP Tribals" onKeyDown={e => e.key === "Enter" && handleAdd()} />
+          <div className="grs-lookup-add-row" style={{ marginBottom: 0 }}>
+            <div className="grs-lookup-add-row__main">
+              <div className="grs-lookup-add-row__grow">
+                <label style={grs.fieldLabel}>Name</label>
+                <input style={grs.input} value={addName} onChange={e => setAddName(e.target.value)}
+                  placeholder="e.g. MP Tribals" onKeyDown={e => e.key === "Enter" && handleAdd()} />
+              </div>
+              <button type="button" className="grs-lookup-add-row__btn" onClick={handleAdd} style={{ ...grs.btnPrimary, whiteSpace: "nowrap" }} disabled={!addName.trim()}>+ Add</button>
             </div>
             {schoolTypes.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -587,7 +593,6 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
                 </div>
               </div>
             )}
-            <button onClick={handleAdd} style={{ ...grs.btnPrimary, whiteSpace: "nowrap" }} disabled={!addName.trim()}>+ Add</button>
           </div>
         </div>
       )}
@@ -958,7 +963,7 @@ export default function LookupsPage() {
   const current = TABS.find(t => t.key === activeTab)!;
 
   return (
-    <div style={{ padding: "24px 28px" }}>
+    <div className="grs-page" style={{ padding: "24px 28px" }}>
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ margin: "0 0 4px", color: "var(--text-primary)" }}>Lookup Tables</h2>
         <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>

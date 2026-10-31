@@ -155,7 +155,7 @@ export default function GeoPage() {
   const addLabel = tab.slice(0, 1).toUpperCase() + tab.slice(1, -1);
 
   return (
-    <div style={{ padding: "24px 28px" }}>
+    <div className="grs-page" style={{ padding: "24px 28px" }}>
       <GrsTabs
         value={tab}
         onChange={setTab}
