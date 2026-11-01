@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { FormPageShell } from "@parivaar/ui";
 import { getProgress, updateProgress, type StudentProgressCreate } from "../api/admissions";
 import { listSchools, type School } from "../api/schools";
 import { listStudents } from "../api/students";
@@ -110,45 +111,39 @@ export default function ProgressDetailPage() {
     (record.school ?? schools.find((s) => s.id === record.school_id))?.name ?? "—";
 
   return (
-    <div className="grs-page" style={{ padding: "24px 28px", maxWidth: 560, width: "100%", boxSizing: "border-box" }}>
-      <div className="grs-page-topbar">
-        <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
-          ← Back
-        </button>
-        <div className="grs-page-title" style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: 2 }}>
-            Progress Record
-          </div>
-          <h2 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
-            {studentName}
-          </h2>
-        </div>
-        {!editing && (
-          <button
-            onClick={() => setEditing(true)}
-            style={{ ...grs.btnSecondary, marginLeft: "auto" }}
-          >
-            Edit
+    <FormPageShell
+      showActions={editing}
+      style={{ padding: "24px 28px", maxWidth: 560 }}
+      header={
+        <div className="grs-page-topbar">
+          <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
+            ← Back
           </button>
-        )}
-      </div>
-
-      {error && (
-        <div
-          style={{
-            background: "var(--status-danger-bg)",
-            border: "1px solid var(--badge-red-fg)",
-            color: "var(--status-danger-fg)",
-            borderRadius: 6,
-            padding: "8px 12px",
-            fontSize: "0.85rem",
-            marginBottom: 16,
-          }}
-        >
-          {error}
+          <div className="grs-page-title" style={{ minWidth: 0 }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: 2 }}>
+              Progress Record
+            </div>
+            <h2 style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
+              {studentName}
+            </h2>
+          </div>
+          {!editing && (
+            <button
+              onClick={() => setEditing(true)}
+              style={{ ...grs.btnSecondary, marginLeft: "auto" }}
+            >
+              Edit
+            </button>
+          )}
         </div>
-      )}
-
+      }
+      error={error}
+      saving={saving}
+      saveLabel="Save Changes"
+      onSave={handleSave}
+      onCancel={handleCancel}
+      actionsStyle={{ marginTop: 20 }}
+    >
       <ProgressForm
         form={form}
         setForm={setForm}
@@ -156,17 +151,6 @@ export default function ProgressDetailPage() {
         studentName={studentName}
         schoolName={schoolName}
       />
-
-      {editing && (
-        <div className="grs-form-actions" style={{ display: "flex", gap: 8, marginTop: 20 }}>
-          <button onClick={handleSave} style={grs.btnPrimary} disabled={saving}>
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
-          <button onClick={handleCancel} style={grs.btnSecondary} disabled={saving}>
-            Cancel
-          </button>
-        </div>
-      )}
-    </div>
+    </FormPageShell>
   );
 }

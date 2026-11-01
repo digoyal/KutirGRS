@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { FormPageShell } from "@parivaar/ui";
 import { createExam, type StudentExamCreate } from "../api/admissions";
 import {
   AdmissionForm,
@@ -11,7 +12,6 @@ import {
   ADMISSION_CLASS_REQUIRED_MSG,
   type AdmissionFormState,
 } from "../components/AdmissionForm";
-import { grs } from "../styles/grs";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -54,16 +54,26 @@ export default function AdmissionAddPage() {
     (!schoolRequired || (!!form.school_type && !!form.admitted_school_id));
 
   return (
-    <div className="grs-page" style={{ maxWidth: 640, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}>
-      <div className="grs-page-topbar">
-        <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
-          ← Back
-        </button>
-        <h2 className="grs-page-title" style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
-          Add Admission
-        </h2>
-      </div>
-
+    <FormPageShell
+      style={{ maxWidth: 640 }}
+      header={
+        <div className="grs-page-topbar">
+          <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
+            ← Back
+          </button>
+          <h2 className="grs-page-title" style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
+            Add Admission
+          </h2>
+        </div>
+      }
+      error={saveError}
+      saving={addMut.isPending}
+      saveDisabled={!canSave}
+      saveLabel="Add Admission"
+      onSave={handleSave}
+      onCancel={() => navigate(-1)}
+      actionsStyle={{ marginTop: 16 }}
+    >
       <AdmissionForm
         form={form}
         setForm={setForm}
@@ -71,35 +81,6 @@ export default function AdmissionAddPage() {
         admitBlockMsg={admitBlockMsg}
         onAdmitBlockMsg={setAdmitBlockMsg}
       />
-
-      {saveError && (
-        <div
-          style={{
-            marginTop: 16,
-            padding: "8px 12px",
-            background: "var(--danger-bg, #fef2f2)",
-            border: "1px solid var(--danger-border, #fca5a5)",
-            borderRadius: 6,
-            color: "var(--danger, #dc2626)",
-            fontSize: 13,
-          }}
-        >
-          {saveError}
-        </div>
-      )}
-
-      <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-        <button onClick={() => navigate(-1)} style={grs.btnSecondary}>
-          Cancel
-        </button>
-        <button
-          disabled={!canSave || addMut.isPending}
-          onClick={handleSave}
-          style={{ ...grs.btnPrimary, opacity: !canSave || addMut.isPending ? 0.5 : 1 }}
-        >
-          {addMut.isPending ? "Adding…" : "Add Admission"}
-        </button>
-      </div>
-    </div>
+    </FormPageShell>
   );
 }

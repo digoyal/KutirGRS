@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { RowCountBadge, styles } from "@parivaar/ui";
+import { RowCountBadge } from "@parivaar/ui";
 import {
   listZones,
   listDistricts,
@@ -19,23 +19,8 @@ import {
   type TopKutirsReport,
 } from "../api/visits";
 import { ReportFiltersBar } from "../components/ReportFiltersBar";
+import { ReportCsvPrintActions, ReportPageHeader } from "../components/ReportPageHeader";
 import { countActiveFilters } from "../utils/geoFilters";
-
-const IconDownload = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="7 10 12 15 17 10" />
-    <line x1="12" y1="15" x2="12" y2="3" />
-  </svg>
-);
-
-const IconPrint = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="6 9 6 2 18 2 18 9" />
-    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-    <rect x="6" y="14" width="12" height="8" />
-  </svg>
-);
 
 const today = () => new Date().toISOString().slice(0, 10);
 const yearStart = () => `${new Date().getFullYear()}-01-01`;
@@ -266,48 +251,17 @@ export default function TopKutirsReportPage({ rank = "top" }: { rank?: KutirsRan
   };
 
   return (
-    <div className="grs-page" style={{ padding: "24px 28px" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 16,
-          gap: 8,
-        }}
-      >
-        <h2 style={{ margin: 0, color: "var(--text-primary)", minWidth: 0 }}>
-          {report?.title ?? fallbackTitle}
-        </h2>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-          <button
-            type="button"
-            onClick={() => report && exportCSV(report)}
-            style={{
-              ...styles.btnIcon,
-              opacity: report ? 1 : 0.45,
-              cursor: report ? "pointer" : "not-allowed",
-            }}
-            title="Export CSV"
+    <div className="grs-page" style={{ padding: "24px 28px", maxWidth: "100%", boxSizing: "border-box", minWidth: 0 }}>
+      <ReportPageHeader
+        title={report?.title ?? fallbackTitle}
+        actions={
+          <ReportCsvPrintActions
             disabled={!report}
-          >
-            <IconDownload />
-          </button>
-          <button
-            type="button"
-            onClick={() => report && printReport(report)}
-            style={{
-              ...styles.btnIcon,
-              opacity: report ? 1 : 0.45,
-              cursor: report ? "pointer" : "not-allowed",
-            }}
-            title="Print"
-            disabled={!report}
-          >
-            <IconPrint />
-          </button>
-        </div>
-      </div>
+            onExport={() => report && exportCSV(report)}
+            onPrint={() => report && printReport(report)}
+          />
+        }
+      />
 
       <ReportFiltersBar
         activeFilterCount={countActiveFilters(

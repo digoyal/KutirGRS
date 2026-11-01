@@ -9,6 +9,7 @@ import {
   hasGlobalDataScope,
 } from "../constants/roles";
 import HomePage from "./HomePage";
+import { VisitOfflineSyncMount } from "../components/VisitOfflineSyncMount";
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
@@ -31,6 +32,7 @@ export default function DashboardPage() {
 
   return (
     <div style={styles.layout} className="grs-dashboard">
+      <VisitOfflineSyncMount />
       {/* Mobile hamburger */}
       <button className="grs-hamburger" onClick={() => setNavOpen(o => !o)} aria-label="Menu">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -97,15 +99,9 @@ const navItems: {
   { to: "/progress", label: "Progress" },
   { to: "/new-year-setup", label: "Bulk Progress Update" },
   { to: "/reports", label: "Reports" },
-  { to: "/reports/detailed", label: "Detailed", sub: true },
-  { to: "/reports/summary", label: "Summary", sub: true },
   { divider: true, label: "KUTIR VISITS" },
   { to: "/visits", label: "Visit Dashboard" },
   { to: "/visits/detail", label: "Visit Details" },
-  { to: "/reports/summary", label: "Reports" },
-  { to: "/reports/top-kutirs", label: "Top 10 Kutirs", sub: true },
-  { to: "/reports/bottom-kutirs", label: "Bottom 10 Kutirs", sub: true },
-  { to: "/reports/kutir-performance", label: "Kutir Performance", sub: true },
   { divider: true, label: "ADMIN" },
   { to: "/schools", label: "Govt. Res. Schools" },
   { to: "/exam-centers", label: "Exam Centers" },

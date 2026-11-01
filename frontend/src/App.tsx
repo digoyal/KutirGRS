@@ -18,6 +18,7 @@ import VisitsPage from "./pages/VisitsPage";
 import VisitsDashboardPage from "./pages/VisitsDashboardPage";
 import VisitAddPage from "./pages/VisitAddPage";
 import VisitDetailPage from "./pages/VisitDetailPage";
+import VisitDraftCompletePage from "./pages/VisitDraftCompletePage";
 import UsersPage from "./pages/UsersPage";
 import UserDetailPage from "./pages/UserDetailPage";
 import UserAddPage from "./pages/UserAddPage";
@@ -30,10 +31,17 @@ import ProgressDetailPage from "./pages/ProgressDetailPage";
 import ProgressAddPage from "./pages/ProgressAddPage";
 import NewYearSetupPage from "./pages/NewYearSetupPage";
 import ImportDataPage from "./pages/ImportDataPage";
-import ReportsPage from "./pages/ReportsPage";
+import {
+  AdmissionFunnelReportPage,
+  AdmittedStudentsReportPage,
+} from "./pages/ReportsPage";
+import ReportsHubPage from "./pages/ReportsHubPage";
+import {
+  LegacyDetailedReportsRedirect,
+  LegacySummaryReportsRedirect,
+} from "./pages/LegacyReportsRedirect";
 import TopKutirsReportPage from "./pages/TopKutirsReportPage";
 import KutirPerformanceReportPage from "./pages/KutirPerformanceReportPage";
-import VisitDetailedReportPage from "./pages/VisitDetailedReportPage";
 import LookupsPage from "./pages/LookupsPage";
 import ExamCentersPage from "./pages/ExamCentersPage";
 import ExamCenterDetailPage from "./pages/ExamCenterDetailPage";
@@ -75,6 +83,7 @@ function AppRoutes() {
         <Route path="visits" element={<VisitsDashboardPage />} />
         <Route path="visits/detail" element={<VisitsPage />} />
         <Route path="visits/detail/new" element={<VisitAddPage />} />
+        <Route path="visits/detail/draft/:draftId" element={<VisitDraftCompletePage />} />
         <Route path="visits/detail/:id" element={<VisitDetailPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="users/new" element={<UserAddPage />} />
@@ -96,12 +105,14 @@ function AppRoutes() {
         <Route path="admin/change-password" element={<ChangePasswordPage />} />
         <Route path="admin/deploy" element={<DeployPage />} />
         <Route path="reports">
-          <Route path="detailed" element={<ReportsPage />} />
-          <Route path="summary" element={<ReportsPage />} />
+          <Route index element={<ReportsHubPage />} />
+          <Route path="admission-funnel" element={<AdmissionFunnelReportPage />} />
+          <Route path="admitted-students" element={<AdmittedStudentsReportPage />} />
+          <Route path="summary" element={<LegacySummaryReportsRedirect />} />
+          <Route path="detailed" element={<LegacyDetailedReportsRedirect />} />
           <Route path="top-kutirs" element={<TopKutirsReportPage rank="top" />} />
           <Route path="bottom-kutirs" element={<TopKutirsReportPage rank="bottom" />} />
           <Route path="kutir-performance" element={<KutirPerformanceReportPage />} />
-          <Route path="visit-detailed" element={<VisitDetailedReportPage />} />
         </Route>
       </Route>
     </Routes>

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { FormPageShell } from "@parivaar/ui";
 import { createUser, type UserCreate } from "../api/users";
 import { useAuth } from "../context/AuthContext";
 import { UserForm, EMPTY_USER_FORM, type UserFormState } from "../components/UserForm";
 import { assignableTitles as titlesAssignableTo } from "../constants/roles";
-import { grs } from "../styles/grs";
 
 export default function UserAddPage() {
   const navigate = useNavigate();
@@ -16,59 +16,86 @@ export default function UserAddPage() {
 
   const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM);
   const [saveError, setSaveError] = useState("");
-  const [filterZone, setFilterZone]         = useState<number | null>(null);
+  const [filterZone, setFilterZone] = useState<number | null>(null);
   const [filterDistrict, setFilterDistrict] = useState<number | null>(null);
-  const [filterArea, setFilterArea]         = useState<number | null>(null);
-  const [filterCluster, setFilterCluster]   = useState<number | null>(null);
+  const [filterArea, setFilterArea] = useState<number | null>(null);
+  const [filterCluster, setFilterCluster] = useState<number | null>(null);
 
   const createMut = useMutation({
     mutationFn: (data: UserCreate) => createUser(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); navigate(-1); },
-    onError: (e: any) => setSaveError(e?.response?.data?.detail ?? "Failed to create user"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      navigate(-1);
+    },
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setSaveError(detail ?? "Failed to create user");
+    },
   });
 
   function handleSave() {
-    if (!form.username.trim()) { setSaveError("Username is required"); return; }
-    if (!form.password.trim()) { setSaveError("Password is required"); return; }
-    if (!form.email?.trim()) { setSaveError("Email is required"); return; }
+    if (!form.username.trim()) {
+      setSaveError("Username is required");
+      return;
+    }
+    if (!form.password.trim()) {
+      setSaveError("Password is required");
+      return;
+    }
+    if (!form.email?.trim()) {
+      setSaveError("Email is required");
+      return;
+    }
     setSaveError("");
     createMut.mutate({
-      username: form.username, password: form.password,
-      title: form.title || null, first_name: form.first_name, last_name: form.last_name,
-      phone: form.phone, email: form.email.trim(), is_active: form.is_active,
-      zone_ids: form.zone_ids, district_ids: form.district_ids,
-      area_ids: form.area_ids, cluster_ids: form.cluster_ids, kutir_ids: form.kutir_ids,
+      username: form.username,
+      password: form.password,
+      title: form.title || null,
+      first_name: form.first_name,
+      last_name: form.last_name,
+      phone: form.phone,
+      email: form.email.trim(),
+      is_active: form.is_active,
+      zone_ids: form.zone_ids,
+      district_ids: form.district_ids,
+      area_ids: form.area_ids,
+      cluster_ids: form.cluster_ids,
+      kutir_ids: form.kutir_ids,
     });
   }
 
   return (
-    <div className="grs-page" style={{ maxWidth: 640, width: "100%", boxSizing: "border-box", padding: "16px 20px" }}>
-      <div className="grs-page-topbar">
-        <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
-          ← Back
-        </button>
-        <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20 }}>
-          Add User
-        </h2>
-      </div>
-
-      {saveError && <div style={{ color: "var(--danger)", background: "var(--danger-bg,#fef2f2)", border: "1px solid var(--danger-border,#fca5a5)", borderRadius: 6, padding: "8px 12px", marginBottom: 16, fontSize: 13 }}>{saveError}</div>}
-
+    <FormPageShell
+      header={
+        <div className="grs-page-topbar">
+          <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
+            ← Back
+          </button>
+          <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20 }}>
+            Add User
+          </h2>
+        </div>
+      }
+      error={saveError}
+      saving={createMut.isPending}
+      saveLabel="Save User"
+      onSave={handleSave}
+      onCancel={() => navigate(-1)}
+    >
       <UserForm
-        form={form} setForm={setForm} isEdit={false}
+        form={form}
+        setForm={setForm}
+        isEdit={false}
         assignableTitles={assignableTitles}
-        filterZone={filterZone}         setFilterZone={setFilterZone}
-        filterDistrict={filterDistrict} setFilterDistrict={setFilterDistrict}
-        filterArea={filterArea}         setFilterArea={setFilterArea}
-        filterCluster={filterCluster}   setFilterCluster={setFilterCluster}
+        filterZone={filterZone}
+        setFilterZone={setFilterZone}
+        filterDistrict={filterDistrict}
+        setFilterDistrict={setFilterDistrict}
+        filterArea={filterArea}
+        setFilterArea={setFilterArea}
+        filterCluster={filterCluster}
+        setFilterCluster={setFilterCluster}
       />
-
-      <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-        <button style={grs.btnSecondary} onClick={() => navigate(-1)}>Cancel</button>
-        <button style={grs.btnPrimary} disabled={createMut.isPending} onClick={handleSave}>
-          {createMut.isPending ? "Saving…" : "Save User"}
-        </button>
-      </div>
-    </div>
+    </FormPageShell>
   );
 }

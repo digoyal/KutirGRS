@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { useLocation } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "../api/client";
 import { listExams, type StudentExam } from "../api/admissions";
-import { listVisits, type KutirVisit } from "../api/visits";
 import { STAGES, FUNNEL_STAGE_LABELS, type StageKey } from "../components/admissions-pipeline";
-import { GrsTabs } from "../components/GrsTabs";
 import { ReportFiltersBar } from "../components/ReportFiltersBar";
+import { ReportPageHeader } from "../components/ReportPageHeader";
 import { RowCountBadge } from "@parivaar/ui";
 import { countActiveFilters } from "../utils/geoFilters";
 
@@ -248,121 +246,16 @@ function AdmittedReport({ year }: { year: number }) {
   );
 }
 
-// ── Report 3: Kutir visit summary ─────────────────────────────────────────
-function VisitSummaryReport() {
-  const { data: kutirs = [] } = useKutirs();
-  const { data: visits = [], isLoading } = useQuery<KutirVisit[]>({
-    queryKey: ["visits-all"],
-    queryFn: () => listVisits({ limit: 2000 } as any),
-  });
+// ── Standalone report routes (hub links here) ─────────────────────────────
+const reportPageStyle: React.CSSProperties = {
+  padding: "24px 28px",
+  maxWidth: "100%",
+  boxSizing: "border-box",
+  minWidth: 0,
+};
 
-  const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-
-  type KRow = {
-    kutir: Kutir;
-    count: number;
-    avgPerf: number;
-    avgClean: number;
-    timetableOk: number;
-    lastDate: string | null;
-  };
-
-  const rows: KRow[] = kutirs
-    .map((k) => {
-      const kv = visits.filter((v) => v.kutir_id === k.id);
-      return {
-        kutir: k,
-        count: kv.length,
-        avgPerf: avg(kv.map((v) => v.kutir_performance)),
-        avgClean: avg(kv.map((v) => v.cleanliness)),
-        timetableOk: kv.length ? Math.round((kv.filter((v) => v.follow_timetable).length / kv.length) * 100) : 0,
-        lastDate: kv.length ? kv.sort((a, b) => b.visit_date.localeCompare(a.visit_date))[0].visit_date : null,
-      };
-    })
-    .filter((r) => r.count > 0)
-    .sort((a, b) => b.avgPerf - a.avgPerf);
-
-  if (isLoading) return <p style={{ color: "var(--text-secondary)" }}>Loading…</p>;
-  if (rows.length === 0) return <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "32px 0" }}>No visits recorded yet.</p>;
-
-  function stars(n: number) {
-    const full = Math.round(n);
-    return "★".repeat(full) + "☆".repeat(5 - full);
-  }
-
+function SchoolYearSelect({ year, setYear }: { year: number; setYear: (y: number) => void }) {
   return (
-    <div>
-      <div style={{ marginBottom: 8 }}>
-        <RowCountBadge count={rows.length} />
-      </div>
-      <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-        <thead>
-          <tr style={{ background: "var(--badge-amber-bg)" }}>
-            {["Kutir", "Visits", "Avg Performance", "Avg Cleanliness", "Timetable OK", "Last Visit"].map((h) => (
-              <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 600, color: "var(--badge-amber-fg)", borderBottom: "2px solid #fbd38d" }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.kutir.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--badge-amber-bg)" }}>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
-                <Link to={`/kutirs/${r.kutir.id}`} style={{ color: "var(--badge-amber-fg)", textDecoration: "none", fontWeight: 600 }}>
-                  {r.kutir.name}
-                </Link>
-                <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: 6 }}>{r.kutir.code}</span>
-              </td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontVariantNumeric: "tabular-nums" }}>{r.count}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
-                <span style={{ color: "var(--star-active)" }}>{stars(r.avgPerf)}</span>
-                <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginLeft: 6 }}>{r.avgPerf.toFixed(1)}</span>
-              </td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
-                <span style={{ color: "var(--star-active)" }}>{stars(r.avgClean)}</span>
-                <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginLeft: 6 }}>{r.avgClean.toFixed(1)}</span>
-              </td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
-                <span style={{ color: r.timetableOk >= 70 ? "var(--status-success-fg)" : r.timetableOk >= 40 ? "var(--badge-amber-fg)" : "var(--status-danger-fg)", fontWeight: 600 }}>
-                  {r.timetableOk}%
-                </span>
-              </td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
-                {r.lastDate
-                  ? new Date(r.lastDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                  : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      </div>
-    </div>
-  );
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────
-type SummaryTab = "funnel" | "visits";
-type DetailedTab = "admitted";
-
-export default function ReportsPage() {
-  const location = useLocation();
-  const isDetailed = location.pathname.includes("detailed");
-
-  const [summaryTab, setSummaryTab] = useState<SummaryTab>("funnel");
-  const [detailedTab, _setDetailedTab] = useState<DetailedTab>("admitted");
-  const [year, setYear] = useState(CURRENT_YEAR);
-
-  const summaryTabs: { key: SummaryTab; label: string }[] = [
-    { key: "funnel", label: "Admission Funnel by Kutir" },
-    { key: "visits", label: "Kutir Visit Summary" },
-  ];
-
-  const detailedTabs: { key: DetailedTab; label: string }[] = [
-    { key: "admitted", label: "Admitted Students" },
-  ];
-
-  const yearSelect = (
     <div style={{ flex: "1 1 140px", maxWidth: 180, minWidth: 120 }}>
       <label
         style={{
@@ -397,44 +290,30 @@ export default function ReportsPage() {
       </select>
     </div>
   );
+}
 
-  if (isDetailed) {
-    const tabs = detailedTabs;
-    const tab = detailedTab;
-    return (
-      <div className="grs-page" style={{ padding: "24px 28px" }}>
-        <h2 style={{ margin: "0 0 16px", color: "var(--text-primary)" }}>Detailed Reports</h2>
-        <ReportFiltersBar activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}>
-          {yearSelect}
-        </ReportFiltersBar>
-        <GrsTabs
-          value={tab}
-          onChange={_setDetailedTab}
-          style={{ marginBottom: 20 }}
-          tabs={tabs}
-        />
-        {tab === "admitted" && <AdmittedReport year={year} />}
-      </div>
-    );
-  }
-
-  // Summary view
+export function AdmissionFunnelReportPage() {
+  const [year, setYear] = useState(CURRENT_YEAR);
   return (
-    <div className="grs-page" style={{ padding: "24px 28px" }}>
-      <h2 style={{ margin: "0 0 16px", color: "var(--text-primary)" }}>Summary Reports</h2>
-      {summaryTab === "funnel" && (
-        <ReportFiltersBar activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}>
-          {yearSelect}
-        </ReportFiltersBar>
-      )}
-      <GrsTabs
-        value={summaryTab}
-        onChange={setSummaryTab}
-        style={{ marginBottom: 20 }}
-        tabs={summaryTabs}
-      />
-      {summaryTab === "funnel" && <FunnelReport year={year} />}
-      {summaryTab === "visits" && <VisitSummaryReport />}
+    <div className="grs-page" style={reportPageStyle}>
+      <ReportPageHeader title="Admission Funnel by Kutir" />
+      <ReportFiltersBar activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}>
+        <SchoolYearSelect year={year} setYear={setYear} />
+      </ReportFiltersBar>
+      <FunnelReport year={year} />
+    </div>
+  );
+}
+
+export function AdmittedStudentsReportPage() {
+  const [year, setYear] = useState(CURRENT_YEAR);
+  return (
+    <div className="grs-page" style={reportPageStyle}>
+      <ReportPageHeader title="Admitted Students" />
+      <ReportFiltersBar activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}>
+        <SchoolYearSelect year={year} setYear={setYear} />
+      </ReportFiltersBar>
+      <AdmittedReport year={year} />
     </div>
   );
 }

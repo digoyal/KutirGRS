@@ -6,6 +6,7 @@ import { canManageLookupsUser } from "../constants/roles";
 import { RowCountBadge } from "@parivaar/ui";
 import { grs } from "../styles/grs";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { FormSubmitError } from "../components/FormSubmitError";
 import { GrsModal } from "../components/GrsModal";
 import { GrsTabs } from "../components/GrsTabs";
 import { donorFieldLabel } from "../constants/donorsFields";
@@ -179,8 +180,6 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
 
   return (
     <div>
-      {error && <div style={{ ...grs.errorBox, marginBottom: 10 }}>{error}</div>}
-
       {isAdmin && (
         <div className="grs-lookup-add-row">
           {tab.hasParent && (
@@ -221,6 +220,8 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
           </div>
         </div>
       )}
+
+      <FormSubmitError message={error} />
 
       {isLoading ? (
         <p style={grs.muted}>Loading…</p>
@@ -401,18 +402,21 @@ function ExamTypeSubjectsTable({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div>
-      {error && <div style={{ ...grs.errorBox, marginBottom: 10 }}>{error}</div>}
-
       {dirtyIds.size > 0 && (
-        <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10 }}>
+          <FormSubmitError message={error} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <button onClick={handleSave} disabled={saving} style={{ ...grs.btnPrimary, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : `Save Changes (${dirtyIds.size} row${dirtyIds.size > 1 ? "s" : ""})`}
           </button>
           <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
             {rows.filter(r => dirtyIds.has(r.id)).map(r => r.name).join(", ")} {dirtyIds.size === 1 ? "has" : "have"} unsaved changes
           </span>
+          </div>
         </div>
       )}
+
+      {error && dirtyIds.size === 0 && <FormSubmitError message={error} />}
 
       {isLoading ? (
         <div style={{ padding: 30, textAlign: "center", color: "var(--text-secondary)" }}>Loading…</div>
@@ -566,8 +570,6 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div>
-      {error && <div style={{ ...grs.errorBox, marginBottom: 10 }}>{error}</div>}
-
       {isAdmin && (
         <div style={{ marginBottom: 16, padding: 14, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }}>
           <p style={{ margin: "0 0 10px", fontWeight: 600, fontSize: "0.85rem" }}>Add Exam Type</p>
@@ -596,6 +598,8 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       )}
+
+      <FormSubmitError message={error} />
 
       {isLoading ? (
         <p style={grs.muted}>Loading…</p>
@@ -660,7 +664,7 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
                 </div>
               </div>
             )}
-            {error && <div style={grs.errorBox}>{error}</div>}
+            <FormSubmitError message={error} />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={() => setEditing(null)} style={grs.btnSecondary}>Cancel</button>
               <button onClick={handleEdit} style={grs.btnPrimary} disabled={!editName.trim()}>Save</button>
@@ -779,8 +783,6 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div>
-      {error && <div style={{ ...grs.errorBox, marginBottom: 10 }}>{error}</div>}
-
       {isAdmin && (
         <div style={{ marginBottom: 16, padding: 14, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }}>
           <p style={{ margin: "0 0 10px", fontWeight: 600, fontSize: "0.85rem" }}>Add Donor</p>
@@ -838,6 +840,8 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       )}
+
+      <FormSubmitError message={error} />
 
       {isLoading ? (
         <p style={grs.muted}>Loading…</p>
@@ -928,7 +932,7 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
                 onChange={(e) => setEditNotes(e.target.value)}
               />
             </div>
-            {error && <div style={grs.errorBox}>{error}</div>}
+            <FormSubmitError message={error} />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button type="button" onClick={() => setEditing(null)} style={grs.btnSecondary}>Cancel</button>
               <button

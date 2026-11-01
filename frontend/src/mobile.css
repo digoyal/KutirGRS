@@ -17,25 +17,7 @@
 
 /* Filter bar toggle/fbar/badge: @parivaar/ui/table-shell.css (main.tsx) */
 
-/* Report pages (Top/Bottom Kutirs, Performance, Visit Detailed, Summary/Detailed) */
-.grs-report-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: flex-end;
-  margin-bottom: 20px;
-  min-width: 0;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.grs-report-filters .grs-fbar.grs-form {
-  gap: 10px;
-  align-items: flex-end;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
+/* Report filter bar layout: @parivaar/ui/report-shell.css (main.tsx) */
 
 @media (max-width: 640px) {
   /*
@@ -90,38 +72,6 @@
     min-height: 40px;
     min-width: 40px;
     box-sizing: border-box;
-  }
-
-  /* Report filter fields: stack full width; dates/geo selects stay tappable */
-  .grs-report-filters .grs-fbar.grs-form > div {
-    flex: 1 1 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  .grs-report-filters .grs-filter-toggle {
-    flex: 1 1 100%;
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .grs-report-filters .grs-filter-toggle-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .grs-report-filters .grs-filter-chevron {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 40px;
-    min-height: 40px;
-    font-size: 20px;
-    font-weight: 600;
-    line-height: 1;
-    color: var(--text-secondary, #4a5568);
   }
 
   /* Tighten page padding — longhands only so ≤768 hamburger clearance
@@ -305,6 +255,19 @@
   min-width: 0;
 }
 
+.grs-form-submit-error {
+  margin-top: 14px;
+  margin-bottom: 0;
+  box-sizing: border-box;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.grs-form-submit-error + .grs-form-actions,
+.grs-form-submit-error + .visit-form-actions {
+  margin-top: 10px;
+}
+
 .visit-form-actions {
   margin-top: 14px;
   display: flex;
@@ -321,6 +284,39 @@
   min-height: 40px;
   min-width: 0;
   flex-wrap: wrap;
+}
+
+/* Hub standalone reports: back + title + export/print, then filters (~12px gap) */
+.grs-report-page-header {
+  margin-bottom: 12px;
+  min-width: 0;
+}
+.grs-report-page-header-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.grs-report-page-title {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.grs-report-page-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .grs-report-page-header-main > .grs-page-back {
+    flex: 1 1 100%;
+  }
 }
 .grs-page-back {
   background: none;
@@ -515,5 +511,77 @@
     min-height: 100svh !important;
     box-sizing: border-box;
     padding: 16px;
+  }
+}
+
+/* ── Reports hub ─────────────────────────────────────────────────── */
+.reports-hub-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.reports-hub-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  overflow: hidden;
+  min-width: 0;
+}
+.reports-hub-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  padding: 14px 16px;
+  border: none;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+.reports-hub-section-title {
+  flex: 1;
+  min-width: 0;
+}
+.reports-hub-section-chevron {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.reports-hub-links {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 12px;
+}
+.reports-hub-link {
+  display: block;
+  padding: 12px 16px;
+  color: var(--link-color);
+  text-decoration: none;
+  font-size: 0.95rem;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+.reports-hub-link:hover {
+  background: var(--bg-input);
+}
+@media (min-width: 641px) {
+  .reports-hub-section-toggle {
+    pointer-events: none;
+    cursor: default;
+  }
+  .reports-hub-section-chevron {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .reports-hub {
+    padding: 16px !important;
   }
 }

@@ -5,7 +5,7 @@ import { getUser, updateUser, type UserUpdate } from "../api/users";
 import { listZones, listDistricts, listAreas, listClusters } from "../api/geo";
 import { listKutirs } from "../api/kutirs";
 import { useAuth } from "../context/AuthContext";
-import { ViewField, ViewSection } from "@parivaar/ui";
+import { FormPageShell, ViewField, ViewSection } from "@parivaar/ui";
 import { UserForm, EMPTY_USER_FORM, type UserFormState } from "../components/UserForm";
 import { canManageUsers, assignableTitles as titlesAssignableTo } from "../constants/roles";
 import { userFieldLabel } from "../constants/usersFields";
@@ -170,65 +170,47 @@ export default function UserDetailPage() {
   const displayName = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username;
 
   return (
-    <div className="grs-page" style={{ maxWidth: 640, padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
-      <div className="grs-page-topbar">
-        <button type="button" className="grs-page-back" onClick={() => navigate("/users")}>
-          ← Back
-        </button>
-        <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20 }}>
-          {displayName}
-        </h2>
-        {!editing && canManage && (
-          <button
-            style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }}
-            onClick={() => setEditing(true)}
-          >
-            Edit
+    <FormPageShell
+      showActions={editing}
+      header={
+        <div className="grs-page-topbar">
+          <button type="button" className="grs-page-back" onClick={() => navigate("/users")}>
+            ← Back
           </button>
-        )}
-      </div>
-
-      {saveError && (
-        <div
-          style={{
-            color: "var(--danger)",
-            background: "var(--danger-bg,#fef2f2)",
-            border: "1px solid var(--danger-border,#fca5a5)",
-            borderRadius: 6,
-            padding: "8px 12px",
-            marginBottom: 16,
-            fontSize: 13,
-          }}
-        >
-          {saveError}
+          <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20 }}>
+            {displayName}
+          </h2>
+          {!editing && canManage && (
+            <button
+              style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }}
+              onClick={() => setEditing(true)}
+            >
+              Edit
+            </button>
+          )}
         </div>
-      )}
-
+      }
+      error={saveError}
+      saving={updateMut.isPending}
+      saveLabel="Save Changes"
+      onSave={handleSave}
+      onCancel={handleCancel}
+    >
       {editing ? (
-        <>
-          <UserForm
-            form={form}
-            setForm={setForm}
-            isEdit={true}
-            assignableTitles={assignableTitles}
-            filterZone={filterZone}
-            setFilterZone={setFilterZone}
-            filterDistrict={filterDistrict}
-            setFilterDistrict={setFilterDistrict}
-            filterArea={filterArea}
-            setFilterArea={setFilterArea}
-            filterCluster={filterCluster}
-            setFilterCluster={setFilterCluster}
-          />
-          <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-            <button style={grs.btnSecondary} onClick={handleCancel}>
-              Cancel
-            </button>
-            <button style={grs.btnPrimary} disabled={updateMut.isPending} onClick={handleSave}>
-              {updateMut.isPending ? "Saving…" : "Save Changes"}
-            </button>
-          </div>
-        </>
+        <UserForm
+          form={form}
+          setForm={setForm}
+          isEdit={true}
+          assignableTitles={assignableTitles}
+          filterZone={filterZone}
+          setFilterZone={setFilterZone}
+          filterDistrict={filterDistrict}
+          setFilterDistrict={setFilterDistrict}
+          filterArea={filterArea}
+          setFilterArea={setFilterArea}
+          filterCluster={filterCluster}
+          setFilterCluster={setFilterCluster}
+        />
       ) : (
         <div className="grs-form-layout">
           <ViewSection title="Account">
@@ -288,6 +270,6 @@ export default function UserDetailPage() {
           )}
         </div>
       )}
-    </div>
+    </FormPageShell>
   );
 }

@@ -225,36 +225,3 @@ export async function fetchKutirPerformanceReport(params: {
   const { data } = await api.get("/kutir-visits/kutir-performance", { params });
   return data;
 }
-
-export interface VisitDetailedRow {
-  visitor_name: string;
-  visitor_role: string | null;
-  state_name: string | null;
-  zone_name: string | null;
-  district_name: string | null;
-  area_name: string | null;
-  cluster_name: string | null;
-  kutir_id: number;
-  kutir_name: string;
-  visit: KutirVisit;
-}
-
-export interface VisitDetailedReport {
-  title: string;
-  level: TopKutirsGeoLevel;
-  geo_id: number;
-  geo_path: string[];
-  date_from: string;
-  date_to: string;
-  rows: VisitDetailedRow[];
-}
-
-export async function fetchVisitDetailedReport(params: {
-  date_from: string;
-  date_to: string;
-  level: TopKutirsGeoLevel;
-  geo_id: number;
-}): Promise<VisitDetailedReport> {
-  const { data } = await api.get("/kutir-visits/detailed-report", { params });
-  return data;
-}

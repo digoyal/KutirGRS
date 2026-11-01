@@ -21,7 +21,7 @@ import {
   emptyAdmissionForm,
   type AdmissionFormState,
 } from "../components/AdmissionForm";
-import { grs } from "../styles/grs";
+import { FormPageShell } from "@parivaar/ui";
 import { formatAcademicYear } from "../utils/academicYear";
 import { studentLabel } from "../utils/studentLabel";
 
@@ -215,16 +215,26 @@ export default function AdmissionDetailPage() {
 
   // ── EDIT ───────────────────────────────────────────────────────────────────
   return (
-    <div className="grs-page" style={{ maxWidth: 640, padding: "16px 20px", width: "100%", boxSizing: "border-box" }}>
-      <div className="grs-page-topbar">
-        <button type="button" className="grs-page-back" onClick={handleCancel}>
-          ← Back
-        </button>
-        <h2 className="grs-page-title" style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
-          Edit Admission
-        </h2>
-      </div>
-
+    <FormPageShell
+      style={{ maxWidth: 640 }}
+      header={
+        <div className="grs-page-topbar">
+          <button type="button" className="grs-page-back" onClick={handleCancel}>
+            ← Back
+          </button>
+          <h2 className="grs-page-title" style={{ margin: 0, fontSize: "1.2rem", color: "var(--text-primary)" }}>
+            Edit Admission
+          </h2>
+        </div>
+      }
+      error={saveError}
+      saving={updateMut.isPending}
+      saveDisabled={!canSave}
+      saveLabel="Save Changes"
+      onSave={handleSave}
+      onCancel={handleCancel}
+      actionsStyle={{ marginTop: 16 }}
+    >
       <AdmissionForm
         form={form}
         setForm={setForm}
@@ -236,35 +246,6 @@ export default function AdmissionDetailPage() {
         admitBlockMsg={admitBlockMsg}
         onAdmitBlockMsg={setAdmitBlockMsg}
       />
-
-      {saveError && (
-        <div
-          style={{
-            marginTop: 16,
-            padding: "8px 12px",
-            background: "var(--danger-bg, #fef2f2)",
-            border: "1px solid var(--danger-border, #fca5a5)",
-            borderRadius: 6,
-            color: "var(--danger, #dc2626)",
-            fontSize: 13,
-          }}
-        >
-          {saveError}
-        </div>
-      )}
-
-      <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-        <button style={grs.btnSecondary} onClick={handleCancel}>
-          Cancel
-        </button>
-        <button
-          style={{ ...grs.btnPrimary, opacity: !canSave || updateMut.isPending ? 0.5 : 1 }}
-          disabled={!canSave || updateMut.isPending}
-          onClick={handleSave}
-        >
-          {updateMut.isPending ? "Saving…" : "Save Changes"}
-        </button>
-      </div>
-    </div>
+    </FormPageShell>
   );
 }

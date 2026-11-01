@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { FormPageActions, FormPageShell } from "@parivaar/ui";
 import { getVisit, updateVisit, uploadVisitPhoto } from "../api/visits";
 import { listKutirs } from "../api/kutirs";
 import { useAuth } from "../context/AuthContext";
@@ -81,78 +82,63 @@ export default function VisitDetailPage() {
   const kutirName =
     kutirs.find((k) => k.id === visit.kutir_id)?.name ?? `Kutir #${visit.kutir_id}`;
 
-  // ── VIEW MODE ─────────────────────────────────────────────────────────────
-  if (!editing) {
-    return (
-      <div className="grs-page visit-add-page" style={{ maxWidth: 720, padding: "12px 16px", width: "100%", boxSizing: "border-box" }}>
+  const formBody = (
+    <VisitForm
+      form={form}
+      setForm={setForm}
+      mode={editing ? "edit" : "view"}
+      photoFile={editing ? photoFile : undefined}
+      setPhotoFile={editing ? setPhotoFile : undefined}
+      existingPhoto={visit.visit_photo}
+      kutirName={kutirName}
+      visitedById={visit.visited_by_id}
+      visitedByName={visit.visited_by_name}
+      visitedByRole={visit.visited_by_role}
+    />
+  );
+
+  return (
+    <FormPageShell
+      className="grs-page visit-add-page"
+      style={{ maxWidth: 720, padding: "12px 16px" }}
+      header={
         <div className="grs-page-topbar visit-add-topbar">
           <button type="button" className="grs-page-back" onClick={() => navigate("/visits/detail")}>
             ← Back
           </button>
-          {canManageVisits && (
-            <button
-              style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }}
-              onClick={() => setEditing(true)}
-            >
-              Edit
-            </button>
+          {editing ? (
+            <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20, color: "var(--text-primary)" }}>
+              Edit Visit
+            </h2>
+          ) : (
+            canManageVisits && (
+              <button
+                style={{ ...grs.btnSecondary, marginLeft: "auto", fontSize: 13 }}
+                onClick={() => setEditing(true)}
+              >
+                Edit
+              </button>
+            )
           )}
         </div>
-
-        <VisitForm
-          form={form}
-          setForm={setForm}
-          mode="view"
-          existingPhoto={visit.visit_photo}
-          kutirName={kutirName}
-          visitedById={visit.visited_by_id}
-          visitedByName={visit.visited_by_name}
-          visitedByRole={visit.visited_by_role}
-        />
-      </div>
-    );
-  }
-
-  // ── EDIT MODE ─────────────────────────────────────────────────────────────
-  return (
-    <div
-      className="grs-page visit-add-page"
-      style={{ maxWidth: 720, width: "100%", boxSizing: "border-box", padding: "12px 16px" }}
+      }
+      showActions={false}
     >
-      <div className="grs-page-topbar visit-add-topbar">
-        <button type="button" className="grs-page-back" onClick={handleCancel}>
-          ← Back
-        </button>
-        <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20, color: "var(--text-primary)" }}>
-          Edit Visit
-        </h2>
-      </div>
-
-      <div className="visit-add-card">
-        {error && <div style={grs.errorBox}>{error}</div>}
-
-        <VisitForm
-          form={form}
-          setForm={setForm}
-          mode="edit"
-          photoFile={photoFile}
-          setPhotoFile={setPhotoFile}
-          existingPhoto={visit.visit_photo}
-          kutirName={kutirName}
-          visitedById={visit.visited_by_id}
-          visitedByName={visit.visited_by_name}
-          visitedByRole={visit.visited_by_role}
-        />
-
-        <div className="visit-form-actions">
-          <button type="button" onClick={handleCancel} style={grs.btnSecondary} disabled={saving}>
-            Cancel
-          </button>
-          <button type="button" onClick={handleSave} style={grs.btnPrimary} disabled={saving}>
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
+      {editing ? (
+        <div className="visit-add-card">
+          {formBody}
+          <FormPageActions
+            error={error}
+            saving={saving}
+            saveLabel="Save Changes"
+            onSave={handleSave}
+            onCancel={handleCancel}
+            actionsClassName="visit-form-actions"
+          />
         </div>
-      </div>
-    </div>
+      ) : (
+        formBody
+      )}
+    </FormPageShell>
   );
 }

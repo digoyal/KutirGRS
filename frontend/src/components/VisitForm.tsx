@@ -12,6 +12,7 @@ import {
 } from "../api/visits";
 import { listKutirs } from "../api/kutirs";
 import { listDistricts, listAreas, listClusters } from "../api/geo";
+import { useVisitFormLookups } from "../hooks/useVisitFormLookups";
 import { getUser } from "../api/users";
 import { ViewField, viewStyles } from "@parivaar/ui";
 import { useAuth } from "../context/AuthContext";
@@ -382,22 +383,32 @@ export function VisitForm({
   const [filterCluster, setFilterCluster] = useState<number | "">("");
   const [geoSeeded, setGeoSeeded] = useState(false);
 
-  const { data: kutirs = [] } = useQuery({
+  const addLookups = useVisitFormLookups({ enabled: mode === "add" });
+  const editLookups = useQuery({
     queryKey: ["kutirs"],
     queryFn: () => listKutirs(),
+    enabled: mode !== "add",
   });
-  const { data: allDistricts = [] } = useQuery({
+  const editDistricts = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
+    enabled: mode !== "add",
   });
-  const { data: allAreas = [] } = useQuery({
+  const editAreas = useQuery({
     queryKey: ["all-areas"],
     queryFn: () => listAreas(),
+    enabled: mode !== "add",
   });
-  const { data: allClusters = [] } = useQuery({
+  const editClusters = useQuery({
     queryKey: ["all-clusters"],
     queryFn: () => listClusters(),
+    enabled: mode !== "add",
   });
+
+  const kutirs = mode === "add" ? addLookups.kutirs : (editLookups.data ?? []);
+  const allDistricts = mode === "add" ? addLookups.allDistricts : (editDistricts.data ?? []);
+  const allAreas = mode === "add" ? addLookups.allAreas : (editAreas.data ?? []);
+  const allClusters = mode === "add" ? addLookups.allClusters : (editClusters.data ?? []);
 
   const unscoped = hasGlobalDataScope(user?.title);
   const scopedDistricts =
@@ -446,9 +457,9 @@ export function VisitForm({
     }
   }, [mode, filterDistrict, modalFilterClusters.length, allAreas.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Seed district/cluster from form.kutir_id (edit/view)
+  // Seed district/cluster from form.kutir_id (e.g. edit/view or offline draft with kutir preset).
   useEffect(() => {
-    if (mode === "add" || geoSeeded || !form.kutir_id || kutirs.length === 0 || allClusters.length === 0) {
+    if (geoSeeded || !form.kutir_id || kutirs.length === 0 || allClusters.length === 0) {
       return;
     }
     const kutir = kutirs.find((k) => k.id === form.kutir_id);
@@ -760,6 +771,25 @@ export function VisitForm({
   return (
     <div className="grs-form visit-form">
       {visitorSummary}
+      {mode === "add" && !addLookups.online && (
+        <div
+          style={{
+            padding: "8px 12px",
+            marginBottom: 10,
+            background: "var(--badge-blue-bg)",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            fontSize: 13,
+            color: "var(--text-primary)",
+          }}
+        >
+          {addLookups.offlineCacheMissing
+            ? "You are offline and visit lookup data is not cached yet. Open this form once while online, then try again."
+            : addLookups.usingOfflineCache
+              ? "You are offline. District, cluster, and kutir lists use the last data saved on this device."
+              : "You are offline. Loading saved lookup data…"}
+        </div>
+      )}
       <SectionHead label="Visit Info" />
       <div className="visit-form-geo-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
         <div>

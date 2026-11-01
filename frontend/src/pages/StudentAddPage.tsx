@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { FormPageShell } from "@parivaar/ui";
 import { createStudent } from "../api/students";
 import {
   StudentForm,
   emptyStudentForm,
   type StudentFormState,
 } from "../components/StudentForm";
-import { grs } from "../styles/grs";
 
 export default function StudentAddPage() {
   const navigate = useNavigate();
@@ -27,8 +27,7 @@ export default function StudentAddPage() {
     },
   });
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function handleSave() {
     if (!form.first_name.trim() || !form.last_name.trim()) {
       setFormError("First and last name are required");
       return;
@@ -38,30 +37,24 @@ export default function StudentAddPage() {
   }
 
   return (
-    <div className="grs-page" style={{ padding: "16px 20px", maxWidth: 600, width: "100%", boxSizing: "border-box" }}>
-      <div className="grs-page-topbar">
-        <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
-          ← Back
-        </button>
-        <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20, color: "var(--text-primary)" }}>
-          Add Student
-        </h2>
-      </div>
-
-      {formError && <p style={grs.errorBox}>{formError}</p>}
-
-      <form onSubmit={handleSubmit}>
-        <StudentForm form={form} setForm={setForm} mode="add" />
-
-        <div className="grs-form-actions" style={{ display: "flex", gap: 10, marginTop: 12, justifyContent: "flex-end" }}>
-          <button type="button" style={grs.btnSecondary} onClick={() => navigate(-1)} disabled={createMut.isPending}>
-            Cancel
+    <FormPageShell
+      header={
+        <div className="grs-page-topbar">
+          <button type="button" className="grs-page-back" onClick={() => navigate(-1)}>
+            ← Back
           </button>
-          <button type="submit" style={grs.btnPrimary} disabled={createMut.isPending}>
-            {createMut.isPending ? "Saving…" : "Add Student"}
-          </button>
+          <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20, color: "var(--text-primary)" }}>
+            Add Student
+          </h2>
         </div>
-      </form>
-    </div>
+      }
+      error={formError}
+      saving={createMut.isPending}
+      saveLabel="Add Student"
+      onSave={handleSave}
+      onCancel={() => navigate(-1)}
+    >
+      <StudentForm form={form} setForm={setForm} mode="add" />
+    </FormPageShell>
   );
 }

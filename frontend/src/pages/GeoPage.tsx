@@ -7,6 +7,7 @@ import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { canManageGeography, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { FormSubmitError } from "../components/FormSubmitError";
 import { GrsModal } from "../components/GrsModal";
 import { GrsTabs } from "../components/GrsTabs";
 
@@ -204,7 +205,6 @@ export default function GeoPage() {
           title={editRow ? `Edit ${addLabel}` : `Add ${addLabel}`}
           onClose={() => { setShowForm(false); setEditRow(null); setForm({}); }}
         >
-            {formError && <div style={grs.errorBox}>{formError}</div>}
             <form onSubmit={handleSubmit}>
               <div style={{
                 marginBottom: 10,
@@ -275,7 +275,8 @@ export default function GeoPage() {
                   </select>
                 </div>
               )}
-              <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <FormSubmitError message={formError} />
+              <div className="grs-form-actions" style={{ display: "flex", gap: 8, marginTop: 16 }}>
                 <button type="submit" style={grs.btnPrimary} disabled={createMut.isPending || updateMut.isPending}>{(createMut.isPending || updateMut.isPending) ? "Saving…" : "Save"}</button>
                 <button type="button" style={grs.btnSecondary} onClick={() => { setShowForm(false); setEditRow(null); setForm({}); }}>Cancel</button>
               </div>
