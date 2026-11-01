@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { RowCountBadge } from "@parivaar/ui";
+import { ReportPageShell, RowCountBadge } from "@parivaar/ui";
 import {
   listZones,
   listDistricts,
@@ -22,7 +22,6 @@ import {
   type KutirPerformanceMetricKey,
   visitFieldLabel,
 } from "../constants/visitsFields";
-import { ReportFiltersBar } from "../components/ReportFiltersBar";
 import { ReportCsvPrintActions, ReportPageHeader } from "../components/ReportPageHeader";
 import { countActiveFilters } from "../utils/geoFilters";
 
@@ -273,25 +272,22 @@ export default function KutirPerformanceReportPage() {
   };
 
   return (
-    <div className="grs-page" style={{ padding: "18px 22px", maxWidth: "100%", boxSizing: "border-box", minWidth: 0 }}>
-      <ReportPageHeader
-        title={report?.title ?? "Kutir Performance"}
-        actions={
-          <ReportCsvPrintActions
-            disabled={!report}
-            onExport={() => report && exportCSV(report)}
-            onPrint={() => report && printReport(report)}
-          />
-        }
-      />
-
-      <ReportFiltersBar
-        activeFilterCount={countActiveFilters(
-          zoneId,
-          showDistrict ? districtId : "",
-          showCluster ? clusterId : "",
-        )}
-      >
+    <ReportPageShell
+      style={{ padding: "18px 22px" }}
+      header={
+        <ReportPageHeader
+          title={report?.title ?? "Kutir Performance"}
+          actions={
+            <ReportCsvPrintActions
+              disabled={!report}
+              onExport={() => report && exportCSV(report)}
+              onPrint={() => report && printReport(report)}
+            />
+          }
+        />
+      }
+      filters={
+        <>
         <div style={metricFieldStyle}>
           <label style={metricLabelStyle}>Attribute</label>
           <select
@@ -393,27 +389,19 @@ export default function KutirPerformanceReportPage() {
             style={dateStyle}
           />
         </div>
-      </ReportFiltersBar>
-
-      {!enabled && (
-        <p style={filterHintStyle}>
-          Choose an attribute, time period, and {promptLevel} to see all kutirs ranked by average
-          score.
-        </p>
+        </>
+      }
+      activeFilterCount={countActiveFilters(
+        zoneId,
+        showDistrict ? districtId : "",
+        showCluster ? clusterId : "",
       )}
-
-      {enabled && (isLoading || isFetching) && (
-        <p style={filterHintStyle}>Loading…</p>
-      )}
-
-      {enabled && error && (
-        <p style={{ color: "var(--status-danger-fg)" }}>
-          Could not load report. Check filters and try again.
-        </p>
-      )}
-
-      {enabled && report && !isLoading && (
-        <div>
+      isLoading={enabled && (isLoading || isFetching)}
+      error={enabled && error ? "Could not load report. Check filters and try again." : undefined}
+      isEmpty={Boolean(enabled && report && !isLoading && report.rows.length === 0)}
+      emptyMessage="No visits in this period for the selected geography."
+      toolbar={
+        enabled && report && !isLoading && report.rows.length > 0 ? (
           <div
             style={{
               display: "flex",
@@ -428,80 +416,81 @@ export default function KutirPerformanceReportPage() {
               {dateFrom} → {dateTo}
             </span>
           </div>
-
-          {report.rows.length === 0 ? (
-            <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "32px 0" }}>
-              No visits in this period for the selected geography.
-            </p>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-                <thead>
-                  <tr style={{ background: "var(--badge-amber-bg)" }}>
-                    {report.show_district && <th style={hdrCol}>District</th>}
-                    {report.show_cluster && <th style={hdrCol}>Cluster</th>}
-                    <th style={hdrCol}>Kutir Name</th>
-                    <th style={{ ...hdrCol, textAlign: "center" }}>Num Visits</th>
-                    <th style={hdrCol}>{avgColumnLabel(report)}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.rows.map((r, i) => (
-                    <tr
-                      key={r.kutir_id}
-                      style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--badge-amber-bg)" }}
+        ) : undefined
+      }
+    >
+      {!enabled ? (
+        <p style={filterHintStyle}>
+          Choose an attribute, time period, and {promptLevel} to see all kutirs ranked by average
+          score.
+        </p>
+      ) : report && !isLoading && report.rows.length > 0 ? (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ background: "var(--badge-amber-bg)" }}>
+                {report.show_district && <th style={hdrCol}>District</th>}
+                {report.show_cluster && <th style={hdrCol}>Cluster</th>}
+                <th style={hdrCol}>Kutir Name</th>
+                <th style={{ ...hdrCol, textAlign: "center" }}>Num Visits</th>
+                <th style={hdrCol}>{avgColumnLabel(report)}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.rows.map((r, i) => (
+                <tr
+                  key={r.kutir_id}
+                  style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--badge-amber-bg)" }}
+                >
+                  {report.show_district && (
+                    <td style={{ ...cell, color: "var(--text-secondary)", fontSize: "0.82rem" }}>
+                      {r.district_name ?? "—"}
+                    </td>
+                  )}
+                  {report.show_cluster && (
+                    <td style={{ ...cell, color: "var(--text-secondary)", fontSize: "0.82rem" }}>
+                      {r.cluster_name ?? "—"}
+                    </td>
+                  )}
+                  <td style={cell}>
+                    <Link
+                      to={`/kutirs/${r.kutir_id}`}
+                      style={{
+                        color: "var(--badge-amber-fg)",
+                        textDecoration: "none",
+                        fontWeight: 600,
+                      }}
                     >
-                      {report.show_district && (
-                        <td style={{ ...cell, color: "var(--text-secondary)", fontSize: "0.82rem" }}>
-                          {r.district_name ?? "—"}
-                        </td>
-                      )}
-                      {report.show_cluster && (
-                        <td style={{ ...cell, color: "var(--text-secondary)", fontSize: "0.82rem" }}>
-                          {r.cluster_name ?? "—"}
-                        </td>
-                      )}
-                      <td style={cell}>
-                        <Link
-                          to={`/kutirs/${r.kutir_id}`}
-                          style={{
-                            color: "var(--badge-amber-fg)",
-                            textDecoration: "none",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {r.kutir_name}
-                        </Link>
-                      </td>
-                      <td
-                        style={{
-                          ...cell,
-                          textAlign: "center",
-                          fontVariantNumeric: "tabular-nums",
-                        }}
-                      >
-                        {r.num_visits}
-                      </td>
-                      <td style={cell}>
-                        <span style={{ color: "var(--star-active)" }}>{stars(r.avg_score)}</span>
-                        <span
-                          style={{
-                            fontSize: "0.78rem",
-                            color: "var(--text-secondary)",
-                            marginLeft: 6,
-                          }}
-                        >
-                          {r.avg_score.toFixed(2)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      {r.kutir_name}
+                    </Link>
+                  </td>
+                  <td
+                    style={{
+                      ...cell,
+                      textAlign: "center",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {r.num_visits}
+                  </td>
+                  <td style={cell}>
+                    <span style={{ color: "var(--star-active)" }}>{stars(r.avg_score)}</span>
+                    <span
+                      style={{
+                        fontSize: "0.78rem",
+                        color: "var(--text-secondary)",
+                        marginLeft: 6,
+                      }}
+                    >
+                      {r.avg_score.toFixed(2)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
-    </div>
+      ) : null}
+    </ReportPageShell>
   );
 }

@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ReportPageShell, RowCountBadge } from "@parivaar/ui";
 import api from "../api/client";
 import { listExams, type StudentExam } from "../api/admissions";
 import { STAGES, FUNNEL_STAGE_LABELS, type StageKey } from "../components/admissions-pipeline";
-import { ReportFiltersBar } from "../components/ReportFiltersBar";
 import { ReportPageHeader } from "../components/ReportPageHeader";
-import { RowCountBadge } from "@parivaar/ui";
 import { countActiveFilters } from "../utils/geoFilters";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -15,9 +14,6 @@ interface Kutir { id: number; name: string; code: string }
 interface Student { id: number; first_name: string; last_name: string; kutir_id: number | null }
 interface School { id: number; name: string; school_type: string }
 
-
-
-// ── Shared fetch hooks ─────────────────────────────────────────────────────
 function useKutirs() {
   return useQuery<Kutir[]>({ queryKey: ["kutirs"], queryFn: async () => (await api.get("/kutirs", { params: { limit: 500 } })).data });
 }
@@ -28,25 +24,24 @@ function useSchools() {
   return useQuery<School[]>({ queryKey: ["schools"], queryFn: async () => (await api.get("/schools", { params: { limit: 500 } })).data });
 }
 
-// ── Report 1: Admission funnel by kutir ────────────────────────────────────
-function FunnelReport({ year }: { year: number }) {
+type StageCounts = Record<StageKey, number>;
+type FunnelRow = { kutir: Kutir } & StageCounts;
+
+function emptyCounts(): StageCounts {
+  return Object.fromEntries(STAGES.map((s) => [s.key, 0])) as StageCounts;
+}
+
+function useFunnelRows(year: number) {
   const { data: kutirs = [] } = useKutirs();
   const { data: students = [] } = useStudents();
-  const { data: exams = [], isLoading } = useQuery<StudentExam[]>({
+  const { data: exams = [], isLoading, error } = useQuery<StudentExam[]>({
     queryKey: ["exams", year],
     queryFn: () => listExams({ school_start_year: year }),
   });
 
-  // Map student → kutir
   const studentKutir = new Map(students.map((s) => [s.id, s.kutir_id]));
 
-  // Group exams by kutir — same six pipeline stages as Home / STAGES
-  type StageCounts = Record<StageKey, number>;
-  type Row = { kutir: Kutir } & StageCounts;
-  const emptyCounts = (): StageCounts =>
-    Object.fromEntries(STAGES.map((s) => [s.key, 0])) as StageCounts;
-
-  const rows: Row[] = kutirs
+  const rows: FunnelRow[] = kutirs
     .map((k) => {
       const kExams = exams.filter((e) => studentKutir.get(e.student_id) === k.id);
       const counts = emptyCounts();
@@ -63,21 +58,18 @@ function FunnelReport({ year }: { year: number }) {
       for (const stage of STAGES) acc[stage.key] += r[stage.key];
       return acc;
     },
-    emptyCounts()
+    emptyCounts(),
   );
 
-  if (isLoading) return <p style={{ color: "var(--text-secondary)" }}>Loading…</p>;
-  if (rows.length === 0) return <p style={{ color: "var(--text-secondary)", padding: "32px 0", textAlign: "center" }}>No exam data for {year}.</p>;
+  return { rows, totals, isLoading, error };
+}
 
+function FunnelTable({ rows, totals }: { rows: FunnelRow[]; totals: StageCounts }) {
   const numCol: React.CSSProperties = { padding: "9px 12px", textAlign: "center", borderBottom: "1px solid var(--border)", fontVariantNumeric: "tabular-nums" };
   const hdrCol: React.CSSProperties = { padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "var(--badge-blue-fg)", borderBottom: "2px solid var(--badge-blue-bg)" };
 
   return (
-    <div>
-      <div style={{ marginBottom: 8 }}>
-        <RowCountBadge count={rows.length} />
-      </div>
-      <div style={{ overflowX: "auto" }}>
+    <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
         <thead>
           <tr style={{ background: "var(--badge-blue-bg)" }}>
@@ -133,17 +125,15 @@ function FunnelReport({ year }: { year: number }) {
           </tr>
         </tfoot>
       </table>
-      </div>
     </div>
   );
 }
 
-// ── Report 2: Admitted students list ──────────────────────────────────────
-function AdmittedReport({ year }: { year: number }) {
+function useAdmittedRows(year: number) {
   const { data: kutirs = [] } = useKutirs();
   const { data: students = [] } = useStudents();
   const { data: schools = [] } = useSchools();
-  const { data: exams = [], isLoading } = useQuery<StudentExam[]>({
+  const { data: exams = [], isLoading, error } = useQuery<StudentExam[]>({
     queryKey: ["exams", year],
     queryFn: () => listExams({ school_start_year: year }),
   });
@@ -180,79 +170,71 @@ function AdmittedReport({ year }: { year: number }) {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `admitted_${year}.csv`; a.click();
+    a.href = url;
+    a.download = `admitted_${year}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
   }
 
-  if (isLoading) return <p style={{ color: "var(--text-secondary)" }}>Loading…</p>;
-  if (admitted.length === 0) return <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "32px 0" }}>No admitted students for {year}.</p>;
+  return { admitted, studentMap, kutirMap, schoolMap, isLoading, error, exportCSV };
+}
 
+function AdmittedTable({
+  admitted,
+  studentMap,
+  kutirMap,
+  schoolMap,
+}: {
+  admitted: StudentExam[];
+  studentMap: Map<number, Student>;
+  kutirMap: Map<number, Kutir>;
+  schoolMap: Map<number, School>;
+}) {
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <RowCountBadge count={admitted.length} />
-          <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-            admitted in {year}
-          </span>
-        </div>
-        <button onClick={exportCSV} style={{ background: "var(--status-success-bg)", color: "var(--status-success-fg)", border: "1px solid var(--status-success-fg)", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}>
-          ↓ Export CSV
-        </button>
-      </div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-          <thead>
-            <tr style={{ background: "var(--status-success-bg)" }}>
-              {["Student", "Kutir", "Admitted School", "Type", "App #", "Roll #"].map((h) => (
-                <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 600, color: "var(--status-success-fg)", borderBottom: "2px solid var(--status-success-fg)" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {admitted.map((e, i) => {
-              const s = studentMap.get(e.student_id);
-              const kutir = kutirMap.get(s?.kutir_id ?? 0);
-              const school = schoolMap.get(e.admitted_school_id!);
-              return (
-                <tr key={e.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--status-success-bg)" }}>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
-                    <Link to={`/students/${e.student_id}`} style={{ color: "var(--status-success-fg)", textDecoration: "none", fontWeight: 600 }}>
-                      {s ? `${s.first_name} ${s.last_name}` : `#${e.student_id}`}
-                    </Link>
-                  </td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
-                    {kutir ? <Link to={`/kutirs/${kutir.id}`} style={{ color: "var(--badge-blue-fg)", textDecoration: "none" }}>{kutir.name}</Link> : "—"}
-                  </td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {school?.name ?? `#${e.admitted_school_id}`}
-                  </td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
-                    {school && (
-                      <span style={{ background: "var(--badge-blue-bg)", color: "var(--badge-blue-fg)", borderRadius: 4, padding: "2px 7px", fontSize: "0.75rem", fontWeight: 600 }}>
-                        {school.school_type}
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>{e.application_number ?? "—"}</td>
-                  <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>{e.roll_number ?? "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+        <thead>
+          <tr style={{ background: "var(--status-success-bg)" }}>
+            {["Student", "Kutir", "Admitted School", "Type", "App #", "Roll #"].map((h) => (
+              <th key={h} style={{ padding: "9px 12px", textAlign: "left", fontWeight: 600, color: "var(--status-success-fg)", borderBottom: "2px solid var(--status-success-fg)" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {admitted.map((e, i) => {
+            const s = studentMap.get(e.student_id);
+            const kutir = kutirMap.get(s?.kutir_id ?? 0);
+            const school = schoolMap.get(e.admitted_school_id!);
+            return (
+              <tr key={e.id} style={{ background: i % 2 === 0 ? "var(--bg-card)" : "var(--status-success-bg)" }}>
+                <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
+                  <Link to={`/students/${e.student_id}`} style={{ color: "var(--status-success-fg)", textDecoration: "none", fontWeight: 600 }}>
+                    {s ? `${s.first_name} ${s.last_name}` : `#${e.student_id}`}
+                  </Link>
+                </td>
+                <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                  {kutir ? <Link to={`/kutirs/${kutir.id}`} style={{ color: "var(--badge-blue-fg)", textDecoration: "none" }}>{kutir.name}</Link> : "—"}
+                </td>
+                <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontWeight: 600, color: "var(--text-primary)" }}>
+                  {school?.name ?? `#${e.admitted_school_id}`}
+                </td>
+                <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
+                  {school && (
+                    <span style={{ background: "var(--badge-blue-bg)", color: "var(--badge-blue-fg)", borderRadius: 4, padding: "2px 7px", fontSize: "0.75rem", fontWeight: 600 }}>
+                      {school.school_type}
+                    </span>
+                  )}
+                </td>
+                <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>{e.application_number ?? "—"}</td>
+                <td style={{ padding: "9px 12px", borderBottom: "1px solid var(--border)", fontSize: "0.82rem", color: "var(--text-secondary)" }}>{e.roll_number ?? "—"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
-
-// ── Standalone report routes (hub links here) ─────────────────────────────
-const reportPageStyle: React.CSSProperties = {
-  padding: "24px 28px",
-  maxWidth: "100%",
-  boxSizing: "border-box",
-  minWidth: 0,
-};
 
 function SchoolYearSelect({ year, setYear }: { year: number; setYear: (y: number) => void }) {
   return (
@@ -294,26 +276,86 @@ function SchoolYearSelect({ year, setYear }: { year: number; setYear: (y: number
 
 export function AdmissionFunnelReportPage() {
   const [year, setYear] = useState(CURRENT_YEAR);
+  const { rows, totals, isLoading, error } = useFunnelRows(year);
+
   return (
-    <div className="grs-page" style={reportPageStyle}>
-      <ReportPageHeader title="Admission Funnel by Kutir" />
-      <ReportFiltersBar activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}>
-        <SchoolYearSelect year={year} setYear={setYear} />
-      </ReportFiltersBar>
-      <FunnelReport year={year} />
-    </div>
+    <ReportPageShell
+      header={<ReportPageHeader title="Admission Funnel by Kutir" />}
+      filters={<SchoolYearSelect year={year} setYear={setYear} />}
+      activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}
+      isLoading={isLoading}
+      error={error ? "Could not load report. Try again." : undefined}
+      isEmpty={!isLoading && rows.length === 0}
+      emptyMessage={`No exam data for ${year}.`}
+      toolbar={
+        rows.length > 0 ? (
+          <div style={{ marginBottom: 8 }}>
+            <RowCountBadge count={rows.length} />
+          </div>
+        ) : undefined
+      }
+    >
+      {rows.length > 0 ? <FunnelTable rows={rows} totals={totals} /> : null}
+    </ReportPageShell>
   );
 }
 
 export function AdmittedStudentsReportPage() {
   const [year, setYear] = useState(CURRENT_YEAR);
+  const { admitted, studentMap, kutirMap, schoolMap, isLoading, error, exportCSV } = useAdmittedRows(year);
+
   return (
-    <div className="grs-page" style={reportPageStyle}>
-      <ReportPageHeader title="Admitted Students" />
-      <ReportFiltersBar activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}>
-        <SchoolYearSelect year={year} setYear={setYear} />
-      </ReportFiltersBar>
-      <AdmittedReport year={year} />
-    </div>
+    <ReportPageShell
+      header={
+        <ReportPageHeader
+          title="Admitted Students"
+          actions={
+            <button
+              type="button"
+              onClick={exportCSV}
+              disabled={admitted.length === 0}
+              style={{
+                background: "var(--status-success-bg)",
+                color: "var(--status-success-fg)",
+                border: "1px solid var(--status-success-fg)",
+                borderRadius: 6,
+                padding: "6px 14px",
+                cursor: admitted.length === 0 ? "not-allowed" : "pointer",
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                opacity: admitted.length === 0 ? 0.45 : 1,
+              }}
+            >
+              ↓ Export CSV
+            </button>
+          }
+        />
+      }
+      filters={<SchoolYearSelect year={year} setYear={setYear} />}
+      activeFilterCount={countActiveFilters(year !== CURRENT_YEAR ? year : "")}
+      isLoading={isLoading}
+      error={error ? "Could not load report. Try again." : undefined}
+      isEmpty={!isLoading && admitted.length === 0}
+      emptyMessage={`No admitted students for ${year}.`}
+      toolbar={
+        admitted.length > 0 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <RowCountBadge count={admitted.length} />
+            <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+              admitted in {year}
+            </span>
+          </div>
+        ) : undefined
+      }
+    >
+      {admitted.length > 0 ? (
+        <AdmittedTable
+          admitted={admitted}
+          studentMap={studentMap}
+          kutirMap={kutirMap}
+          schoolMap={schoolMap}
+        />
+      ) : null}
+    </ReportPageShell>
   );
 }
