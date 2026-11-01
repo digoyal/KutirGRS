@@ -1,160 +1,109 @@
 # AGENTS.md — Engineering practices
 
-General rules for agents working on database-backed web apps. Prefer do/don’t over product catalogs. Product-specific detail lives in repo `docs/` (see footer).
+**Mandatory:** At the start of every task, read the app product rules in `docs/<project>.md` in full (this repo: [`docs/kutirgrs.md`](docs/kutirgrs.md); e.g. BNV: `docs/bnv.md`) — Cursor auto-loads only this file, not those product rules.
 
-## Architecture & layering
+Rules for agents on **database-backed web apps** (Python/FastAPI + React or similar). Product rules per app: `docs/<project>.md` (this repo: [`docs/kutirgrs.md`](docs/kutirgrs.md)). Other apps: each repo’s `docs/`.
 
-- Keep **clear layers**: DB models → API schemas/routers → FE API clients/types → pages/components. Do not skip layers (e.g. pages talking to ORM, or routers returning raw ORM without schemas).
-- **One source of truth per concern.** Shared constants (roles, statuses, enums, page size) live in one module; FE and BE must not diverge.
-- Prefer **shared form/list components** over copy-paste Add vs Detail. When extracting, replace call sites — do not leave a second copy.
-- Put cross-cutting auth, scope, and upload helpers in shared modules; do not reimplement per router/page.
-- Prefer **server-side** filter + pagination for large lists; keep FE `pageSize` aligned with API `limit`.
+## 1. Architecture & layering
 
-## Database & migrations
+1. **Layers:** DB models → API schemas/routers → FE clients/types → pages/components. No skipping (pages → ORM, raw ORM from routers).
+2. **One source of truth** per concern — roles, statuses, enums, page size in one module; FE and BE must match.
+3. **Shared form/list** over copy-paste Add vs Detail; on extract, replace all call sites — no second copy.
+4. Auth, scope, upload helpers in shared modules — not per router/page.
+5. **Server-side** filter + pagination for large lists; FE `pageSize` aligned with API `limit`.
 
-- Schema changes ship as **numbered SQL only**: `backend/scripts/NNN_descriptive_name.sql` (e.g. `024_add_foo.sql`). **Do not add Alembic** migrations, `alembic.ini`, or an `alembic/` tree.
-- Deploy applies pending `NNN_*.sql` via `python -m app.sql_migrations`, which records each basename in the `schema_migrations` ledger so re-Deploy is safe. Unapplied scripts under `scripts/` are not done. `create_all` only creates missing tables — it does **not** alter columns.
-- **Ledger bootstrap:** existing databases without `schema_migrations` require an explicit operator-verified `--baseline-through NNN`; never seed all newly fetched files automatically. Later files remain pending. Fresh restores apply all SQL then `--sync-ledger` (see `restore_db.sh`). See `docs/deployment.md` for button setup.
-- Any model/API/FE field that needs a new column or table ships **with** that migration. Do not add pipeline/UI stages that cannot persist.
-- Before marking done: **verify** the column/table exists in the target DB (`information_schema` or a `SELECT`). Assume environments can drift.
-- When adding/renaming a field, update in the **same change**: model → API schema → FE type → forms/lists → import/export headers if applicable.
-- Column replacements (legacy → junction, rename/split): migrate data, then drop old columns in the **same** change set.
-- Index hot FK filter columns. Unique constraints in migrations must match the model; reconcile model vs live DB before relying on either.
-- Destructive migrations (drops, renames): check row counts / backups first. Document order relative to prior scripts.
-- Do not invent columns or “fix” live DB drift unless the task asks for it.
+## 2. Database & migrations
 
-## API & auth / scope
+1. Schema = **numbered SQL only**: `backend/scripts/NNN_descriptive_name.sql` (e.g. `024_add_foo.sql`). **No Alembic**, `alembic.ini`, or `alembic/`.
+2. Deploy applies pending `NNN_*.sql` via `python -m app.sql_migrations` → `schema_migrations` ledger (re-deploy safe). Unapplied scripts under `scripts/` are not done. `create_all` creates missing tables only — **not** column alters.
+3. **Ledger bootstrap:** DBs without `schema_migrations` need operator-verified `--baseline-through NNN`; never auto-seed all newly fetched files. Later files stay pending. Fresh restore: apply all SQL + `--sync-ledger` (repo restore/deploy scripts).
+4. New column/table ships **with** migration. No UI/pipeline stages without persistence.
+5. Before done: **verify** column/table in target DB (`information_schema` or `SELECT`). Assume environments drift.
+6. Add/rename field in **one change**: model → API schema → FE type → forms/lists → import/export headers if applicable.
+7. Column replacements (legacy → junction, rename/split): migrate data, drop old columns in the **same** change set.
+8. Index hot FK filter columns. Unique constraints in migrations match the model; reconcile model vs live DB before relying on either.
+9. Destructive migrations (drops, renames): row counts/backups first; document order vs prior scripts.
+10. Do not invent columns or “fix” live DB drift unless the task asks.
 
-- Role permissions and menu/data access: follow [`docs/role-and-access.md`](docs/role-and-access.md) (do not invent parallel matrices).
-- Every list/get that is tenant- or geography-scoped must apply the **same scope helper** as writes. Mutations that only check “logged in” without verifying the target resource are an **IDOR** risk.
-- Prefer scoping **writes like reads**. Deny by default when scope is empty; unrestricted only for explicit admin/superuser cases.
-- Do not allow callers to escalate privilege (e.g. set `is_superuser` or a higher role than their own) unless product rules say so — and enforce that on the **server**, not only by hiding UI.
-- Validate inputs with schemas; return consistent error shapes. Never leak stack traces or internal paths to clients in production.
-- Keep import/export sheet order dependency-safe; do not reorder casually.
+## 3. API & auth / scope
 
-## Frontend & shared UI
+1. Roles, menu, and data access: follow the **product role-and-access doc** in the repo’s `docs/` — do not invent parallel permission matrices.
+2. Tenant/geography list/get uses the **same scope helper** as writes. Mutations with only “logged in” = **IDOR**.
+3. Scope **writes like reads**. Empty scope → deny; unrestricted only for explicit admin/superuser.
+4. No privilege escalation (e.g. `is_superuser`, higher role) unless product rules allow — enforce on **server**, not UI-only.
+5. Validate with schemas; consistent error shapes. No stack traces or internal paths to clients in production.
+6. Import/export sheet order dependency-safe; do not reorder casually.
 
-- **Shareable UI lives in `parivaar-ui`.** Generic components and tokens go in the sibling package `@parivaar/ui` (`file:../parivaar-ui` or `file:../../parivaar-ui` from `frontend/`; source-only — no package build). Product-specific forms, pages, and domain UI stay in this app. Do not re-implement Table / shared tokens in-app when they belong in `@parivaar/ui`.
-- Prefer the project **design tokens / shared styles** (CSS variables, shared button/input/table primitives) over one-off hex and ad-hoc chrome.
-- **Add and Detail stay in sync.** Any field or section added on create must land on view/edit in the same change. Prefer a shared form component when they diverge.
-- **Add/Edit page shell:** New entity Add and Edit pages should use `@parivaar/ui` **`FormPageShell`** (optional `header` slot, entity form as `children`, shared error + Cancel/Save footer). **`ExamCenterAddPage` / `ExamCenterDetailPage`** are the reference implementation. Use **`FormPageActions`** alone when you only need the footer without the page wrapper. Field layout, sections, and validation stay in the entity `*Form` and page handlers.
-- **Reports hub:** All report routes are listed in **`frontend/src/constants/reportsRegistry.ts`** (`REPORT_SECTIONS`) and linked from **`/reports`** (`ReportsHubPage`). Sidebar has a single **Reports** item to the hub — do not add every report to the menu. Each report has its own route under `/reports/…`; add new reports to the registry and `App.tsx` in the same change. Individual report pages use **`ReportHubBackLink`** (`← All reports` → `/reports`). Legacy **`/reports/summary`** redirects to admission funnel; **`/reports/detailed`** redirects to admitted students (including legacy `?tab=visits` on summary).
-- **Report page shell:** All hub report pages use `@parivaar/ui` **`ReportPageShell`** with app **`ReportPageHeader`** (back link + title + actions) in the `header` slot; pass `filters` + `activeFilterCount`, optional `toolbar`, loading/empty/error props, and the table as `children`. Import **`@parivaar/ui/report-shell.css`** once in `frontend/src/main.tsx` (alongside `table-shell.css`). Filter *fields* stay in the app; collapsible mobile chrome is **`ReportFiltersBar`** (via the shell `filters` slot — re-exported from `frontend/src/components/ReportFiltersBar.tsx` for direct use only when needed). **`TopKutirsReportPage`** / **`KutirPerformanceReportPage`** (geo + CSV/print) and **`AdmissionFunnelReportPage`** / **`AdmittedStudentsReportPage`** in `ReportsPage.tsx` are references.
-- **Form submit errors (Add/Edit):** Client validation and API save failures must appear **immediately above** the primary action row (Cancel / Save), not only at the top of the page — on long mobile forms a top banner is easy to miss. Prefer `FormSubmitError` from `@parivaar/ui` (class `grs-form-submit-error` in `mobile.css`; re-exported from `frontend/src/components/FormSubmitError.tsx` for legacy imports). Visit add/edit (`VisitAddPage`, `VisitDraftCompletePage`, `VisitDetailPage` edit) still illustrate placement on custom layouts.
-- Use the shared table shell for searchable/exportable lists; pass loading and empty states. Match that tone on hand-rolled tables when you touch them.
-- If the app has **column config** (user-visible columns stored client/server):
-  - Bust HTTP cache on fetch; mark JSON columns modified before commit if the ORM needs it.
-  - On Apply → Back, avoid **bfcache** stale state: navigate with a cache-bust query, strip it on load, and reload on `pageshow` when `persisted`.
-  - Do not let a racing API response overwrite a non-empty local column-config cache.
-- Extract repeated hooks/components (`ConfirmDialog`, geo filter bar, bfcache reload) instead of copying again.
-- **Collapsible mobile filters:** On ≤640px, filters collapse behind a **Filters** toggle (**collapsed by default**), with a visible **▼/▲** chevron on the toggle and an optional active-count badge — the same UX for list tables and report pages. List tables get this from `@parivaar/ui` Table (`filters` slot + `activeFilterCount`); reports get it from `@parivaar/ui` **`ReportFiltersBar`** (via **`ReportPageShell`** `filters` slot or direct import). Product-specific filter *fields* stay in the app.
-- **Field registry** (list / Column Config / export / form labels): see **Field registry** below.
+## 4. Frontend & shared UI
 
-## Field registry
+1. Use `@parivaar/ui` for shared Table/primitives; do not reimplement them in the app.
+2. Design tokens / shared button/input/table primitives over one-off hex and ad-hoc chrome.
+3. **Add ↔ View/Edit sync:** Add and view/edit share fields in one change; use one shared `*Form` when they drift.
+4. **Add/Edit shell:** `FormPageShell` + `FormPageActions`; entity `*Form` owns fields/validation. Product doc for examples ([`docs/kutirgrs.md`](docs/kutirgrs.md) for KutirGRS).
+5. **Reports hub:** Central registry + hub route; sidebar lists the hub, not every report. New report: registry + router in the same change. Per-page back link to hub. Paths/legacy routes: app product doc.
+6. **Report shell:** Hub pages use shared **`ReportPageShell`** + app header in `header`; `filters` + `activeFilterCount`, optional `toolbar`, loading/empty/error; table as `children`. Import report/table shell CSS once at app entry. Filter fields in app; mobile filter chrome via shell `filters` slot.
+7. **Form submit errors (Add/Edit):** Client validation and API failures **immediately above** Cancel/Save — not top-only (missed on long mobile). Prefer shared **`FormSubmitError`**; app may re-export. Custom entity pages: product doc.
+8. Shared table shell for searchable/exportable lists; loading and empty states. Match tone on hand-rolled tables you touch.
+9. **Column config** (client/server stored columns):
+   - Bust HTTP cache on fetch; mark JSON columns modified before commit if ORM needs it.
+   - Apply → Back: avoid **bfcache** stale state — cache-bust query, strip on load, reload on `pageshow` when `persisted`.
+   - Racing API must not overwrite non-empty local column-config cache.
+10. Extract repeats (`ConfirmDialog`, geo filter bar, bfcache reload) instead of copying.
 
-Entity list columns, Column Config, CSV export, and form field labels must come from **one registry per entity** — frontend `*Fields.ts` modules under `frontend/src/constants/` (e.g. `studentsFields.ts`, `kutirsFields.ts`, `admissionsFields.ts`; glob `**/*Fields.ts`). Each exports a `FieldMeta[]` list (`STUDENTS_FIELDS`, `KUTIRS_FIELDS`, …) plus helpers already used in the app (`studentField` / `kutirFieldLabel`, etc.).
+## 5. Field registry
 
-- Do **not** hardcode parallel label/key lists in pages, Column Config, or export.
-- Use `label` for list / Column Config / export. Use optional `formLabel` when Add/Edit needs a shorter or different label than the list (e.g. Kutir `enrollment_5th`: list `"5th Enrollment"`, form `"5th Class"`).
-- When adding or renaming a field visible in list/config/export/forms, update that entity’s registry **first**, then wire UI through it.
+One registry per entity (e.g. `frontend/src/constants/*Fields.ts`; glob `**/*Fields.ts`). Each exports metadata (`FieldMeta[]` or equivalent) and label helpers. List columns, Column Config, CSV export, and form labels **from registry**. Which entity `*Fields.ts` modules to use is in the app product doc ([`docs/kutirgrs.md`](docs/kutirgrs.md) for KutirGRS).
 
-## Mobile (laptop + phone)
+1. Do **not** hardcode parallel label/key lists in pages, Column Config, or export.
+2. `label` for list / Column Config / export. Optional `formLabel` when Add/Edit needs a different label than the list.
+3. Add/rename field visible in list/config/export/forms: update registry **first**, then wire UI.
 
-- UI must work on **~375px phone and desktop**. Keep viewport meta (`width=device-width, initial-scale=1`).
-- Touch targets ≥ ~40px where practical. No hover-only critical actions.
-- **Input font-size ≥16px on mobile** (and prefer ≥16px in shared `input`/`select` tokens). iOS Safari auto-zooms focused text controls under 16px and often leaves the page zoomed until the user pinches out — Add/Edit forms then look cropped. View mode is usually fine because it uses `ViewField` (no inputs). Do not “fix” with `maximum-scale=1` / `user-scalable=no` (hurts accessibility).
-- Forms: most entities share one `*Form` for Add/Edit/View (`mode`); Users share `UserForm` for Add/Edit only (View is separate on Detail). Put `className="grs-form"` on the Add/Edit root (not View). Full-width controls; stack fields on narrow screens via `.grs-form` / avoid multi-column grids that crush below ~640px. Form shells: `max-width: 100%`, `box-sizing: border-box`, `min-width: 0`.
-- No document-level horizontal overflow: scroll **inside** tables/cards; use `min-width: 0` on flex children.
-- Preserve hamburger / drawer nav behavior on phone (open, overlay dismiss, close on navigate). Desktop sidebar stays visible; hamburger hidden.
-- **Hamburger vs Back:** on ≤768px the menu is `position: fixed` top-left. Clear it with padding on `.grs-main` (padding-left under the button), not only `.grs-page` — many Add/Edit/View shells omit that class. Do not let a mobile padding shorthand wipe the clearance. Back must stay fully tappable on Add, Edit, and View.
-- **Collapsible filters (≤640px):** list-page filters in GrsTable / `@parivaar/ui` Table collapse behind a **Filters** toggle (**collapsed by default** on phone) with a visible **▼/▲** chevron and an active-count badge; desktop stays expanded. Prefer Table `filters` slot + `activeFilterCount` — do not reinvent per page. Pass `activeFilterCount` when page filters are set so the badge works. Persistence stays page-level (`usePersistedFilters`). **Reports** use the same pattern via `@parivaar/ui` `ReportFiltersBar` (see **Mobile / responsive UI → Reports**).
-- **Reports (phone):** Report geo/date filter rows use the collapsible filter bar above (collapsed by default, chevron on toggle). Match other list pages for **full-width** main content; allow normal **vertical page scroll** and **horizontal scroll inside** wide report tables/cards — no document-level horizontal overflow.
-- Dense filter rows must not leave permanent page overflow from chips/selects on small screens.
-- **Visit photo (Add/Edit):** on ≤768px, `VisitForm` shows **Take photo** (`input capture="environment"`) and **Choose file** (gallery); desktop keeps a single file input. Same `photoFile` → `uploadVisitPhoto` pipeline on save.
-- After UI changes, smoke-test phone (~375px) and desktop (≥1024px): nav, one Add form, one filtered list, modals if touched.
+## 6. Mobile (laptop + phone)
 
-## Security & secrets
+1. **~375px phone and desktop.** Viewport meta: `width=device-width, initial-scale=1`.
+2. Touch targets ≥ ~40px where practical. No hover-only critical actions.
+3. **Input/select font-size ≥16px on mobile** (prefer ≥16px in shared tokens). iOS auto-zooms under 16px and may leave page zoomed — Add/Edit look cropped; View usually fine (read-only fields). No `maximum-scale=1` / `user-scalable=no`.
+4. **Forms:** Prefer one entity `*Form` for Add/Edit/View (`mode`) where the app does so. Put the app’s form root class on Add/Edit (not View). Full-width controls; stack on narrow via shared form styles / avoid multi-column grids below ~640px. Shells: `max-width: 100%`, `box-sizing: border-box`, `min-width: 0`.
+5. No document-level horizontal overflow — scroll inside tables/cards; `min-width: 0` on flex children.
+6. Hamburger/drawer on phone: open, overlay dismiss, close on navigate. Desktop sidebar visible; hamburger hidden.
+7. **Hamburger vs Back (≤768px):** Menu `position: fixed` top-left. Clear with main-content padding-left (not only page wrapper — many Add/Edit/View shells omit page class). Mobile padding shorthand must not wipe clearance. Back fully tappable on Add, Edit, View.
+8. **Collapsible mobile filters (≤640px):** **Filters** toggle (**collapsed by default** on phone), **▼/▲** chevron, optional active-count badge — same UX for list Table (`filters` slot + `activeFilterCount`) and report shells. Filter fields in app; pass `activeFilterCount` when set. Dense chip/select rows must not cause permanent page overflow. Desktop expanded. Page persistence via app hook when provided — not reinvented per page.
+9. **Reports (phone):** **4.6** and **6.8**; vertical page scroll; horizontal scroll inside wide tables/cards only.
+10. After UI changes: smoke ~375px and ≥1024px — nav, one Add form, one filtered list, modals if touched. App-specific pages (geo, reports, camera uploads): product doc.
 
-- Never commit DB dumps, export SQL with real rows, or seed scripts with passwords/DB URLs. Seeds/read secrets from **env only**.
-- Keep `*_export.sql` / dump patterns in `.gitignore`. No secrets, API keys, or raw PII in git, seeds, or agent logs.
-- If a dump or secret was committed: **stop** and ask to scrub history — do not “just delete” the working-tree file.
-- Hash passwords; never log tokens or session cookies.
-- Uploads: validate type/size; store outside the repo tree or behind controlled media routes; reuse one upload helper.
-- Treat bulk reset / destructive admin endpoints as high-risk; require proper auth and confirmation.
-- Prefer parameterized queries / ORM; never concatenate user input into SQL.
+## 7. Security & secrets
 
-## Testing
+1. Never commit DB dumps, export SQL with real rows, or seed scripts with passwords/DB URLs. Read secrets from **env only**.
+2. `*_export.sql` / dump patterns in `.gitignore`. No secrets, API keys, or raw PII in git, seeds, or agent logs.
+3. Dump or secret committed: **stop** and ask to scrub history — do not only delete the working-tree file.
+4. Hash passwords; never log tokens or session cookies.
+5. Uploads: validate type/size; store outside repo or behind controlled media routes; one upload helper.
+6. Bulk reset / destructive admin endpoints: proper auth and confirmation.
+7. Parameterized queries / ORM — never concatenate user input into SQL.
 
-- After **any substantial change** (auth, roles, deploy, dependencies, shared UI, big API/UI): run [`docs/smoke-test.md`](docs/smoke-test.md). Skip for tiny typo / docs-only edits.
-- After schema work: also smoke the affected list/detail once (e.g. admissions, visits, progress as relevant).
-- After schema or API changes: typecheck FE; hit the affected endpoint or page once locally when practical.
-- Prefer focused checks over large new suites unless asked. Cover auth/scope regressions when touching permissions.
-- For UI: verify loading, empty, and error paths — not only the happy path.
-- Before asking for browser verification of a UI change: check out the PR branch locally (or merge to main first), ensure Vite is serving that checkout, and say which branch is running. Unmerged PR work will not appear on Vite still on main.
-- Mobile: use the checklist in **Mobile** above; do not ship desktop-only CRUD layouts.
-- After mobile form/shell layout changes: `cd frontend && npx playwright test e2e/forms-mobile.spec.ts` (see [`docs/smoke-test.md`](docs/smoke-test.md)).
+## 8. Testing
 
-## Process (PRs / branches)
+1. After **substantial change** (auth, roles, deploy, dependencies, shared UI, big API/UI): run the repo’s **smoke checklist** (e.g. `docs/smoke-test.md`). Skip tiny typo / docs-only edits.
+2. After schema work: smoke affected list/detail once for relevant entities.
+3. After schema or API changes: typecheck FE; hit affected endpoint or page locally when practical.
+4. Focused checks over large new suites unless asked. Auth/scope regressions when touching permissions.
+5. UI: loading, empty, and error paths — not happy path only.
+6. Before browser verify: checkout PR branch (or merge to main), dev server on that checkout, state branch. Unmerged PR invisible if server still on main.
+7. Mobile: **6. Mobile**; no desktop-only CRUD layouts.
+8. After mobile form/shell layout changes: run app-specific mobile e2e when the repo defines one (product doc).
 
-- **Do only what was asked.** No scope expansion, no “while we’re here” refactors, no Playwright / browser automation unless explicitly requested. Diagnose minimally, ship or report, then stop.
-- Branch from the agreed base; use a clear descriptive name. One concern per PR when practical.
-- Commits: short imperative subject; explain *why* if non-obvious. Do not commit generated secrets or local env files.
-- PR description: what changed, how to verify, risks (migrations, auth, mobile). Link product/audit docs when relevant.
-- Do not force-push shared branches or rewrite published history unless explicitly asked.
-- Ask before destructive DB ops, production deploys, or scope expansions beyond the task.
+## 9. Process (PRs / branches)
 
-### Git (local main until push)
+1. **Do only what was asked.** No scope expansion, no “while we’re here” refactors, no Playwright / browser automation unless explicitly requested. Diagnose minimally, ship or report, stop.
+2. Branch from agreed base; clear descriptive name. One concern per PR when practical.
+3. Commits: short imperative subject; explain *why* if non-obvious. No generated secrets or local env files.
+4. PR description: what changed, how to verify, risks (migrations, auth, mobile). Link product/audit docs when relevant.
+5. Do not force-push shared branches or rewrite published history unless explicitly asked.
+6. Ask before destructive DB ops, production deploys, or scope expansions beyond the task.
 
-- Until push, keep **at most one unpushed commit** on local `main`.
-- After the first unpushed commit, **amend** further work into it — do not stack additional SHAs.
-- On push, **squash to one** commit if more than one unpushed commit somehow accumulated (prefer avoiding that with amend).
-- Never force-push unless explicitly asked.
+### 9.1 Git (local main until push)
 
----
-
-### This repo
-
-Checkout: `/Users/dineshgoyal/projects/KutirGRS` · PRD: [`docs/KutirGRS_PRD.md`](docs/KutirGRS_PRD.md) · Role & access: [`docs/role-and-access.md`](docs/role-and-access.md) · Engineering audit: [`docs/AUDIT.md`](docs/AUDIT.md) · Smoke test: [`docs/smoke-test.md`](docs/smoke-test.md)
-
-Local login is **`admin` / `admin`** (`backend/.env` `ADMIN_PASSWORD=admin`). API must be up on `:8001` (`bash backend/start.sh`). Startup creates admin only if missing — it does not rehash on every restart. If the UI says invalid password, check `/docs` first (API down / bad `ALLOWED_ORIGINS` env often looks like a bad password).
-
-#### Local verify (frontend)
-
-**User:** one command from repo root — `bash scripts/dev-ui.sh` (same as `cd frontend && npm run dev:ui`). Opens **http://localhost:5173** with Vite **HMR** (live source, not frozen `dist/`). Hard refresh once (Cmd+Shift+R) if the tab was open while `vite preview` was running.
-
-**Agents/workers:** **MUST** run `bash scripts/dev-ui.sh` (or equivalent: kill anything on **5173**, then `npm run dev` from `frontend/`) before asking the user to verify UI changes. **Never** start `vite preview` / `npm run preview` for routine UI work — preview serves stale built assets. Use preview only when explicitly testing a production build (`npm run build` first).
-
-If CSS or layout changes are “not visible,” assume preview or a dead dev server — rerun `bash scripts/dev-ui.sh`; do not tell the user to rebuild for normal fixes.
-
-#### Mobile / responsive UI
-
-When changing frontend layout or CSS, treat these as **agent requirements** (see also **Mobile (laptop + phone)** above):
-
-- **Full width on phones:** Main content must use the full viewport width on ~375px devices (≤768px). No centered narrow column with large empty gutters left/right — the shell should span the usable width after hamburger clearance only.
-- **Geography & Lookups (agent requirement):** **Geography** (`GeoPage` — Zones / Districts / Areas / Clusters tab strip + `GrsTable` card) and **Lookups** (tab strip + table/list card) must match Kutirs/Students on phone: full-width main + table card, not a squeezed center column. Use `className="grs-page"` on the route shell; hamburger inset lives on `.grs-main` only (`frontend/src/mobile.css` — do not stack extra left padding on `.grs-page`). On ≤768px, `#root` must not stay at the desktop max-width column. After layout/CSS changes, hard-refresh **http://localhost:5173/geo** (Zones tab) at ~375–390px alongside Lookups.
-- **Reports (agent requirement):** Report pages (admission funnel / admitted students, Kutir performance, top/bottom kutirs, etc.) must match list pages on phone: **full-width** shell, **collapsible filter bar** (≤640px, collapsed by default, **▼/▲** chevron on the Filters toggle, active-count badge when filters differ from defaults — `@parivaar/ui` `ReportFiltersBar` / `ReportPageShell`), **vertical page scroll**, and **horizontal scroll inside** wide tables only. Smoke one report route at ~375px after filter or table layout changes.
-- **Scrollable mobile nav:** The hamburger drawer / mobile sidebar must scroll vertically so users can reach **Sign out** and every nav item at the bottom.
-- **Full mobile access:** All pages and forms (Add, Edit, View, lists, modals) must stay fully usable on phone width — no desktop-only CRUD layouts, clipped fields, or unreachable actions.
-- **Scroll where needed:** Allow vertical and horizontal scrolling **inside** tables, long forms, filter rows, and cards as appropriate. Do not clip content; keep scrolling off the document body (no page-level horizontal overflow).
-
-#### Mobile device testing (real phone, same Wi‑Fi)
-
-On a **physical iPhone/Android**, `localhost` and `127.0.0.1` point at the phone — not your Mac. Use the Mac’s **LAN URL** instead.
-
-1. Start API and UI as usual: `bash backend/start.sh`, then `bash scripts/dev-ui.sh`. Vite must listen on all interfaces (`npm run dev` / `dev-ui.sh` pass **`--host`**; confirm with `lsof -nP -iTCP:5173 -sTCP:LISTEN` → `*:5173`).
-2. Find the Mac’s Wi‑Fi IP: `ipconfig getifaddr en0` (or System Settings → Network). Optional hostnames: `Mac.lan` / `*.local` (Bonjour; IP is more reliable).
-3. On the phone browser, open **`http://<Mac-LAN-IP>:5173`** (not localhost). Example: `http://192.168.31.121:5173`.
-4. In dev, the SPA uses same-origin **`/api/v1`** (Vite proxy to `:8001`; optional override `VITE_API_URL` in a local `frontend/.env.development.local`) — **no backend CORS change** needed for login from the phone. Only add `http://<Mac-LAN-IP>:5173` to `ALLOWED_ORIGINS` in `backend/.env` if you bypass the proxy (e.g. point the SPA directly at `http://<Mac-LAN-IP>:8001`).
-5. **macOS firewall:** if the phone gets “connection refused” while curl from the Mac to the LAN IP works, allow incoming connections for **Node** once (System Settings → Network → Firewall → Options, or the prompt when Vite first listens on the network).
-
-**Forgot password (magic link):** set `FRONTEND_BASE_URL` and optional `SMTP_*` in `backend/.env` (see `.env.example`). With no `SMTP_HOST`, the API logs the reset URL to the server log instead of sending email.
-
-#### Offline kutir visit logging (phase 1 + drafts)
-
-**Prepare (online):** **Visits → Log New Visit** — pick kutir and visit date, then **Save for offline** (minimal save; full form not required). Repeat for each kutir. Rows appear on the visits list with a **Saved for offline** badge. Incomplete drafts expire after **7 days** (purged when the list loads).
-
-**Complete a draft:** Open the row → full visit form. **Online:** **Log Visit** (normal API). **Offline:** **Save on device** → phase‑1 outbox; sync on reconnect (`VisitOfflineSyncMount`).
-
-**One-shot offline (phase 1):** **Log New Visit** while offline (or after a network error) — fill the full form and **Save on device**; same outbox/sync. Lookups use the last cached snapshot from a prior online session. Edit/view server visits and reports unchanged.
-
-**Manual test:** (1) Online: open Log New Visit once so lookups cache. (2) Save 2–3 kutirs with the same date via **Save for offline** — list shows badges. (3) Open one draft, complete, **Log Visit**. (4) DevTools offline: complete another draft with **Save on device** — subtitle pending count; go online — visit syncs. (5) Confirm **Log Visit** on add still works when filling the full form online.
+1. Until push, **at most one unpushed commit** on local `main`.
+2. After first unpushed commit, **amend** further work — do not stack additional SHAs.
+3. On push, **squash to one** if more than one unpushed commit accumulated (prefer amend to avoid).
+4. Never force-push unless explicitly asked.
