@@ -33,6 +33,15 @@ import { hasGlobalDataScope } from "../constants/roles";
 import { grs } from "../styles/grs";
 import { studentLabel } from "../utils/studentLabel";
 import { admissionFieldLabel } from "../constants/admissionsFields";
+import { GeoFilterBar } from "./GeoFilterBar";
+import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
+import {
+  defaultsFromUser,
+  scopeClusters,
+  scopeDistricts,
+  scopeKutirs,
+  type FilterId,
+} from "../utils/geoFilters";
 
 /** Student district via kutir.district_id, else kutir → cluster → area → district. */
 function districtIdForKutir(
@@ -52,6 +61,7 @@ function districtIdForKutir(
 }
 import {
   type StageKey,
+  type PipelineField,
   StageBadge,
   PipelineStepper,
   subjectsForExamType,
@@ -86,6 +96,9 @@ export interface AdmissionFormState {
   scoreInputs: Record<number, string>;
   /** Subject display names from the loaded exam (view mode). */
   scoreLabels: Record<number, string>;
+  /** UI-only filters (not sent to API); kept on form for validation. */
+  ui_exam_district: number | "";
+  ui_school_district: number | "";
 }
 
 export function emptyAdmissionForm(year = CURRENT_YEAR): AdmissionFormState {
@@ -111,6 +124,8 @@ export function emptyAdmissionForm(year = CURRENT_YEAR): AdmissionFormState {
     admission_class: null,
     scoreInputs: {},
     scoreLabels: {},
+    ui_exam_district: "",
+    ui_school_district: "",
   };
 }
 
@@ -150,6 +165,8 @@ export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
         .filter((s) => s.subject?.name)
         .map((s) => [s.subject_id, s.subject!.name]),
     ),
+    ui_exam_district: "",
+    ui_school_district: "",
   };
 }
 
@@ -197,22 +214,106 @@ export function admissionPayloadFromForm(
   };
 }
 
-/** Whether school fields are required for the current pipeline stage. */
+export function admissionFieldVisible(
+  form: Pick<AdmissionFormState, StageKey>,
+  field: PipelineField,
+): boolean {
+  return pipelineFieldVisible(form, field);
+}
+
+/** Whether a pipeline-gated or always-on add/edit field is required (visible ⇒ required). */
+export function admissionFieldRequired(
+  form: Pick<AdmissionFormState, StageKey>,
+  field: PipelineField | "student" | "admission_class",
+): boolean {
+  if (field === "student" || field === "admission_class") return true;
+  return pipelineFieldVisible(form, field);
+}
+
+export type AdmissionFormValidateOpts = {
+  mode: "add" | "edit";
+  /** Subject ids for the selected exam type (score inputs when scores section is visible). */
+  subjectIds: number[];
+};
+
+/** First validation error for visible fields, or null when the form can be saved. */
+export function validateAdmissionForm(
+  form: AdmissionFormState,
+  opts: AdmissionFormValidateOpts,
+): string | null {
+  const show = (field: PipelineField) => pipelineFieldVisible(form, field);
+
+  if (opts.mode === "add" && !form.student_id) {
+    return `Select a ${admissionFieldLabel("student").toLowerCase()}.`;
+  }
+  if (form.admission_class == null) {
+    return ADMISSION_CLASS_REQUIRED_MSG;
+  }
+  if (form.exam_type_id == null) {
+    return "Exam type is required.";
+  }
+  if (form.exam_category_id == null) {
+    return `${admissionFieldLabel("exam_category_id")} is required.`;
+  }
+  if (show("parivaar_district") && form.ui_exam_district === "") {
+    return "Parivaar district is required.";
+  }
+  if (show("exam_center") && form.exam_center_id == null) {
+    return `${admissionFieldLabel("exam_center_id")} is required.`;
+  }
+  if (show("application_number") && !form.application_number?.trim()) {
+    return `${admissionFieldLabel("application_number")} is required.`;
+  }
+  if (show("roll_number") && !form.roll_number?.trim()) {
+    return `${admissionFieldLabel("roll_number")} is required.`;
+  }
+  if (show("reason_not_appeared") && form.no_exam_reason_id == null) {
+    return "Reason not appeared is required.";
+  }
+  if (show("scores") && opts.subjectIds.length > 0) {
+    for (const subjectId of opts.subjectIds) {
+      const raw = form.scoreInputs[subjectId];
+      if (raw === undefined || raw.trim() === "") {
+        return "Enter a score for every subject.";
+      }
+    }
+  }
+  if (show("school_district") && form.ui_school_district === "") {
+    return "School district is required.";
+  }
+  if (show("school_type") && !form.school_type.trim()) {
+    return "School type is required.";
+  }
+  if (show("school_name") && form.admitted_school_id == null) {
+    return "School name is required.";
+  }
+  if (show("reason_not_admitted") && form.no_admit_reason_id == null) {
+    return "Reason not admitted is required.";
+  }
+  return null;
+}
+
+export function admissionFormCanSave(
+  form: AdmissionFormState,
+  opts: AdmissionFormValidateOpts,
+): boolean {
+  return validateAdmissionForm(form, opts) == null;
+}
+
+/** @deprecated Use validateAdmissionForm / admissionFormCanSave */
 export function admissionSchoolFieldsRequired(form: Pick<AdmissionFormState, StageKey>): boolean {
   return pipelineFieldVisible(form, "school_name");
 }
 
-/** Class (admission_class) is required whenever Admitted is set (5 or 8). */
-export function admissionClassRequired(form: Pick<AdmissionFormState, "admitted">): boolean {
-  return form.admitted === true;
+export function admissionClassRequired(_form: Pick<AdmissionFormState, "admitted">): boolean {
+  return true;
 }
 
-export function admissionClassMissing(form: Pick<AdmissionFormState, "admitted" | "admission_class">): boolean {
-  return admissionClassRequired(form) && form.admission_class == null;
+export function admissionClassMissing(form: Pick<AdmissionFormState, "admission_class">): boolean {
+  return form.admission_class == null;
 }
 
-export const ADMISSION_CLASS_REQUIRED_MSG =
-  "Class is required when admitting (select 5 or 8).";
+export const ADMISSION_CLASS_REQUIRED_MSG = "Class is required (select 5 or 8).";
 
 interface AdmissionFormProps {
   form: AdmissionFormState;
@@ -250,9 +351,14 @@ export function AdmissionForm({
   const unscoped = !user || hasGlobalDataScope(user.title);
 
   const [search, setSearch] = useState("");
-  const [kutirFilter, setKutirFilter] = useState<number | "">("");
-  const [schoolDistrictFilter, setSchoolDistrictFilter] = useState<number | "">("");
-  const [examDistrictFilter, setExamDistrictFilter] = useState<number | "">("");
+  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+  const geoDefaults = useMemo(() => defaultsFromUser(user ?? undefined), [user]);
+  const [filterDistrict, setFilterDistrict] = useState<FilterId>(() => geoDefaults.district);
+  const [filterCluster, setFilterCluster] = useState<FilterId>(() => geoDefaults.cluster);
+  const [filterKutir, setFilterKutir] = useState<FilterId>(() => geoDefaults.kutir);
+  const [addGeoSeeded, setAddGeoSeeded] = useState(false);
+  const examDistrictFilter = form.ui_exam_district;
+  const schoolDistrictFilter = form.ui_school_district;
 
   const { data: examTypes = [] } = useQuery<ExamTypeMin[]>({
     queryKey: ["exam-types"],
@@ -312,62 +418,122 @@ export function AdmissionForm({
     staleTime: 5 * 60 * 1000,
     enabled: needGeoForDistrict,
   });
-  const { data: students = [] } = useQuery({
-    queryKey: ["students-search", "admissions", search.trim(), kutirFilter],
+  const scopedPresenceDistricts = useMemo(
+    () => scopeDistricts(presenceDistricts, user ?? undefined, unscoped),
+    [presenceDistricts, user, unscoped],
+  );
+  const scopedClusters = useMemo(
+    () => scopeClusters(allClusters, user ?? undefined, unscoped),
+    [allClusters, user, unscoped],
+  );
+  const scopedKutirs = useMemo(
+    () => scopeKutirs(allKutirsData, user ?? undefined, unscoped),
+    [allKutirsData, user, unscoped],
+  );
+
+  useGeoFilterAutoSelect({
+    scopedDistricts: scopedPresenceDistricts,
+    scopedClusters,
+    filterDistrict,
+    filterCluster,
+    setFilterDistrict,
+    setFilterCluster,
+    unscoped,
+    clusterMode: isAdd ? "scoped-non-admin" : "none",
+    skipDistrictAuto: !isAdd,
+    skipClusterAuto: !isAdd,
+  });
+
+  useEffect(() => {
+    if (!isAdd || filterCluster === "") return;
+    const inCluster = scopedKutirs.filter((k) => k.cluster_id === filterCluster);
+    if (inCluster.length === 1 && filterKutir === "") {
+      setFilterKutir(inCluster[0].id);
+    }
+  }, [isAdd, filterCluster, scopedKutirs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const areaMap = useMemo(() => new Map(allAreas.map((a) => [a.id, a])), [allAreas]);
+
+  // Role default kutir (e.g. Teacher): backfill district/cluster so Kutir is usable.
+  useEffect(() => {
+    if (
+      !isAdd ||
+      addGeoSeeded ||
+      filterKutir === "" ||
+      filterCluster !== "" ||
+      scopedKutirs.length === 0 ||
+      allClusters.length === 0
+    ) {
+      return;
+    }
+    const kutir = scopedKutirs.find((k) => k.id === filterKutir);
+    if (!kutir?.cluster_id) return;
+    const cluster = allClusters.find((c) => c.id === kutir.cluster_id);
+    if (!cluster) return;
+    const area = areaMap.get(cluster.area_id);
+    if (area) setFilterDistrict(area.district_id);
+    setFilterCluster(kutir.cluster_id);
+    setAddGeoSeeded(true);
+  }, [isAdd, filterKutir, filterCluster, scopedKutirs, allClusters, areaMap, addGeoSeeded]);
+
+  function clearStudentPick() {
+    setField("student_id", 0);
+    setSearch("");
+  }
+
+  function onGeoFilterChange(next: {
+    district: FilterId;
+    cluster: FilterId;
+    kutir: FilterId;
+  }) {
+    setFilterDistrict(next.district);
+    setFilterCluster(next.cluster);
+    setFilterKutir(next.kutir);
+    clearStudentPick();
+  }
+
+  const searchTrim = search.trim();
+  const { data: students = [], isFetching: studentsFetching } = useQuery({
+    queryKey: ["students-search", "admissions", searchTrim, filterKutir],
     queryFn: () =>
       listStudents({
         name_only: true,
-        search: search.trim(),
+        ...(searchTrim ? { search: searchTrim } : {}),
         limit: 100,
-        ...(kutirFilter !== "" ? { kutir_id: Number(kutirFilter) } : {}),
+        kutir_id: Number(filterKutir),
       }),
-    enabled: isAdd && search.trim().length >= 1,
+    enabled: isAdd && filterKutir !== "",
   });
 
-  const kutirs = useMemo(() => {
-    if (unscoped) return allKutirsData;
-    return user!.kutir_ids.length > 0
-      ? allKutirsData.filter((k) => user!.kutir_ids.includes(k.id))
-      : allKutirsData;
-  }, [allKutirsData, user, unscoped]);
-
   useEffect(() => {
-    if (!isAdd) return;
-    if (kutirs.length === 1 && kutirFilter === "") setKutirFilter(kutirs[0].id);
-  }, [isAdd, kutirs.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const scopeByUser = (list: typeof allDistricts) => {
-    if (unscoped) return list;
-    return user!.district_ids?.length > 0
-      ? list.filter((d) => user!.district_ids.includes(d.id))
-      : list;
-  };
-  const scopedPresenceDistricts = useMemo(
-    () => scopeByUser(presenceDistricts),
-    [presenceDistricts, user, unscoped],
-  );
+    if (!isAdd || filterKutir === "") {
+      setStudentPickerOpen(false);
+      return;
+    }
+    setStudentPickerOpen(true);
+  }, [isAdd, filterKutir]);
 
   function applyParivaarDistrict(districtId: number | null) {
     if (districtId == null) return;
     if (!scopedPresenceDistricts.some((d) => d.id === districtId)) return;
-    setExamDistrictFilter(districtId);
+    setField("ui_exam_district", districtId);
   }
 
   function applySchoolDistrict(districtId: number | null) {
     if (districtId == null) return;
     if (!allDistricts.some((d) => d.id === districtId)) return;
-    setSchoolDistrictFilter(districtId);
+    setField("ui_school_district", districtId);
   }
 
   useEffect(() => {
-    if (scopedPresenceDistricts.length === 1 && examDistrictFilter === "") {
-      setExamDistrictFilter(scopedPresenceDistricts[0].id);
+    if (scopedPresenceDistricts.length === 1 && form.ui_exam_district === "") {
+      setField("ui_exam_district", scopedPresenceDistricts[0].id);
     }
   }, [scopedPresenceDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edit: prefill Parivaar District from existing exam center, else student's kutir district
   useEffect(() => {
-    if (mode !== "edit" || examDistrictFilter !== "") return;
+    if (mode !== "edit" || form.ui_exam_district !== "") return;
     const center = examCenters.find((c) => c.id === form.exam_center_id);
     if (center?.district_id != null) {
       applyParivaarDistrict(center.district_id);
@@ -380,7 +546,7 @@ export function AdmissionForm({
 
   // Edit: prefill GRS School District from admitted school, else student's kutir district
   useEffect(() => {
-    if (mode !== "edit" || schoolDistrictFilter !== "") return;
+    if (mode !== "edit" || form.ui_school_district !== "") return;
     const school = schools.find((s) => s.id === form.admitted_school_id) as
       | { district_id?: number | null }
       | undefined;
@@ -417,12 +583,16 @@ export function AdmissionForm({
       }
     }
     onAdmitBlockMsg?.(null);
-    setForm((f) =>
-      normalizePipelineStages({
-        ...f,
-        ...updates,
-      }),
-    );
+    setForm((f) => {
+      const school_start_year = f.school_start_year;
+      return {
+        ...normalizePipelineStages({
+          ...f,
+          ...updates,
+        }),
+        school_start_year,
+      };
+    });
   }
 
   const schoolTypes = (
@@ -430,8 +600,10 @@ export function AdmissionForm({
   ).sort();
   const subjects = subjectsForExamType(examTypeSubjects, form.exam_type_id);
 
-  // Server already filters by search (+ kutir when selected); keep list as-is for the picker.
+  // Server filters by kutir (+ optional search); keep list as-is for the picker.
   const filteredStudents = students;
+  const showStudentPicker =
+    isAdd && filterKutir !== "" && !form.student_id && studentPickerOpen;
 
   const filteredExamCenters =
     examDistrictFilter === ""
@@ -465,8 +637,8 @@ export function AdmissionForm({
   const showScores = show("scores");
   const showSchool = show("school_name");
   const showReasonNotAdmitted = show("reason_not_admitted");
-  /** Year editable only while no pipeline stage is selected (pipelineStage === -1). */
-  const yearEditable = pipelineStage(form) < 0;
+  /** Year editable until first pipeline stage (Eligible+); lock preserves school_start_year in state. */
+  const yearEditable = !readOnly && pipelineStage(form) < 0;
 
   const viewExamCategory = examCategories.find((c) => c.id === form.exam_category_id);
   const viewExamCenter = examCenters.find((c) => c.id === form.exam_center_id);
@@ -689,6 +861,36 @@ export function AdmissionForm({
     );
   }
 
+  const yearField = (
+    <div>
+      <label style={grs.fieldLabel}>
+        Year
+        {admissionFieldRequired(form, "year") && (
+          <span style={{ color: "var(--danger)" }}> *</span>
+        )}
+      </label>
+      {yearEditable ? (
+        <select
+          value={form.school_start_year}
+          onChange={(e) => setField("school_start_year", Number(e.target.value))}
+          style={selStyles}
+        >
+          {YEARS.map((y) => (
+            <option key={y} value={y}>
+              {formatAcademicYear(y)}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          readOnly
+          value={formatAcademicYear(form.school_start_year)}
+          style={{ ...inputStyles, opacity: 0.6, cursor: "not-allowed" }}
+        />
+      )}
+    </div>
+  );
+
   // ── ADD / EDIT ─────────────────────────────────────────────────────────────
   return (
     <div className="grs-form">
@@ -696,46 +898,68 @@ export function AdmissionForm({
       <section style={sec}>
         <div style={secTitle}>Student</div>
         {isAdd ? (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 120px", gap: 8 }}>
-            <div>
-              <label style={grs.fieldLabel}>{admissionFieldLabel("kutir")}</label>
-              <select
-                value={kutirFilter}
-                onChange={(e) => {
-                  setKutirFilter(e.target.value === "" ? "" : Number(e.target.value));
-                  setField("student_id", 0);
-                  setSearch("");
-                }}
-                style={selStyles}
-              >
-                <option value="">-- Select Kutir --</option>
-                {kutirs.map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <GeoFilterBar
+              labeled
+              district={filterDistrict}
+              cluster={filterCluster}
+              kutir={filterKutir}
+              onChange={onGeoFilterChange}
+              districts={scopedPresenceDistricts}
+              clusters={scopedClusters}
+              areas={allAreas}
+              kutirs={scopedKutirs}
+              kutirMode="by-cluster-or-selected"
+              clusterDisable="no-district-unless-kutir"
+              kutirDisable="no-cluster-unless-default-kutir"
+              kutirVisibility="always"
+              defaultKutir={geoDefaults.kutir}
+              selectStyle={selStyles}
+              districtEmptyLabel="— Select —"
+              clusterEmptyLabel="— Select —"
+              kutirEmptyLabel="— Select —"
+              districtLabel="District"
+              clusterLabel="Cluster"
+              kutirLabel={admissionFieldLabel("kutir")}
+            />
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) 90px 120px",
+                gap: 8,
+                alignItems: "end",
+              }}
+            >
+            <div style={{ position: "relative", minWidth: 0 }}>
               <label style={grs.fieldLabel}>
                 {admissionFieldLabel("student")} <span style={{ color: "var(--danger)" }}>*</span>
               </label>
               <input
-                placeholder="Type name to search…"
+                placeholder={
+                  filterKutir === ""
+                    ? "Select district, cluster, and kutir first…"
+                    : "Search or pick a student below…"
+                }
                 value={search}
+                disabled={filterKutir === ""}
+                onFocus={() => {
+                  if (filterKutir !== "") setStudentPickerOpen(true);
+                }}
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setField("student_id", 0);
+                  setStudentPickerOpen(true);
                 }}
                 style={{
                   ...inputStyles,
+                  ...(filterKutir === "" ? { opacity: 0.6, cursor: "not-allowed" } : {}),
                   borderRadius:
-                    filteredStudents.length > 0 && search && !form.student_id
+                    showStudentPicker && filteredStudents.length > 0
                       ? "6px 6px 0 0"
                       : undefined,
                 }}
               />
-              {filteredStudents.length > 0 && search && !form.student_id && (
+              {showStudentPicker && filteredStudents.length > 0 && (
                 <div
                   style={{
                     position: "absolute",
@@ -758,6 +982,7 @@ export function AdmissionForm({
                         onClick={() => {
                           setField("student_id", s.id);
                           setSearch(label);
+                          setStudentPickerOpen(false);
                           const did = districtIdForKutir(
                             s.kutir_id,
                             allKutirsData,
@@ -794,7 +1019,21 @@ export function AdmissionForm({
                   })}
                 </div>
               )}
+              {showStudentPicker && !studentsFetching && filteredStudents.length === 0 && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: "0.82rem",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {searchTrim
+                    ? "No students match your search in this kutir."
+                    : "No students in this kutir."}
+                </div>
+              )}
             </div>
+            {yearField}
             <div>
               <label style={grs.fieldLabel}>
                 {admissionFieldLabel("admission_class")} <span style={{ color: "var(--danger)" }}>*</span>
@@ -814,9 +1053,17 @@ export function AdmissionForm({
                 <option value={8}>Class 8</option>
               </select>
             </div>
+            </div>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 8 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 90px 120px",
+              gap: 8,
+              alignItems: "end",
+            }}
+          >
             <div>
               <label style={grs.fieldLabel}>{admissionFieldLabel("student")}</label>
               <input
@@ -825,12 +1072,11 @@ export function AdmissionForm({
                 style={{ ...inputStyles, opacity: 0.6, cursor: "not-allowed" }}
               />
             </div>
+            {yearField}
             <div>
               <label style={grs.fieldLabel}>
                 {admissionFieldLabel("admission_class")}
-                {admissionClassRequired(form) && (
-                  <span style={{ color: "var(--danger)" }}> *</span>
-                )}
+                <span style={{ color: "var(--danger)" }}> *</span>
               </label>
               <select
                 value={form.admission_class ?? ""}
@@ -864,35 +1110,18 @@ export function AdmissionForm({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "90px 130px 1fr",
+            gridTemplateColumns: "130px 1fr",
             gap: 12,
             alignItems: "end",
           }}
         >
           <div>
-            <label style={grs.fieldLabel}>Year</label>
-            {yearEditable ? (
-              <select
-                value={form.school_start_year}
-                onChange={(e) => setField("school_start_year", Number(e.target.value))}
-                style={selStyles}
-              >
-                {YEARS.map((y) => (
-                  <option key={y} value={y}>
-                    {formatAcademicYear(y)}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                readOnly
-                value={formatAcademicYear(form.school_start_year)}
-                style={{ ...inputStyles, opacity: 0.6, cursor: "not-allowed" }}
-              />
-            )}
-          </div>
-          <div>
-            <label style={grs.fieldLabel}>Exam Type</label>
+            <label style={grs.fieldLabel}>
+              {admissionFieldLabel("exam_type_id")}
+              {admissionFieldRequired(form, "exam_type") && (
+                <span style={{ color: "var(--danger)" }}> *</span>
+              )}
+            </label>
             <select
               value={form.exam_type_id ?? ""}
               onChange={(e) =>
@@ -909,7 +1138,12 @@ export function AdmissionForm({
             </select>
           </div>
           <div>
-            <label style={grs.fieldLabel}>{admissionFieldLabel("exam_category_id")}</label>
+            <label style={grs.fieldLabel}>
+              {admissionFieldLabel("exam_category_id")}
+              {admissionFieldRequired(form, "exam_category") && (
+                <span style={{ color: "var(--danger)" }}> *</span>
+              )}
+            </label>
             <select
               value={form.exam_category_id ?? ""}
               onChange={(e) =>
@@ -941,11 +1175,16 @@ export function AdmissionForm({
             }}
           >
             <div>
-              <label style={grs.fieldLabel}>Parivaar District</label>
+              <label style={grs.fieldLabel}>
+                Parivaar District
+                {admissionFieldRequired(form, "parivaar_district") && (
+                  <span style={{ color: "var(--danger)" }}> *</span>
+                )}
+              </label>
               <select
                 value={examDistrictFilter}
                 onChange={(e) => {
-                  setExamDistrictFilter(e.target.value === "" ? "" : Number(e.target.value));
+                  setField("ui_exam_district", e.target.value === "" ? "" : Number(e.target.value));
                   setField("exam_center_id", null);
                 }}
                 style={selStyles}
@@ -959,7 +1198,12 @@ export function AdmissionForm({
               </select>
             </div>
             <div>
-              <label style={grs.fieldLabel}>{admissionFieldLabel("exam_center_id")}</label>
+              <label style={grs.fieldLabel}>
+                {admissionFieldLabel("exam_center_id")}
+                {admissionFieldRequired(form, "exam_center") && (
+                  <span style={{ color: "var(--danger)" }}> *</span>
+                )}
+              </label>
               <select
                 value={form.exam_center_id ?? ""}
                 onChange={(e) =>
@@ -990,7 +1234,12 @@ export function AdmissionForm({
           >
             {showAppliedExam ? (
               <div>
-                <label style={grs.fieldLabel}>{admissionFieldLabel("application_number")}</label>
+                <label style={grs.fieldLabel}>
+                  {admissionFieldLabel("application_number")}
+                  {admissionFieldRequired(form, "application_number") && (
+                    <span style={{ color: "var(--danger)" }}> *</span>
+                  )}
+                </label>
                 <input
                   value={form.application_number ?? ""}
                   onChange={(e) => setField("application_number", e.target.value || null)}
@@ -1002,7 +1251,12 @@ export function AdmissionForm({
             )}
             {showRoll ? (
               <div>
-                <label style={grs.fieldLabel}>{admissionFieldLabel("roll_number")}</label>
+                <label style={grs.fieldLabel}>
+                  {admissionFieldLabel("roll_number")}
+                  {admissionFieldRequired(form, "roll_number") && (
+                    <span style={{ color: "var(--danger)" }}> *</span>
+                  )}
+                </label>
                 <input
                   value={form.roll_number ?? ""}
                   onChange={(e) => setField("roll_number", e.target.value || null)}
@@ -1023,7 +1277,12 @@ export function AdmissionForm({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {subjects.map((subj) => (
               <div key={subj.id}>
-                <label style={grs.fieldLabel}>{subj.name}</label>
+                <label style={grs.fieldLabel}>
+                  {subj.name}
+                  {admissionFieldRequired(form, "scores") && (
+                    <span style={{ color: "var(--danger)" }}> *</span>
+                  )}
+                </label>
                 <input
                   type="number"
                   min={0}
@@ -1043,7 +1302,12 @@ export function AdmissionForm({
       {/* Reason Not Appeared — only at Admit Card Downloaded stage */}
       {showReasonNotAppeared && (
         <section style={sec}>
-          <div style={secTitle}>Reason Not Appeared for Exam</div>
+          <div style={secTitle}>
+            Reason Not Appeared for Exam
+            {admissionFieldRequired(form, "reason_not_appeared") && (
+              <span style={{ color: "var(--danger)" }}> *</span>
+            )}
+          </div>
           <select
             value={form.no_exam_reason_id ?? ""}
             onChange={(e) =>
@@ -1077,11 +1341,16 @@ export function AdmissionForm({
             }}
           >
             <div>
-              <label style={grs.fieldLabel}>District</label>
+              <label style={grs.fieldLabel}>
+                District
+                {admissionFieldRequired(form, "school_district") && (
+                  <span style={{ color: "var(--danger)" }}> *</span>
+                )}
+              </label>
               <select
                 value={schoolDistrictFilter}
                 onChange={(e) => {
-                  setSchoolDistrictFilter(e.target.value === "" ? "" : Number(e.target.value));
+                  setField("ui_school_district", e.target.value === "" ? "" : Number(e.target.value));
                   setField("admitted_school_id", null);
                 }}
                 style={selStyles}
@@ -1096,7 +1365,7 @@ export function AdmissionForm({
             </div>
             <div>
               <label style={grs.fieldLabel}>
-                School Type <span style={{ color: "var(--danger)" }}>*</span>
+                {admissionFieldLabel("school_type")} <span style={{ color: "var(--danger)" }}>*</span>
               </label>
               <select
                 value={form.school_type}
@@ -1149,7 +1418,12 @@ export function AdmissionForm({
       {/* Reason Not Admitted — Selected only */}
       {showReasonNotAdmitted && (
         <section style={sec}>
-          <div style={secTitle}>Reason Not Admitted</div>
+          <div style={secTitle}>
+            Reason Not Admitted
+            {admissionFieldRequired(form, "reason_not_admitted") && (
+              <span style={{ color: "var(--danger)" }}> *</span>
+            )}
+          </div>
           <select
             value={form.no_admit_reason_id ?? ""}
             onChange={(e) =>

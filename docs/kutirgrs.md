@@ -74,6 +74,7 @@ One registry per entity: `frontend/src/constants/*Fields.ts` (e.g. `studentsFiel
 1. Do **not** hardcode parallel label/key lists in pages, Column Config, or export.
 2. `label` for list / Column Config / export. Optional `formLabel` when Add/Edit needs a different label (e.g. Kutir `enrollment_5th`: list `"5th Enrollment"`, form `"5th Class"`).
 3. Add/rename field visible in list/config/export/forms: update registry **first**, then wire UI.
+4. **CI guard:** `npm run build` runs `frontend/scripts/check-field-registry.mjs`, which fails if a Column Settings list page column key is missing from that entity’s `*Fields.ts` (or if the page defines a column not in the registry). **`actions`** on `GrsTable` is excluded — not a configurable column.
 
 ---
 

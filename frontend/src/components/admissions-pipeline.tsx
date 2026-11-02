@@ -110,6 +110,7 @@ export function StageBadge({ exam }: { exam: StudentExam }) {
       <span style={{
         background: "var(--badge-grey-bg)", color: "var(--badge-grey-fg)",
         padding: "2px 8px", borderRadius: 12, fontSize: 12, fontWeight: 600,
+        whiteSpace: "nowrap",
       }}>Registered</span>
     );
   }
@@ -126,6 +127,7 @@ export function StageBadge({ exam }: { exam: StudentExam }) {
       background: bg, color,
       padding: "2px 8px", borderRadius: 12, fontSize: 12, fontWeight: 700,
       letterSpacing: "0.02em",
+      whiteSpace: "nowrap",
     }}>{STAGES[idx].label}</span>
   );
 }

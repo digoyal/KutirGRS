@@ -52,11 +52,13 @@ Rules for agents on **database-backed web apps** (Python/FastAPI + React or simi
 
 ## 5. Field registry
 
-One registry per entity (e.g. `frontend/src/constants/*Fields.ts`; glob `**/*Fields.ts`). Each exports metadata (`FieldMeta[]` or equivalent) and label helpers. List columns, Column Config, CSV export, and form labels **from registry**. Which entity `*Fields.ts` modules to use is in the app product doc ([`docs/kutirgrs.md`](docs/kutirgrs.md) for KutirGRS).
+Each **list hub** entity that supports Column Settings has one module under `frontend/src/constants/*Fields.ts` (glob `**/*Fields.ts`). It exports `FieldMeta[]` (or equivalent) plus label helpers. Which entities exist is app-specific ([`docs/kutirgrs.md`](docs/kutirgrs.md) for KutirGRS).
 
-1. Do **not** hardcode parallel label/key lists in pages, Column Config, or export.
+1. **Column Settings** and the list page use that registry only for column keys, labels, order, and visibility — do not hardcode parallel label/key lists in pages, Column Config, or CSV export.
 2. `label` for list / Column Config / export. Optional `formLabel` when Add/Edit needs a different label than the list.
-3. Add/rename field visible in list/config/export/forms: update registry **first**, then wire UI.
+3. **New list column:** add a `FieldMeta` entry whose `key` matches the table column key, in the **same change** as the list renderer (skip form-only fields unless they appear as list columns).
+4. Rename or extend fields in list/config/export/forms: update the registry **first**, then wire UI.
+5. **`npm run build`** runs `frontend/scripts/check-field-registry.mjs` so list column keys stay aligned with `*Fields.ts`. Only **`actions`** (shared table row menu, not a configurable column) is exempt.
 
 ## 6. Mobile (laptop + phone)
 

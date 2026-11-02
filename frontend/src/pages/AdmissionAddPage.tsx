@@ -1,19 +1,44 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormPageShell } from "@parivaar/ui";
-import { createExam, type StudentExamCreate } from "../api/admissions";
+import {
+  createExam,
+  listExamTypeSubjects,
+  type ExamTypeSubjectRow,
+  type StudentExamCreate,
+} from "../api/admissions";
+import { subjectsForExamType } from "../components/admissions-pipeline";
 import {
   AdmissionForm,
   emptyAdmissionForm,
   admissionPayloadFromForm,
-  admissionSchoolFieldsRequired,
-  admissionClassMissing,
-  ADMISSION_CLASS_REQUIRED_MSG,
+  validateAdmissionForm,
   type AdmissionFormState,
 } from "../components/AdmissionForm";
+import { ADMISSIONS_FILTER_STORAGE_KEY } from "../constants/admissionsList";
+import { consumePersistedFilters, persistFilters } from "../hooks/usePersistedFilters";
 
 const CURRENT_YEAR = new Date().getFullYear();
+
+type AdmissionsFilterSnapshot = {
+  year?: number;
+  district?: number | "";
+  cluster?: number | "";
+  kutir?: number | "";
+  search?: string;
+  page?: number;
+};
+
+function persistListYearAfterCreate(schoolStartYear: number) {
+  const prev =
+    consumePersistedFilters<AdmissionsFilterSnapshot>(ADMISSIONS_FILTER_STORAGE_KEY) ?? {};
+  persistFilters(ADMISSIONS_FILTER_STORAGE_KEY, {
+    ...prev,
+    year: schoolStartYear,
+    page: 1,
+  });
+}
 
 export default function AdmissionAddPage() {
   const navigate = useNavigate();
@@ -27,9 +52,10 @@ export default function AdmissionAddPage() {
 
   const addMut = useMutation({
     mutationFn: createExam,
-    onSuccess: () => {
+    onSuccess: (_exam, payload) => {
       qc.invalidateQueries({ queryKey: ["student-exams"] });
-      navigate(-1);
+      persistListYearAfterCreate(payload.school_start_year);
+      navigate("/admissions", { replace: true });
     },
     onError: (e: unknown) => {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -37,21 +63,30 @@ export default function AdmissionAddPage() {
     },
   });
 
+  const { data: examTypeSubjects = [] } = useQuery<ExamTypeSubjectRow[]>({
+    queryKey: ["exam-type-subjects"],
+    queryFn: listExamTypeSubjects,
+    staleTime: 5 * 60 * 1000,
+  });
+  const subjectIds = useMemo(
+    () => subjectsForExamType(examTypeSubjects, form.exam_type_id).map((s) => s.id),
+    [examTypeSubjects, form.exam_type_id],
+  );
+  const validateOpts = useMemo(
+    () => ({ mode: "add" as const, subjectIds }),
+    [subjectIds],
+  );
+
   function handleSave() {
-    setSaveError(null);
-    if (admissionClassMissing(form)) {
-      setSaveError(ADMISSION_CLASS_REQUIRED_MSG);
+    const validationError = validateAdmissionForm(form, validateOpts);
+    if (validationError) {
+      setSaveError(validationError);
       return;
     }
-    addMut.mutate(admissionPayloadFromForm(form) as StudentExamCreate);
+    setSaveError(null);
+    const payload = admissionPayloadFromForm(form);
+    addMut.mutate(payload as StudentExamCreate);
   }
-
-  const schoolRequired = admissionSchoolFieldsRequired(form);
-  const classOk = !admissionClassMissing(form);
-  const canSave =
-    !!form.student_id &&
-    classOk &&
-    (!schoolRequired || (!!form.school_type && !!form.admitted_school_id));
 
   return (
     <FormPageShell
@@ -68,7 +103,6 @@ export default function AdmissionAddPage() {
       }
       error={saveError}
       saving={addMut.isPending}
-      saveDisabled={!canSave}
       saveLabel="Add Admission"
       onSave={handleSave}
       onCancel={() => navigate(-1)}

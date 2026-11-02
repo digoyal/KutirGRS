@@ -1,6 +1,7 @@
 import { grs } from "../styles/grs";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { isListHubPath } from "../constants/listHubRoutes";
 import { useAuth } from "../context/AuthContext";
 import {
   canViewUsers,
@@ -17,6 +18,14 @@ export default function DashboardPage() {
   const location = useLocation();
   const isHome = location.pathname === "/";
   const [navOpen, setNavOpen] = useState(false);
+
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (!root) return;
+    const wide = isListHubPath(location.pathname);
+    root.classList.toggle("grs-list-hub-root", wide);
+    return () => root.classList.remove("grs-list-hub-root");
+  }, [location.pathname]);
 
   const closeNav = () => setNavOpen(false);
 

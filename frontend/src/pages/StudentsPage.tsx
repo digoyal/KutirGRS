@@ -152,7 +152,6 @@ export default function StudentsPage() {
     debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
   };
 
-  const hasFilter = filterDistrict !== "" || filterCluster !== "" || filterKutir !== "" || debouncedSearch !== "";
   const { data: studentsPage, isLoading } = useQuery({
     queryKey: ["students", filterDistrict, filterCluster, filterKutir, debouncedSearch, page],
     queryFn: () => listStudentsPaged({
@@ -163,7 +162,6 @@ export default function StudentsPage() {
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     }),
-    enabled: hasFilter,
   });
   const students = studentsPage?.items ?? [];
   const studentTotal = studentsPage?.total ?? 0;
@@ -274,8 +272,8 @@ export default function StudentsPage() {
         data={enriched}
         rowKey={s => s.id}
         isLoading={isLoading}
-        emptyMessage={hasFilter ? "No students found." : "Select a district or search by name to view students."}
-        pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: studentTotal, onPageChange: setPage } : undefined}
+        emptyMessage="No students found."
+        pagination={{ page, pageSize: PAGE_SIZE, total: studentTotal, onPageChange: setPage }}
         actions={s => ({
           onView: () => { saveFilters(); navigate(`/students/${s.id}`); },
           onEdit: () => {

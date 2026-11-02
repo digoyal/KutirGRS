@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
-import { listExamsPaged, deleteExam } from "../api/admissions";
+import { listExamsPaged, deleteExam, listExamTypes } from "../api/admissions";
 import type { StudentExam } from "../api/admissions";
 import { listStudents } from "../api/students";
 import { listSchools } from "../api/schools";
@@ -16,7 +16,15 @@ import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { ADMISSIONS_FIELDS, ADMISSIONS_FIELD_KEYS } from "../constants/admissionsFields";
-import { listDistricts, listAreas, listClusters, listExamCenters, listExamCategories } from "../api/geo";
+import {
+  listDistricts,
+  listAreas,
+  listClusters,
+  listExamCenters,
+  listExamCategories,
+  listNoExamReasons,
+  listNoAdmitReasons,
+} from "../api/geo";
 import { STAGES, StageBadge, pipelineStage } from "../components/admissions-pipeline";
 import { studentLabel } from "../utils/studentLabel";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -29,10 +37,11 @@ import {
   type FilterId,
 } from "../utils/geoFilters";
 import { formatAcademicYear } from "../utils/academicYear";
+import { ADMISSIONS_FILTER_STORAGE_KEY } from "../constants/admissionsList";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
-const STORAGE_KEY = "admissions_filter_state";
+const STORAGE_KEY = ADMISSIONS_FILTER_STORAGE_KEY;
 
 export default function AdmissionsPage() {
   const qc = useQueryClient();
@@ -70,9 +79,6 @@ export default function AdmissionsPage() {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
   };
-  const hasFilter =
-    filterDistrict !== "" || filterCluster !== "" || filterKutir !== "" || debouncedSearch !== "";
-
   const { data: examPage = { items: [], total: 0 }, isLoading } = useQuery({
     queryKey: ["student-exams", year, filterDistrict, filterCluster, filterKutir, debouncedSearch, page],
     queryFn: () => listExamsPaged({
@@ -84,7 +90,6 @@ export default function AdmissionsPage() {
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     }),
-    enabled: hasFilter,
   });
   const exams     = examPage.items;
   const examTotal = examPage.total;
@@ -107,12 +112,18 @@ export default function AdmissionsPage() {
   const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"],  queryFn: () => listClusters() });
   const { data: examCategories=[] }= useQuery({ queryKey: ["exam-categories"],queryFn: () => listExamCategories() });
   const { data: examCenters = [] } = useQuery({ queryKey: ["exam-centers"],  queryFn: () => listExamCenters() });
+  const { data: examTypes = [] } = useQuery({ queryKey: ["exam-types"], queryFn: () => listExamTypes() });
+  const { data: noExamReasons = [] } = useQuery({ queryKey: ["no-exam-reasons"], queryFn: () => listNoExamReasons() });
+  const { data: noAdmitReasons = [] } = useQuery({ queryKey: ["no-admit-reasons"], queryFn: () => listNoAdmitReasons() });
 
   const studentMap      = Object.fromEntries(students.map(s => [s.id, s]));
   const schoolMap       = Object.fromEntries(schools.map(sc => [sc.id, sc]));
   const kutirMap2       = new Map(allKutirs.map(k => [k.id, k]));
   const examCategoryMap = new Map(examCategories.map(c => [c.id, c.name]));
   const examCenterMap   = new Map(examCenters.map(c => [c.id, c.name]));
+  const examTypeMap     = new Map(examTypes.map(t => [t.id, t.name]));
+  const noExamReasonMap = new Map(noExamReasons.map(r => [r.id, r.reason]));
+  const noAdmitReasonMap = new Map(noAdmitReasons.map(r => [r.id, r.reason]));
   const districtMap     = new Map(allDistricts.map(d => [d.id, d.name]));
   const areaMap         = new Map(allAreas.map(a => [a.id, a]));
   const clusterMap      = new Map(allClusters.map(c => [c.id, c]));
@@ -223,6 +234,13 @@ export default function AdmissionsPage() {
       tdStyle: { fontSize: 12, color: "var(--text-secondary)" },
     },
     {
+      key: "school_start_year", label: "", sortable: true,
+      sortValue: (exam) => exam.school_start_year,
+      render: (exam) => formatAcademicYear(exam.school_start_year),
+      csvValue: (exam) => formatAcademicYear(exam.school_start_year),
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" },
+    },
+    {
       key: "school", label: "", sortable: true,
       sortValue: (exam) => {
         const grsId = exam.admitted_school_id ?? exam.school_id;
@@ -248,6 +266,13 @@ export default function AdmissionsPage() {
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
     },
     {
+      key: "school_type", label: "", sortable: true,
+      sortValue: (exam) => exam.school_type ?? "",
+      render: (exam) => exam.school_type ?? "—",
+      csvValue: (exam) => exam.school_type ?? "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    },
+    {
       key: "stage", label: "", sortable: true,
       sortValue: (exam) => pipelineStage(exam),
       render: (exam) => <StageBadge exam={exam} />,
@@ -255,6 +280,28 @@ export default function AdmissionsPage() {
         const idx = pipelineStage(exam);
         return idx >= 0 ? STAGES[idx].label : "Registered";
       },
+      nowrap: true,
+      minWidth: 180,
+      tdStyle: {
+        overflowWrap: "normal",
+        wordBreak: "normal",
+      },
+    },
+    ...(["eligible", "applied", "admit_card", "appeared", "selected", "admitted"] as const).map((stageKey): Col<StudentExam> => ({
+      key: stageKey,
+      label: "",
+      sortable: true,
+      sortValue: (exam) => (exam[stageKey] ? 1 : 0),
+      render: (exam) => (exam[stageKey] ? "Yes" : "—"),
+      csvValue: (exam) => (exam[stageKey] ? "Yes" : "No"),
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    })),
+    {
+      key: "exam_type_id", label: "", sortable: true,
+      sortValue: (exam) => exam.exam_type_id ? (examTypeMap.get(exam.exam_type_id) ?? "") : "",
+      render: (exam) => exam.exam_type_id ? (examTypeMap.get(exam.exam_type_id) ?? "—") : "—",
+      csvValue: (exam) => exam.exam_type_id ? (examTypeMap.get(exam.exam_type_id) ?? "") : "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
     },
     {
       key: "exam_category_id", label: "", sortable: true,
@@ -283,6 +330,20 @@ export default function AdmissionsPage() {
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" },
     },
     {
+      key: "no_exam_reason_id", label: "", sortable: true,
+      sortValue: (exam) => exam.no_exam_reason_id ? (noExamReasonMap.get(exam.no_exam_reason_id) ?? "") : "",
+      render: (exam) => exam.no_exam_reason_id ? (noExamReasonMap.get(exam.no_exam_reason_id) ?? "—") : "—",
+      csvValue: (exam) => exam.no_exam_reason_id ? (noExamReasonMap.get(exam.no_exam_reason_id) ?? "") : "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    },
+    {
+      key: "no_admit_reason_id", label: "", sortable: true,
+      sortValue: (exam) => exam.no_admit_reason_id ? (noAdmitReasonMap.get(exam.no_admit_reason_id) ?? "") : "",
+      render: (exam) => exam.no_admit_reason_id ? (noAdmitReasonMap.get(exam.no_admit_reason_id) ?? "—") : "—",
+      csvValue: (exam) => exam.no_admit_reason_id ? (noAdmitReasonMap.get(exam.no_admit_reason_id) ?? "") : "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    },
+    {
       key: "scores", label: "", sortable: true,
       sortValue: (exam) => exam.scores.reduce<number>((sum, s) => sum + (s.score != null ? Number(s.score) : 0), 0),
       render: (exam) => {
@@ -299,10 +360,17 @@ export default function AdmissionsPage() {
         const total = exam.scores.reduce<number>((sum, s) => sum + (s.score != null ? Number(s.score) : 0), 0);
         return exam.scores.some(s => s.score != null) ? String(total) : "";
       },
-      tdStyle: { fontSize: 12, color: "var(--text-secondary)" },
+      tdStyle: {
+        fontSize: 12,
+        color: "var(--text-secondary)",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        maxWidth: 360,
+      },
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [studentMap, schoolMap, kutirMap2, clusterMap, areaMap, districtMap, examCategoryMap, examCenterMap]);
+  ], [studentMap, schoolMap, kutirMap2, clusterMap, areaMap, districtMap, examCategoryMap, examCenterMap, examTypeMap, noExamReasonMap, noAdmitReasonMap]);
 
   const { isVisible, orderedMetas } = useFieldConfig("admissions", ADMISSIONS_FIELDS);
   const columns = useMemo(() => {
@@ -329,16 +397,16 @@ export default function AdmissionsPage() {
   };
 
   return (
-    <div className="grs-page" style={{ padding: "24px 28px", maxWidth: 1200 }}>
+    <div className="grs-page" style={{ padding: "24px 28px" }}>
       <GrsTable<StudentExam>
         title="Admissions"
         subtitle="School entrance exam pipeline tracking"
         columns={columns}
         data={exams}
-        pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: examTotal, onPageChange: setPage } : undefined}
+        pagination={{ page, pageSize: PAGE_SIZE, total: examTotal, onPageChange: setPage }}
         rowKey={exam => exam.id}
         isLoading={isLoading}
-        emptyMessage={hasFilter ? `No admissions for ${formatAcademicYear(year)}.` : "Select a district or search by student name to view admissions."}
+        emptyMessage={`No admissions for ${formatAcademicYear(year)}.`}
         searchable
         searchPlaceholder="Search student..."
         externalSearch={searchQuery}

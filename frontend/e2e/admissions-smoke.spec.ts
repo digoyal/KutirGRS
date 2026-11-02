@@ -12,13 +12,11 @@ async function openAdmissions(page: Page) {
   await expect(page.getByRole("heading", { name: "Admissions" })).toBeVisible();
 }
 
-/** Admin has no default geo filter — search so the table loads rows, then open Edit. */
+/** Open first row Edit (list loads page 1 on mount). */
 async function openFirstAdmissionEdit(page: Page) {
   await page.evaluate(() => localStorage.removeItem("admissions_filter_state"));
   await openAdmissions(page);
 
-  const search = page.getByPlaceholder("Search student...");
-  await search.fill("Chouhan");
   await expect(page.getByTitle("Edit").first()).toBeVisible({ timeout: 15_000 });
   await page.getByTitle("Edit").first().click();
 
@@ -31,15 +29,11 @@ test.describe("Admissions smoke", () => {
     await loginAsAdmin(page);
     await openAdmissions(page);
 
-    // Table shell: search + empty-or-rows (admin has no geo filter by default).
+    // Table shell: search + rows or empty state (page 1 loads on mount).
     await expect(page.getByPlaceholder("Search student...")).toBeVisible();
     await expect(
-      page
-        .getByText(
-          /Select a district or search by student name to view admissions|No admissions for|of \d/,
-        )
-        .first(),
-    ).toBeVisible();
+      page.getByText(/No admissions for|of \d/).first(),
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: "+ Add" })).toBeVisible();
   });
 

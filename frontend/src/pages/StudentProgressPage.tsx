@@ -78,9 +78,6 @@ export default function StudentProgressPage() {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
   };
-  const hasFilter =
-    filterDistrict !== "" || filterCluster !== "" || filterKutir !== "" || debouncedSearch !== "";
-
   const { isVisible, orderedMetas } = useFieldConfig("progress", PROGRESS_FIELDS);
 
   function saveFilters() {
@@ -105,7 +102,6 @@ export default function StudentProgressPage() {
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     }),
-    enabled: hasFilter,
   });
   const progressList = progressPage.items;
   const progressTotal = progressPage.total;
@@ -321,12 +317,12 @@ export default function StudentProgressPage() {
         data={progressList}
         rowKey={(p) => p.id}
         isLoading={isLoading}
-        pagination={hasFilter ? { page, pageSize: PAGE_SIZE, total: progressTotal, onPageChange: setPage } : undefined}
+        pagination={{ page, pageSize: PAGE_SIZE, total: progressTotal, onPageChange: setPage }}
         searchable
         searchPlaceholder="Search by student name…"
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
-        emptyMessage={hasFilter ? `No progress records for ${formatAcademicYear(filterYear)}.` : "Select a District or search by Student name to view Progress"}
+        emptyMessage={`No progress records for ${formatAcademicYear(filterYear)}.`}
         activeFilterCount={countActiveFilters(
           filterYear !== CURRENT_YEAR ? filterYear : "",
           filterDistrict,

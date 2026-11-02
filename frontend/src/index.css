@@ -66,6 +66,52 @@ html {
   box-sizing: border-box;
 }
 
+/* Students / Kutirs / Admissions / Progress list hubs — full width on desktop */
+#root.grs-list-hub-root {
+  max-width: none;
+  border-inline-color: transparent;
+}
+
+/*
+ * List hubs: @parivaar/ui Table sets inline width from measured column width on
+ * desktop (>768px). Override so the card uses the main pane, not a narrow strip.
+ */
+@media (min-width: 769px) {
+  #root.grs-list-hub-root .grs-main .grs-page {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+  }
+
+  #root.grs-list-hub-root .ui-table-shell {
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Title/actions row and table card share one column on list hubs */
+  #root.grs-list-hub-root .ui-table-shell > div:first-child,
+  #root.grs-list-hub-root .ui-table-shell > div:nth-child(2) {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    min-width: 0;
+  }
+
+  /* Filter band width vs grid Actions column: @parivaar/ui Table (grs-filter-row--banded) */
+  #root.grs-list-hub-root .grs-filter-row {
+    flex-wrap: wrap;
+    box-sizing: border-box;
+  }
+
+  #root.grs-list-hub-root .grs-filter-controls {
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+}
+
 body {
   margin: 0;
   overflow-x: clip;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -6,18 +6,19 @@ import {
   updateExam,
   listExams,
   listExamTypes,
+  listExamTypeSubjects,
   type StudentExam,
   type StudentExamCreate,
   type ExamTypeMin,
+  type ExamTypeSubjectRow,
 } from "../api/admissions";
+import { subjectsForExamType } from "../components/admissions-pipeline";
 import { getStudent } from "../api/students";
 import {
   AdmissionForm,
   admissionFormFromExam,
   admissionPayloadFromForm,
-  admissionSchoolFieldsRequired,
-  admissionClassMissing,
-  ADMISSION_CLASS_REQUIRED_MSG,
+  validateAdmissionForm,
   emptyAdmissionForm,
   type AdmissionFormState,
 } from "../components/AdmissionForm";
@@ -68,6 +69,19 @@ export default function AdmissionDetailPage() {
     queryFn: listExamTypes,
     staleTime: 5 * 60 * 1000,
   });
+  const { data: examTypeSubjects = [] } = useQuery<ExamTypeSubjectRow[]>({
+    queryKey: ["exam-type-subjects"],
+    queryFn: listExamTypeSubjects,
+    staleTime: 5 * 60 * 1000,
+  });
+  const subjectIds = useMemo(
+    () => subjectsForExamType(examTypeSubjects, form.exam_type_id).map((s) => s.id),
+    [examTypeSubjects, form.exam_type_id],
+  );
+  const validateOpts = useMemo(
+    () => ({ mode: "edit" as const, subjectIds }),
+    [subjectIds],
+  );
 
   const updateMut = useMutation({
     mutationFn: (data: Partial<StudentExamCreate>) => updateExam(Number(id), data),
@@ -91,10 +105,6 @@ export default function AdmissionDetailPage() {
   if (!exam) return <p style={{ color: "var(--danger)", padding: 24 }}>Admission not found.</p>;
 
   const studentName = studentLabel(student, `Student #${exam.student_id}`);
-  const schoolRequired = admissionSchoolFieldsRequired(form);
-  const classOk = !admissionClassMissing(form);
-  const canSave =
-    classOk && (!schoolRequired || (!!form.school_type && !!form.admitted_school_id));
 
   function resetFromExam() {
     setForm(admissionFormFromExam(exam!));
@@ -103,11 +113,12 @@ export default function AdmissionDetailPage() {
   }
 
   function handleSave() {
-    setSaveError("");
-    if (admissionClassMissing(form)) {
-      setSaveError(ADMISSION_CLASS_REQUIRED_MSG);
+    const validationError = validateAdmissionForm(form, validateOpts);
+    if (validationError) {
+      setSaveError(validationError);
       return;
     }
+    setSaveError("");
     const payload = admissionPayloadFromForm(form);
     const { student_id: _sid, school_start_year: _year, ...rest } = payload;
     updateMut.mutate(rest);
@@ -229,7 +240,6 @@ export default function AdmissionDetailPage() {
       }
       error={saveError}
       saving={updateMut.isPending}
-      saveDisabled={!canSave}
       saveLabel="Save Changes"
       onSave={handleSave}
       onCancel={handleCancel}
