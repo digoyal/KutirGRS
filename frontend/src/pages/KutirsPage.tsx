@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useMemo, type CSSProperties, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listKutirs, deleteKutir, type Kutir } from "../api/kutirs";
@@ -30,6 +30,17 @@ type KutirColRenderer = {
   csvValue?: (r: Kutir) => string;
   sortValue?: (r: Kutir) => string | number;
   sortable?: boolean;
+  nowrap?: boolean;
+  minWidth?: number | string;
+  tdStyle?: CSSProperties;
+};
+
+/** List-hub cells: avoid `overflowWrap: anywhere` breaking labels like "Shiksha Kutir". */
+const KUTIR_LIST_NOWRAP: CSSProperties = {
+  fontSize: "0.82rem",
+  whiteSpace: "nowrap",
+  overflowWrap: "normal",
+  wordBreak: "normal",
 };
 
 function teacherLabel(t: { first_name?: string | null; last_name?: string | null; username: string }) {
@@ -43,6 +54,9 @@ function kutirColRenderers(
   const renderers: Record<string, KutirColRenderer> = {
     name: {
       sortable: true,
+      nowrap: true,
+      minWidth: 160,
+      tdStyle: KUTIR_LIST_NOWRAP,
       render: (r) => (
         <Link to={`/kutirs/${r.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
           {r.name}
@@ -50,12 +64,20 @@ function kutirColRenderers(
       ),
       csvValue: (r) => r.name,
     },
-    kutir_type: { sortable: true },
+    kutir_type: {
+      sortable: true,
+      nowrap: true,
+      minWidth: 128,
+      tdStyle: KUTIR_LIST_NOWRAP,
+    },
     cluster_id: {
       sortable: true,
+      nowrap: true,
+      minWidth: 140,
+      tdStyle: KUTIR_LIST_NOWRAP,
       sortValue: (r) => clusterMap.get(r.cluster_id)?.name ?? "",
       render: (r) => (
-        <span style={{ fontSize: "0.82rem" }}>{clusterMap.get(r.cluster_id)?.name ?? "—"}</span>
+        <span>{clusterMap.get(r.cluster_id)?.name ?? "—"}</span>
       ),
       csvValue: (r) => clusterMap.get(r.cluster_id)?.name ?? "",
     },
@@ -64,17 +86,28 @@ function kutirColRenderers(
       render: (r) => r.street ?? "—",
       csvValue: (r) => r.street ?? "",
     },
-    state: { sortable: true },
+    state: {
+      sortable: true,
+      nowrap: true,
+      minWidth: 96,
+      tdStyle: KUTIR_LIST_NOWRAP,
+    },
     pincode: {
       sortable: true,
+      nowrap: true,
+      minWidth: 88,
+      tdStyle: { ...KUTIR_LIST_NOWRAP, fontVariantNumeric: "tabular-nums" },
       render: (r) => r.pincode ?? "—",
       csvValue: (r) => r.pincode ?? "",
     },
     donor_id: {
       sortable: true,
+      nowrap: true,
+      minWidth: 120,
+      tdStyle: KUTIR_LIST_NOWRAP,
       sortValue: (r) => (r.donor_id != null ? donorMap.get(r.donor_id)?.name ?? "" : ""),
       render: (r) => (
-        <span style={{ fontSize: "0.82rem" }}>
+        <span>
           {r.donor_id != null ? donorMap.get(r.donor_id)?.name ?? "—" : "—"}
         </span>
       ),
@@ -82,11 +115,17 @@ function kutirColRenderers(
     },
     enrollment_5th: {
       sortable: true,
+      nowrap: true,
+      minWidth: 72,
+      tdStyle: { ...KUTIR_LIST_NOWRAP, fontVariantNumeric: "tabular-nums" },
       render: (r) => r.enrollment_5th ?? "—",
       csvValue: (r) => String(r.enrollment_5th ?? ""),
     },
     enrollment_8th: {
       sortable: true,
+      nowrap: true,
+      minWidth: 72,
+      tdStyle: { ...KUTIR_LIST_NOWRAP, fontVariantNumeric: "tabular-nums" },
       render: (r) => r.enrollment_8th ?? "—",
       csvValue: (r) => String(r.enrollment_8th ?? ""),
     },
@@ -194,6 +233,9 @@ export default function KutirsPage() {
           render: r.render,
           csvValue: r.csvValue,
           sortValue: r.sortValue,
+          nowrap: r.nowrap,
+          minWidth: r.minWidth,
+          tdStyle: r.tdStyle,
         };
       });
   }, [orderedMetas, isVisible, clusterMap, donorMap]);
