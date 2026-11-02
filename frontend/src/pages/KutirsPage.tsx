@@ -35,13 +35,7 @@ type KutirColRenderer = {
   tdStyle?: CSSProperties;
 };
 
-/** List-hub cells: avoid `overflowWrap: anywhere` breaking labels like "Shiksha Kutir". */
-const KUTIR_LIST_NOWRAP: CSSProperties = {
-  fontSize: "0.82rem",
-  whiteSpace: "nowrap",
-  overflowWrap: "normal",
-  wordBreak: "normal",
-};
+const KUTIR_LIST_CELL: CSSProperties = { fontSize: "0.82rem" };
 
 function teacherLabel(t: { first_name?: string | null; last_name?: string | null; username: string }) {
   return [t.first_name, t.last_name].filter(Boolean).join(" ") || t.username;
@@ -56,7 +50,7 @@ function kutirColRenderers(
       sortable: true,
       nowrap: true,
       minWidth: 160,
-      tdStyle: KUTIR_LIST_NOWRAP,
+      tdStyle: KUTIR_LIST_CELL,
       render: (r) => (
         <Link to={`/kutirs/${r.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
           {r.name}
@@ -68,13 +62,13 @@ function kutirColRenderers(
       sortable: true,
       nowrap: true,
       minWidth: 128,
-      tdStyle: KUTIR_LIST_NOWRAP,
+      tdStyle: KUTIR_LIST_CELL,
     },
     cluster_id: {
       sortable: true,
       nowrap: true,
       minWidth: 140,
-      tdStyle: KUTIR_LIST_NOWRAP,
+      tdStyle: KUTIR_LIST_CELL,
       sortValue: (r) => clusterMap.get(r.cluster_id)?.name ?? "",
       render: (r) => (
         <span>{clusterMap.get(r.cluster_id)?.name ?? "—"}</span>
@@ -90,13 +84,13 @@ function kutirColRenderers(
       sortable: true,
       nowrap: true,
       minWidth: 96,
-      tdStyle: KUTIR_LIST_NOWRAP,
+      tdStyle: KUTIR_LIST_CELL,
     },
     pincode: {
       sortable: true,
       nowrap: true,
       minWidth: 88,
-      tdStyle: { ...KUTIR_LIST_NOWRAP, fontVariantNumeric: "tabular-nums" },
+      tdStyle: { ...KUTIR_LIST_CELL, fontVariantNumeric: "tabular-nums" },
       render: (r) => r.pincode ?? "—",
       csvValue: (r) => r.pincode ?? "",
     },
@@ -104,7 +98,7 @@ function kutirColRenderers(
       sortable: true,
       nowrap: true,
       minWidth: 120,
-      tdStyle: KUTIR_LIST_NOWRAP,
+      tdStyle: KUTIR_LIST_CELL,
       sortValue: (r) => (r.donor_id != null ? donorMap.get(r.donor_id)?.name ?? "" : ""),
       render: (r) => (
         <span>
@@ -117,7 +111,7 @@ function kutirColRenderers(
       sortable: true,
       nowrap: true,
       minWidth: 72,
-      tdStyle: { ...KUTIR_LIST_NOWRAP, fontVariantNumeric: "tabular-nums" },
+      tdStyle: { ...KUTIR_LIST_CELL, fontVariantNumeric: "tabular-nums" },
       render: (r) => r.enrollment_5th ?? "—",
       csvValue: (r) => String(r.enrollment_5th ?? ""),
     },
@@ -125,7 +119,7 @@ function kutirColRenderers(
       sortable: true,
       nowrap: true,
       minWidth: 72,
-      tdStyle: { ...KUTIR_LIST_NOWRAP, fontVariantNumeric: "tabular-nums" },
+      tdStyle: { ...KUTIR_LIST_CELL, fontVariantNumeric: "tabular-nums" },
       render: (r) => r.enrollment_8th ?? "—",
       csvValue: (r) => String(r.enrollment_8th ?? ""),
     },

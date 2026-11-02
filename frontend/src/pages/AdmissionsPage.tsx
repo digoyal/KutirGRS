@@ -282,10 +282,6 @@ export default function AdmissionsPage() {
       },
       nowrap: true,
       minWidth: 180,
-      tdStyle: {
-        overflowWrap: "normal",
-        wordBreak: "normal",
-      },
     },
     ...(["eligible", "applied", "admit_card", "appeared", "selected", "admitted"] as const).map((stageKey): Col<StudentExam> => ({
       key: stageKey,

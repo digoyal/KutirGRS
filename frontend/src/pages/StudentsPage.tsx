@@ -23,6 +23,7 @@ import {
   countActiveFilters,
 } from "../utils/geoFilters";
 import { hasGlobalDataScope } from "../constants/roles";
+import { displayPhone } from "../utils/displayPhone";
 
 const STORAGE_KEY = "students_filter_state";
 
@@ -54,8 +55,11 @@ function studentColRenderers(kutirMap: Map<number, KutirLike>): Record<string, S
     },
     gender: {},
     phone: {
-      render: (s) => s.phone ?? "—",
-      csvValue: (s) => s.phone ?? "",
+      render: (s) => {
+        const p = displayPhone(s.phone);
+        return p || "—";
+      },
+      csvValue: (s) => displayPhone(s.phone),
     },
     father_name: {
       render: (s) => s.father_name ?? "—",
@@ -102,8 +106,11 @@ function studentColRenderers(kutirMap: Map<number, KutirLike>): Record<string, S
       csvValue: (s) => s.alt_contact_name ?? "",
     },
     alt_contact_phone: {
-      render: (s) => s.alt_contact_phone ?? <span style={{ color: "var(--text-secondary)" }}>—</span>,
-      csvValue: (s) => s.alt_contact_phone ?? "",
+      render: (s) => {
+        const p = displayPhone(s.alt_contact_phone);
+        return p || <span style={{ color: "var(--text-secondary)" }}>—</span>;
+      },
+      csvValue: (s) => displayPhone(s.alt_contact_phone),
     },
   };
   if (import.meta.env.DEV) {
