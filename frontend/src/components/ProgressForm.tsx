@@ -401,7 +401,7 @@ export function ProgressForm({
             {trackLabel}
           </ViewField>
         </div>
-      ) : (
+      ) : mode === "add" ? (
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 120 }}>
             <label style={labelStyle}>Academic Year</label>
@@ -440,6 +440,18 @@ export function ProgressForm({
               {trackLabel}
             </div>
           </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <ViewField label="Academic Year" style={{ flex: 1, minWidth: 120 }}>
+            {formatAcademicYear(form.academic_year)}
+          </ViewField>
+          <ViewField label={progressFieldLabel("class_in_year")} style={{ flex: 1, minWidth: 100 }}>
+            {form.class_in_year != null ? `Class ${form.class_in_year}` : null}
+          </ViewField>
+          <ViewField label="Track" style={{ flex: 1, minWidth: 100 }}>
+            {trackLabel}
+          </ViewField>
         </div>
       )}
 

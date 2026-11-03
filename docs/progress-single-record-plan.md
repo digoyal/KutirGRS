@@ -46,7 +46,27 @@ Rules:
 2. **On save:** when the entry mark (6 or 9) becomes non-null, set `status = promoted` and allow the next mark (7 or 10).
 3. **Chain:** mark for class *C* is writable only if *C* is the entry class, or mark for class *C−1* is already set (within track). Server rejects PATCH/POST that set disabled columns.
 
-`class_in_year` / `academic_year` are **not** auto-incremented on mark entry in v1 (only status + next field unlock).
+### Class and academic year on mark save
+
+**On admit (before any marks):**
+
+- `class_in_year` = **`admission_class + 1`** (entry class 6 or 9).
+- `academic_year` = **`school_start_year + 1`**.
+
+**On create/update when a mark for class *N* is newly filled** (was null, now non-null; re-saving the same value does not count):
+
+- `academic_year` += **1** (once per newly filled class mark).
+- `class_in_year` = **next class in track** after *N* if *N* is not the final track class; if *N* is final (12 or last in track), `class_in_year` = *N*.
+
+Examples (six_twelve, admitted class 5, `school_start_year` 2025):
+
+| State | Marks filled | `academic_year` | `class_in_year` |
+|-------|----------------|-----------------|-----------------|
+| After admit | none | 2026 | 6 |
+| Entry mark saved | 6 | 2027 | 7 |
+| Next mark saved | 6, 7 | 2028 | 8 |
+
+**Import (`20_Progress`):** sheet `academic_year` is authoritative; after upsert, `class_in_year` is **recomputed** from the count of filled track marks (same class rule as above, without incrementing year).
 
 ### Status `promoted`
 

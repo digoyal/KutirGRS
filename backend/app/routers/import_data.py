@@ -22,6 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import require_admin
 from app.database import get_db
 from app.admission_uniqueness import admission_uniqueness_violation
+from app.models.students import StudentProgress
+from app.progress_logic import recompute_class_in_year_from_marks
 from app.roles import TITLES as _ROLE_TITLES
 
 router = APIRouter(prefix="/import", tags=["Import"])
@@ -1150,7 +1152,9 @@ async def _import_progress(rows, db):
             elif key == "m11": params["m11"] = legacy
             elif key == "m12": params["m12"] = legacy
 
+        progress_id: int | None = None
         if exists_rows:
+            progress_id = exists_rows[0]
             await db.execute(text("""
                 UPDATE student_progress SET
                     school_id=:sc, academic_year=:yr, class_in_year=:cl, track=:tr,
@@ -1159,22 +1163,34 @@ async def _import_progress(rows, db):
                     marks_10=:m10, marks_11=:m11, marks_12=:m12,
                     remarks=:rm, updated_at=now()
                 WHERE id=:id
-            """), {**params, "id": exists_rows[0]})
-            updated += 1; continue
+            """), {**params, "id": progress_id})
+            updated += 1
+        else:
+            row = (
+                await db.execute(
+                    text("""
+                        INSERT INTO student_progress
+                            (student_id, school_id, academic_year, class_in_year, track,
+                             status, transfer_school, exit_reason,
+                             marks_6, marks_7, marks_8, marks_9, marks_10, marks_11, marks_12,
+                             remarks, created_at, updated_at)
+                        VALUES
+                            (:si, :sc, :yr, :cl, :tr,
+                             :st, :ts, :er,
+                             :m6, :m7, :m8, :m9, :m10, :m11, :m12,
+                             :rm, now(), now())
+                        RETURNING id
+                    """),
+                    params,
+                )
+            ).scalar_one()
+            progress_id = row
+            created += 1
 
-        await db.execute(text("""
-            INSERT INTO student_progress
-                (student_id, school_id, academic_year, class_in_year, track,
-                 status, transfer_school, exit_reason,
-                 marks_6, marks_7, marks_8, marks_9, marks_10, marks_11, marks_12,
-                 remarks, created_at, updated_at)
-            VALUES
-                (:si, :sc, :yr, :cl, :tr,
-                 :st, :ts, :er,
-                 :m6, :m7, :m8, :m9, :m10, :m11, :m12,
-                 :rm, now(), now())
-        """), params)
-        created += 1
+        if progress_id is not None:
+            progress = await db.get(StudentProgress, progress_id)
+            if progress:
+                recompute_class_in_year_from_marks(progress)
     return _result(created, skipped, errors, updated)
 
 

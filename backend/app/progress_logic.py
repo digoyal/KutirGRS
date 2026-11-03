@@ -103,6 +103,31 @@ def validate_marks_write(progress, updates: dict) -> None:
             )
 
 
+def snapshot_marks(progress) -> dict[int, Optional[Decimal]]:
+    return {c: get_mark(progress, c) for c in classes_for_track(progress.track)}
+
+
+def sync_class_year_from_marks(progress, marks_before: dict[int, Optional[Decimal]]) -> None:
+    """Advance class/year when a track mark is newly filled (re-save unchanged marks: no-op)."""
+    classes = classes_for_track(progress.track)
+    for c in classes:
+        before = marks_before.get(c)
+        after = get_mark(progress, c)
+        if before is not None or after is None:
+            continue
+        if progress.academic_year is not None:
+            progress.academic_year += 1
+        idx = classes.index(c)
+        progress.class_in_year = classes[idx + 1] if idx + 1 < len(classes) else c
+
+
+def recompute_class_in_year_from_marks(progress) -> None:
+    """Set current class from how many track marks are filled (import / bulk sanity)."""
+    classes = classes_for_track(progress.track)
+    n = sum(1 for c in classes if get_mark(progress, c) is not None)
+    progress.class_in_year = classes[-1] if n >= len(classes) else classes[n]
+
+
 def apply_promoted_status(progress) -> None:
     """After marks change: enrolled → promoted when entry-year mark is set."""
     if progress.status not in ("enrolled", "promoted"):

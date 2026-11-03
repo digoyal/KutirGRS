@@ -27,7 +27,10 @@ from app.config import settings
 from app.admission_uniqueness import assert_admission_uniqueness, admission_duplicate_detail
 from app.progress_logic import (
     apply_promoted_status,
+    classes_for_track,
     ensure_progress_from_admitted_exam,
+    snapshot_marks,
+    sync_class_year_from_marks,
     infer_track_for_student,
     merge_progress_payload,
     validate_status_write,
@@ -558,6 +561,8 @@ async def create_progress(
     obj = StudentProgress(**payload)
     validate_marks_write(obj, payload)
     obj.status = validate_status_write("enrolled", obj.status)
+    marks_before = {c: None for c in classes_for_track(obj.track)}
+    sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
     db.add(obj)
     try:
@@ -592,9 +597,11 @@ async def update_progress(
     if not obj:
         raise HTTPException(404, "StudentProgress not found")
     await _require_student_in_scope(db, obj.student_id, scope, detail="StudentProgress not found")
+    marks_before = snapshot_marks(obj)
     update = merge_progress_payload(obj, data.model_dump(exclude_unset=True))
     for k, v in update.items():
         setattr(obj, k, v)
+    sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
     await db.commit()
     await db.refresh(obj)
