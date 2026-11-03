@@ -6,6 +6,7 @@ from fastapi import HTTPException
 import pytest
 
 from app.progress_logic import (
+    admitted_school_id_for_exam,
     apply_graduated_status,
     enabled_mark_classes,
     initial_progress_fields_from_exam,
@@ -48,6 +49,23 @@ def test_initial_progress_fields_from_exam():
     assert fields["academic_year"] == 2026
     assert fields["class_in_year"] == 6
     assert fields["track"] == TRACK_SIX_TWELVE
+    assert fields["school_id"] == 10
+
+
+def test_admitted_school_id_falls_back_to_school_id():
+    exam = SimpleNamespace(admitted_school_id=None, school_id=42)
+    assert admitted_school_id_for_exam(exam) == 42
+    fields = initial_progress_fields_from_exam(
+        SimpleNamespace(
+            student_id=1,
+            admitted_school_id=None,
+            school_id=42,
+            school_start_year=2025,
+            admission_class=8,
+        )
+    )
+    assert fields["school_id"] == 42
+    assert fields["track"] == TRACK_NINE_TWELVE
 
 
 def test_sync_class_year_on_first_mark():
@@ -92,18 +110,25 @@ def test_recompute_class_in_year_from_marks():
     assert p.class_in_year == 8
 
 
-def test_enabled_mark_classes_only_current_class():
+def test_enabled_mark_classes_current_and_previous_when_filled():
     p = _progress(class_in_year=6)
     assert enabled_mark_classes(p) == [6]
     p = _progress(class_in_year=7, marks_6=Decimal("70"))
-    assert enabled_mark_classes(p) == [7]
+    assert enabled_mark_classes(p) == [6, 7]
+    p = _progress(
+        class_in_year=8,
+        marks_6=Decimal("70"),
+        marks_7=Decimal("71"),
+    )
+    assert enabled_mark_classes(p) == [7, 8]
 
 
-def test_validate_marks_write_allows_current_only():
+def test_validate_marks_write_allows_current_and_last_entered():
     p = _progress(class_in_year=7, marks_6=Decimal("70"))
     validate_marks_write(p, {"marks_6": Decimal("70"), "marks_7": Decimal("80")})
+    validate_marks_write(p, {"marks_6": Decimal("71")})
     with pytest.raises(HTTPException):
-        validate_marks_write(p, {"marks_6": Decimal("71")})
+        validate_marks_write(p, {"marks_8": Decimal("72")})
 
 
 def test_apply_graduated_status_on_marks_12():

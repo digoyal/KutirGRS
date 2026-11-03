@@ -123,6 +123,22 @@ function kutirColRenderers(
       render: (r) => r.enrollment_8th ?? "—",
       csvValue: (r) => String(r.enrollment_8th ?? ""),
     },
+    latitude: {
+      sortable: true,
+      nowrap: true,
+      minWidth: 88,
+      tdStyle: { ...KUTIR_LIST_CELL, fontVariantNumeric: "tabular-nums" },
+      render: (r) => r.latitude ?? "—",
+      csvValue: (r) => String(r.latitude ?? ""),
+    },
+    longitude: {
+      sortable: true,
+      nowrap: true,
+      minWidth: 88,
+      tdStyle: { ...KUTIR_LIST_CELL, fontVariantNumeric: "tabular-nums" },
+      render: (r) => r.longitude ?? "—",
+      csvValue: (r) => String(r.longitude ?? ""),
+    },
     teachers: {
       sortable: true,
       sortValue: (r) => r.teachers?.length ?? 0,

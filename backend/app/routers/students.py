@@ -305,6 +305,7 @@ async def admission_funnel(
         func.coalesce(func.sum(cast(StudentExam.applied, Integer)), 0).label("applied"),
         func.coalesce(func.sum(cast(StudentExam.admit_card, Integer)), 0).label("admit_card"),
         func.coalesce(func.sum(cast(StudentExam.appeared, Integer)), 0).label("appeared"),
+        func.coalesce(func.sum(cast(StudentExam.result_declared, Integer)), 0).label("result_declared"),
         func.coalesce(func.sum(cast(StudentExam.selected, Integer)), 0).label("selected"),
         func.coalesce(func.sum(cast(StudentExam.admitted, Integer)), 0).label("admitted"),
     ).select_from(StudentExam)
@@ -341,6 +342,7 @@ async def admission_funnel(
         applied=int(row.applied),
         admit_card=int(row.admit_card),
         appeared=int(row.appeared),
+        result_declared=int(row.result_declared),
         selected=int(row.selected),
         admitted=int(row.admitted),
     )

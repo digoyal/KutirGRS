@@ -28,6 +28,7 @@ export interface StudentExam {
   applied: boolean;
   admit_card: boolean;
   appeared: boolean;
+  result_declared: boolean;
   selected: boolean;
   admitted: boolean;
   admitted_school_id: number | null;
@@ -54,6 +55,7 @@ export interface StudentExamCreate {
   applied?: boolean;
   admit_card?: boolean;
   appeared?: boolean;
+  result_declared?: boolean;
   selected?: boolean;
   admitted?: boolean;
   admitted_school_id?: number | null;
@@ -127,6 +129,7 @@ export interface AdmissionFunnel {
   applied: number;
   admit_card: number;
   appeared: number;
+  result_declared: number;
   selected: number;
   admitted: number;
 }

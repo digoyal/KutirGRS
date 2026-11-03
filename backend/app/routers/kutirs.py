@@ -18,6 +18,7 @@ from app.geo_delete import delete_kutir_if_allowed
 from app.models.kutirs import Kutir
 from app.models.geo import Cluster, Area, District, Zone
 from app.models.users import User, user_kutirs
+from app.kutir_geocode import ADDRESS_FIELDS, try_geocode_kutir
 from app.schemas.kutirs import KutirCreate, KutirUpdate, KutirOut, KutirDetail, TeacherMin
 
 router = APIRouter(prefix="/kutirs", tags=["Kutirs"])
@@ -95,11 +96,21 @@ async def create_kutir(
 ):
     # New kutir has no id yet — authorize via destination cluster in geo scope.
     require_cluster_in_geo_scope(body.cluster_id, gs, detail="Kutir not found")
-    obj = Kutir(**body.model_dump())
+    data = body.model_dump()
+    has_manual_coords = data.get("latitude") is not None and data.get("longitude") is not None
+    if has_manual_coords:
+        if not data.get("location_source"):
+            data["location_source"] = "manual"
+    obj = Kutir(**data)
     db.add(obj)
     await db.flush()
+    geocode_message: str | None = None
+    if not has_manual_coords:
+        geocode_message = await try_geocode_kutir(db, obj)
     await db.commit()
-    return await _get_kutir_detail(db, obj.id)
+    detail = await _get_kutir_detail(db, obj.id)
+    detail.geocode_message = geocode_message
+    return detail
 
 
 @router.get("/{kutir_id}", response_model=KutirDetail)
@@ -128,10 +139,24 @@ async def update_kutir(
     data = body.model_dump(exclude_unset=True)
     if "cluster_id" in data:
         require_cluster_in_geo_scope(data["cluster_id"], gs, detail="Kutir not found")
+    address_changed = bool(ADDRESS_FIELDS.intersection(data.keys()))
     for k, v in data.items():
         setattr(obj, k, v)
+    manual_coords_update = "latitude" in data or "longitude" in data
+    if manual_coords_update:
+        if obj.latitude is not None and obj.longitude is not None:
+            if "location_source" not in data or data.get("location_source") is None:
+                obj.location_source = "manual"
+        else:
+            obj.location_source = None
+            obj.geocoded_at = None
+    geocode_message: str | None = None
+    if address_changed and not manual_coords_update and obj.location_source != "manual":
+        geocode_message = await try_geocode_kutir(db, obj)
     await db.commit()
-    return await _get_kutir_detail(db, kutir_id)
+    detail = await _get_kutir_detail(db, kutir_id)
+    detail.geocode_message = geocode_message
+    return detail
 
 
 @router.delete("/{kutir_id}", status_code=204)

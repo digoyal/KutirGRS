@@ -49,8 +49,9 @@ test.describe("Admissions smoke", () => {
     for (const label of [
       "Eligible",
       "Applied",
-      "Admit Card Downloaded",
+      "Admin Card Downloaded",
       "Appeared",
+      "Result Declared",
       "Selected",
       "Admitted",
     ]) {
@@ -60,11 +61,11 @@ test.describe("Admissions smoke", () => {
     await expect(page.getByText("Exam Details")).toBeVisible();
     await expect(page.getByText("Year", { exact: true })).toBeVisible();
     await expect(page.getByText("Exam Type", { exact: true })).toBeVisible();
-    // Roll # is pipeline-gated — hidden until Admit Card Downloaded.
+    // Roll # is pipeline-gated — hidden until Admin Card Downloaded.
     await expect(page.getByText("Roll #", { exact: true })).toHaveCount(0);
   });
 
-  test("ticking through Admit Card reveals Roll #", async ({ page }) => {
+  test("ticking through Admin Card reveals Roll #", async ({ page }) => {
     await loginAsAdmin(page);
     await openAdmissions(page);
     await page.getByRole("button", { name: "+ Add" }).click();
@@ -82,7 +83,7 @@ test.describe("Admissions smoke", () => {
     await expect(page.getByText("Application #", { exact: true })).toBeVisible();
     await expect(page.getByText("Roll #", { exact: true })).toHaveCount(0);
 
-    await stage("Admit Card Downloaded").check();
+    await stage("Admin Card Downloaded").check();
     await expect(page.getByText("Roll #", { exact: true })).toBeVisible();
   });
 
@@ -94,8 +95,9 @@ test.describe("Admissions smoke", () => {
     for (const label of [
       "Eligible",
       "Applied",
-      "Admit Card Downloaded",
+      "Admin Card Downloaded",
       "Appeared",
+      "Result Declared",
       "Selected",
       "Admitted",
     ]) {

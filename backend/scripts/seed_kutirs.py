@@ -31,18 +31,18 @@ CLUSTER_DISTRICT = {
 }
 
 KUTIRS_DATA = [
-    {"name": "Gram Shiksha Kutir Devpura",  "kutir_type": "Shiksha Kutir", "cluster_id": 34, "village": "Devpura",   "street": "Near Gram Panchayat"},
-    {"name": "Seva Kutir Pahadi",            "kutir_type": "Seva Kutir",    "cluster_id": 41, "village": "Pahadi",    "street": "Main Road"},
-    {"name": "Shiksha Kutir Moravan",        "kutir_type": "Shiksha Kutir", "cluster_id": 42, "village": "Moravan",   "street": "Shivpuri Bypass"},
-    {"name": "Gram Kutir Tongra",            "kutir_type": "Seva Kutir",    "cluster_id": 44, "village": "Tongra",    "street": "Near Temple"},
-    {"name": "Shiksha Kendra Magardha",      "kutir_type": "Shiksha Kutir", "cluster_id": 43, "village": "Magardha",  "street": "Forest Road"},
-    {"name": "Kutir Eklera",                 "kutir_type": "Seva Kutir",    "cluster_id": 38, "village": "Eklera",    "street": "Village Center"},
-    {"name": "Kantaphod Shiksha Kutir",      "kutir_type": "Shiksha Kutir", "cluster_id": 46, "village": "Kantaphod", "street": "Near Anganwadi"},
-    {"name": "Mahi Seva Kutir",              "kutir_type": "Seva Kutir",    "cluster_id": 39, "village": "Mahi",      "street": "Jhabua Road"},
-    {"name": "Chilakda Learning Center",     "kutir_type": "Shiksha Kutir", "cluster_id": 37, "village": "Chilakda",  "street": "Panchayat Bhawan"},
-    {"name": "Gata Non-Kutir Center",        "kutir_type": "Non-Kutir",     "cluster_id": 52, "village": "Gata",      "street": "Tribal Area"},
-    {"name": "Murum Shiksha Kutir",          "kutir_type": "Shiksha Kutir", "cluster_id": 51, "village": "Murum",     "street": "Near School"},
-    {"name": "Semarkhero Seva Kutir",        "kutir_type": "Seva Kutir",    "cluster_id": 53, "village": "Semarkhero","street": "Forest Colony"},
+    {"name": "Gram Shiksha Kutir Devpura",  "kutir_type": "Shiksha Kutir", "cluster_id": 34, "street": "Near Gram Panchayat"},
+    {"name": "Seva Kutir Pahadi",            "kutir_type": "Seva Kutir",    "cluster_id": 41, "street": "Main Road"},
+    {"name": "Shiksha Kutir Moravan",        "kutir_type": "Shiksha Kutir", "cluster_id": 42, "street": "Shivpuri Bypass"},
+    {"name": "Gram Kutir Tongra",            "kutir_type": "Seva Kutir",    "cluster_id": 44, "street": "Near Temple"},
+    {"name": "Shiksha Kendra Magardha",      "kutir_type": "Shiksha Kutir", "cluster_id": 43, "street": "Forest Road"},
+    {"name": "Kutir Eklera",                 "kutir_type": "Seva Kutir",    "cluster_id": 38, "street": "Village Center"},
+    {"name": "Kantaphod Shiksha Kutir",      "kutir_type": "Shiksha Kutir", "cluster_id": 46, "street": "Near Anganwadi"},
+    {"name": "Mahi Seva Kutir",              "kutir_type": "Seva Kutir",    "cluster_id": 39, "street": "Jhabua Road"},
+    {"name": "Chilakda Learning Center",     "kutir_type": "Shiksha Kutir", "cluster_id": 37, "street": "Panchayat Bhawan"},
+    {"name": "Gata Non-Kutir Center",        "kutir_type": "Non-Kutir",     "cluster_id": 52, "street": "Tribal Area"},
+    {"name": "Murum Shiksha Kutir",          "kutir_type": "Shiksha Kutir", "cluster_id": 51, "street": "Near School"},
+    {"name": "Semarkhero Seva Kutir",        "kutir_type": "Seva Kutir",    "cluster_id": 53, "street": "Forest Colony"},
 ]
 
 def rr():   return random.randint(2, 5)
@@ -118,7 +118,7 @@ async def seed():
                 cluster_id=kd["cluster_id"],
                 district_id=CLUSTER_DISTRICT.get(kd["cluster_id"]),
                 state="Madhya Pradesh",
-                village=kd.get("village"), street=kd.get("street"),
+                street=kd.get("street"),
                 enrollment_5th=random.randint(10, 30),
                 enrollment_8th=random.randint(8, 25),
             )

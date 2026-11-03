@@ -11,6 +11,7 @@ const FUNNEL_COLORS: Record<StageKey, string> = {
   applied: "var(--link-color)",
   admit_card: "var(--badge-amber-fg)",
   appeared: "var(--link-color)",
+  result_declared: "var(--badge-teal-fg)",
   selected: "var(--status-success-fg)",
   admitted: "var(--status-success-fg)",
 };
@@ -151,7 +152,7 @@ export default function HomePage() {
     queryFn: () => getAdmissionFunnel({ school_start_year: currentYear }),
   });
 
-  // Same six stages as Reports Summary / admissions-pipeline STAGES
+  // Same stages as Reports Summary / admissions-pipeline STAGES
   const funnelStages: FunnelStage[] = STAGES.map((s) => ({
     label: FUNNEL_STAGE_LABELS[s.key],
     count: funnel?.[s.key] ?? 0,
@@ -194,7 +195,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="grs-page" style={{ padding: "28px 32px", maxWidth: 960, width: "100%", boxSizing: "border-box" }}>
+    <div className="grs-page" style={{ padding: "28px 32px", width: "100%", boxSizing: "border-box" }}>
       <div style={{ marginBottom: 28 }}>
         <h2 style={{ margin: 0, color: "var(--text-primary)", fontSize: "1.35rem" }}>
           Welcome back, {user?.username}

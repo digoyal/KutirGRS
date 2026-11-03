@@ -7,12 +7,23 @@ export type VisitPhotoLocation = {
 
 const GEO_TIMEOUT_MS = 12_000;
 
-/** Best-effort location at photo attach time; null if denied, timed out, or unavailable. */
-export function requestVisitPhotoLocation(): Promise<VisitPhotoLocation | null> {
-  if (typeof navigator === "undefined" || !navigator.geolocation) {
-    return Promise.resolve(null);
+export class VisitPhotoLocationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "VisitPhotoLocationError";
   }
-  return new Promise((resolve) => {
+}
+
+/** Requires browser GPS at photo attach time. */
+export function requestVisitPhotoLocation(): Promise<VisitPhotoLocation> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return Promise.reject(
+      new VisitPhotoLocationError(
+        "Location is not available in this browser — visit photo cannot be saved.",
+      ),
+    );
+  }
+  return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         resolve({
@@ -21,7 +32,21 @@ export function requestVisitPhotoLocation(): Promise<VisitPhotoLocation | null> 
           accuracyM: Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null,
         });
       },
-      () => resolve(null),
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          reject(
+            new VisitPhotoLocationError(
+              "Location permission denied — enable location/GPS to attach a visit photo.",
+            ),
+          );
+          return;
+        }
+        reject(
+          new VisitPhotoLocationError(
+            "Could not get device location — check GPS/location settings and try again.",
+          ),
+        );
+      },
       { enableHighAccuracy: true, timeout: GEO_TIMEOUT_MS, maximumAge: 0 },
     );
   });

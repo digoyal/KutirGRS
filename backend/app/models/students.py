@@ -85,6 +85,7 @@ class StudentExam(Base, TimestampMixin):
     applied: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     admit_card: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     appeared: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    result_declared: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     selected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     admitted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

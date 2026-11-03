@@ -994,6 +994,9 @@ async def _import_admissions(rows, db):
             "ap": _yn(r.get("applied")),
             "ac": _yn(r.get("admit_card")),
             "ap2": _yn(r.get("appeared")),
+            "rd": _yn(r.get("result_declared"))
+            if _str(r.get("result_declared")) != ""
+            else (_yn(r.get("selected")) or _yn(r.get("admitted"))),
             "ne": no_exam_id,
             "se": _yn(r.get("selected")),
             "ad": admitted_flag,
@@ -1008,7 +1011,7 @@ async def _import_admissions(rows, db):
             await db.execute(text("""
                 UPDATE student_exams SET
                     school_id=:sc, exam_type_id=:et, exam_category_id=:ec, eligible=:el, applied=:ap, admit_card=:ac,
-                    appeared=:ap2, no_exam_reason_id=:ne, selected=:se, admitted=:ad,
+                    appeared=:ap2, result_declared=:rd, no_exam_reason_id=:ne, selected=:se, admitted=:ad,
                     no_admit_reason_id=:na, application_number=:an, roll_number=:rn,
                     exam_center_id=:cen, admitted_school_id=:as_, admission_class=:cls,
                     updated_at=now()
@@ -1021,14 +1024,14 @@ async def _import_admissions(rows, db):
                 INSERT INTO student_exams (
                     student_id, school_id, school_type, school_start_year,
                     exam_type_id, exam_category_id, eligible, applied, admit_card,
-                    appeared, no_exam_reason_id, selected, admitted,
+                    appeared, result_declared, no_exam_reason_id, selected, admitted,
                     no_admit_reason_id, application_number, roll_number,
                     exam_center_id, admitted_school_id, admission_class,
                     created_at, updated_at)
                 VALUES (
                     :si, :sc, :st, :yr,
                     :et, :ec, :el, :ap, :ac,
-                    :ap2, :ne, :se, :ad,
+                    :ap2, :rd, :ne, :se, :ad,
                     :na, :an, :rn,
                     :cen, :as_, :cls,
                     now(), now())

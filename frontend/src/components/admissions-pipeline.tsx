@@ -3,12 +3,13 @@ import type { StudentExam } from "../api/admissions";
 import type { ExamTypeSubjectRow, SubjectRef } from "../api/admissions";
 
 export const STAGES = [
-  { key: "eligible",   label: "Eligible" },
-  { key: "applied",    label: "Applied" },
-  { key: "admit_card", label: "Admit Card Downloaded" },
-  { key: "appeared",   label: "Appeared" },
-  { key: "selected",   label: "Selected" },
-  { key: "admitted",   label: "Admitted" },
+  { key: "eligible",         label: "Eligible" },
+  { key: "applied",          label: "Applied" },
+  { key: "admit_card",       label: "Admin Card Downloaded" },
+  { key: "appeared",         label: "Appeared" },
+  { key: "result_declared",  label: "Result Declared" },
+  { key: "selected",         label: "Selected" },
+  { key: "admitted",         label: "Admitted" },
 ] as const;
 
 export type StageKey = typeof STAGES[number]["key"];
@@ -17,8 +18,9 @@ export type StageKey = typeof STAGES[number]["key"];
 export const FUNNEL_STAGE_LABELS: Record<StageKey, string> = {
   eligible: "Eligible",
   applied: "Applied",
-  admit_card: "Admit Card",
+  admit_card: "Admin Card",
   appeared: "Appeared",
+  result_declared: "Result Declared",
   selected: "Selected",
   admitted: "Admitted",
 };
@@ -64,31 +66,32 @@ export type PipelineField =
   | "school_name"
   | "reason_not_admitted";
 
-type FieldRule = { kind: "always" } | { kind: "min"; stage: StageKey } | { kind: "only"; stage: StageKey };
+type FieldRule = { kind: "min"; stage: StageKey } | { kind: "only"; stage: StageKey };
 
 const STAGE_INDEX: Record<StageKey, number> = {
   eligible: 0,
   applied: 1,
   admit_card: 2,
   appeared: 3,
-  selected: 4,
-  admitted: 5,
+  result_declared: 4,
+  selected: 5,
+  admitted: 6,
 };
 
-/** Pipeline Stages.xlsx — Yes = show for current furthest stage. */
+/** Pipeline Stages.xlsx — Yes = show when furthest stage is at least min, or exactly only. */
 const PIPELINE_FIELD_RULES: Record<PipelineField, FieldRule> = {
-  year: { kind: "always" },
-  exam_type: { kind: "always" },
-  exam_category: { kind: "always" },
-  parivaar_district: { kind: "min", stage: "applied" },
-  exam_center: { kind: "min", stage: "applied" },
+  year: { kind: "min", stage: "eligible" },
+  exam_type: { kind: "min", stage: "eligible" },
+  exam_category: { kind: "min", stage: "eligible" },
+  parivaar_district: { kind: "min", stage: "admit_card" },
+  exam_center: { kind: "min", stage: "admit_card" },
   application_number: { kind: "min", stage: "applied" },
   roll_number: { kind: "min", stage: "admit_card" },
   reason_not_appeared: { kind: "only", stage: "admit_card" },
-  scores: { kind: "min", stage: "appeared" },
-  school_district: { kind: "min", stage: "selected" },
-  school_type: { kind: "min", stage: "selected" },
-  school_name: { kind: "min", stage: "selected" },
+  scores: { kind: "min", stage: "result_declared" },
+  school_district: { kind: "min", stage: "result_declared" },
+  school_type: { kind: "min", stage: "result_declared" },
+  school_name: { kind: "min", stage: "result_declared" },
   reason_not_admitted: { kind: "only", stage: "selected" },
 };
 
@@ -97,8 +100,8 @@ export function pipelineFieldVisible(
   field: PipelineField,
 ): boolean {
   const rule = PIPELINE_FIELD_RULES[field];
-  if (rule.kind === "always") return true;
   const idx = pipelineStage(exam);
+  if (idx < 0) return false;
   if (rule.kind === "min") return idx >= STAGE_INDEX[rule.stage];
   return idx === STAGE_INDEX[rule.stage];
 }
@@ -119,7 +122,9 @@ export function StageBadge({ exam }: { exam: StudentExam }) {
     1: { bg: "var(--badge-indigo-bg)", color: "var(--badge-indigo-fg)" },
     2: { bg: "var(--badge-yellow-bg)", color: "var(--badge-yellow-fg)" },
     3: { bg: "var(--badge-green-bg)",  color: "var(--badge-green-fg)"  },
-    4: { bg: "var(--badge-green-bg)",  color: "var(--badge-green-fg)"  },
+    4: { bg: "var(--badge-teal-bg)",   color: "var(--badge-teal-fg)"   },
+    5: { bg: "var(--badge-green-bg)",  color: "var(--badge-green-fg)"  },
+    6: { bg: "var(--badge-green-bg)",  color: "var(--badge-green-fg)"  },
   };
   const { bg, color } = colors[idx] ?? colors[0];
   return (

@@ -1,5 +1,6 @@
 from typing import Optional, List
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, field_validator
 
 KUTIR_TYPES = ["Seva Kutir", "Shiksha Kutir", "Non-Kutir"]
 STATES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"]
@@ -15,6 +16,24 @@ class KutirBase(BaseModel):
     donor_id: Optional[int] = None
     enrollment_5th: Optional[int] = None
     enrollment_8th: Optional[int] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_source: Optional[str] = None
+    geocoded_at: Optional[datetime] = None
+
+    @field_validator("latitude")
+    @classmethod
+    def _lat_range(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and not (-90 <= v <= 90):
+            raise ValueError("latitude out of range")
+        return v
+
+    @field_validator("longitude")
+    @classmethod
+    def _lng_range(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and not (-180 <= v <= 180):
+            raise ValueError("longitude out of range")
+        return v
 
 class KutirCreate(KutirBase):
     pass
@@ -30,6 +49,10 @@ class KutirUpdate(BaseModel):
     donor_id: Optional[int] = None
     enrollment_5th: Optional[int] = None
     enrollment_8th: Optional[int] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_source: Optional[str] = None
+    geocoded_at: Optional[datetime] = None
 
 class KutirOut(KutirBase):
     id: int
@@ -65,4 +88,5 @@ class TeacherMin(BaseModel):
 class KutirDetail(KutirOut):
     cluster: Optional[ClusterMin] = None
     teachers: List[TeacherMin] = []
+    geocode_message: Optional[str] = None
     model_config = {"from_attributes": True}

@@ -29,5 +29,12 @@ def test_new_and_edited_users_still_require_email(schema, email):
 
 @pytest.mark.parametrize("schema", [UserCreate, UserUpdate])
 def test_real_email_can_be_added_to_legacy_user(schema):
-    user = schema.model_validate({"username": "test", "password": "unused", "email": " user@example.invalid "})
-    assert user.email == "user@example.invalid"
+    user = schema.model_validate({"username": "test", "password": "unused", "email": " User@Example.COM "})
+    assert user.email == "User@example.com"
+
+
+@pytest.mark.parametrize("schema", [UserCreate, UserUpdate])
+@pytest.mark.parametrize("email", ["not-an-email", "a@", "@b.com", "missing-at.com"])
+def test_invalid_email_format_rejected(schema, email):
+    with pytest.raises(ValidationError):
+        schema.model_validate({"username": "test", "password": "unused", "email": email})

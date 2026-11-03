@@ -89,6 +89,7 @@ class StudentExamBase(BaseModel):
     applied: bool = False
     admit_card: bool = False
     appeared: bool = False
+    result_declared: bool = False
     selected: bool = False
     admitted: bool = False
     admitted_school_id: Optional[int] = None
@@ -109,6 +110,7 @@ class StudentExamUpdate(BaseModel):
     applied: Optional[bool] = None
     admit_card: Optional[bool] = None
     appeared: Optional[bool] = None
+    result_declared: Optional[bool] = None
     selected: Optional[bool] = None
     admitted: Optional[bool] = None
     admitted_school_id: Optional[int] = None
@@ -140,6 +142,7 @@ class AdmissionFunnelOut(BaseModel):
     applied: int
     admit_card: int
     appeared: int
+    result_declared: int
     selected: int
     admitted: int
 

@@ -13,10 +13,14 @@ export interface Kutir {
   district_id: number | null; street: string | null;
   state: string; pincode: string | null;
   donor_id: number | null; enrollment_5th: number | null; enrollment_8th: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  location_source: string | null;
   teachers?: TeacherMin[];
 }
 
 export interface KutirDetail extends Kutir {
+  geocode_message?: string | null;
   cluster?: {
     id: number; name: string;
     area?: {
@@ -38,6 +42,8 @@ export interface KutirCreate {
   street?: string | null; state?: string; pincode?: string | null;
   donor_id?: number | null;
   enrollment_5th?: number | null; enrollment_8th?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface KutirsListParams {

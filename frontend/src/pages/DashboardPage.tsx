@@ -1,7 +1,6 @@
 import { grs } from "../styles/grs";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { isListHubPath } from "../constants/listHubRoutes";
 import { useAuth } from "../context/AuthContext";
 import {
   canViewUsers,
@@ -22,10 +21,9 @@ export default function DashboardPage() {
   useEffect(() => {
     const root = document.getElementById("root");
     if (!root) return;
-    const wide = isListHubPath(location.pathname);
-    root.classList.toggle("grs-list-hub-root", wide);
+    root.classList.add("grs-list-hub-root");
     return () => root.classList.remove("grs-list-hub-root");
-  }, [location.pathname]);
+  }, []);
 
   const closeNav = () => setNavOpen(false);
 
@@ -106,7 +104,6 @@ const navItems: {
   { to: "/kutirs", label: "Kutirs" },
   { to: "/admissions", label: "Admissions" },
   { to: "/progress", label: "Progress" },
-  { to: "/new-year-setup", label: "Bulk Progress Update" },
   { to: "/reports", label: "Reports" },
   { divider: true, label: "KUTIR VISITS" },
   { to: "/visits", label: "Visit Dashboard" },

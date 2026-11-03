@@ -33,6 +33,7 @@ function normalizePipelineStages(exam) {
     "applied",
     "admit_card",
     "appeared",
+    "result_declared",
     "selected",
     "admitted",
   ];
@@ -53,6 +54,7 @@ const beforeEligible = {
   applied: false,
   admit_card: false,
   appeared: false,
+  result_declared: false,
   selected: false,
   admitted: false,
 };

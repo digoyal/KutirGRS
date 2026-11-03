@@ -41,7 +41,16 @@ export function kutirFormFromDetail(kutir: KutirDetail): KutirFormState {
     donor_id: kutir.donor_id,
     enrollment_5th: kutir.enrollment_5th,
     enrollment_8th: kutir.enrollment_8th,
+    latitude: kutir.latitude,
+    longitude: kutir.longitude,
   };
+}
+
+function parseOptionalCoord(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : null;
 }
 
 const sec: React.CSSProperties = viewStyles.section;
@@ -182,6 +191,17 @@ export function KutirForm({
           </div>
         </ViewSection>
 
+        <ViewSection title="Map coordinates">
+          <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "0 0 8px" }}>
+            Filled automatically from kutir name + district + state on save when blank; used to record
+            visit photo distance from kutir.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <ViewField label={kutirFieldLabel("latitude")}>{form.latitude ?? null}</ViewField>
+            <ViewField label={kutirFieldLabel("longitude")}>{form.longitude ?? null}</ViewField>
+          </div>
+        </ViewSection>
+
         {teacher && (
           <ViewSection title="Teacher">
             <div style={viewStyles.value}>
@@ -295,7 +315,7 @@ export function KutirForm({
               style={grs.input}
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="Kutir name"
+              placeholder="Kutir name (also used for geocoding)"
             />
           </div>
           <div>
@@ -372,6 +392,38 @@ export function KutirForm({
                 setForm((f) => ({ ...f, enrollment_8th: Number(e.target.value) || null }))
               }
               placeholder="0"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section style={sec}>
+        <div style={secTitle}>Map coordinates</div>
+        <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "0 0 8px" }}>
+          Leave blank to geocode from kutir name + district + state on save, or set WGS84 manually
+          (e.g. from Google Maps). Used to compute visit photo distance from kutir (informational).
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div>
+            <label style={grs.fieldLabel}>{kutirFieldLabel("latitude")}</label>
+            <input
+              style={grs.input}
+              type="text"
+              inputMode="decimal"
+              value={form.latitude ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, latitude: parseOptionalCoord(e.target.value) }))}
+              placeholder="e.g. 23.259933"
+            />
+          </div>
+          <div>
+            <label style={grs.fieldLabel}>{kutirFieldLabel("longitude")}</label>
+            <input
+              style={grs.input}
+              type="text"
+              inputMode="decimal"
+              value={form.longitude ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, longitude: parseOptionalCoord(e.target.value) }))}
+              placeholder="e.g. 77.412614"
             />
           </div>
         </div>

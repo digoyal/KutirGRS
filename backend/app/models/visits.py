@@ -93,6 +93,7 @@ class KutirVisit(Base, TimestampMixin):
     visit_photo_latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     visit_photo_longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     visit_photo_accuracy_m: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    visit_photo_distance_from_kutir_m: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     final_remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

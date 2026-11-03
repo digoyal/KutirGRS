@@ -279,7 +279,7 @@ export default function VisitsDashboardPage() {
   }
 
   return (
-    <div className="grs-page" style={{ padding: "28px 24px", maxWidth: 1100 }}>
+    <div className="grs-page" style={{ padding: "28px 24px" }}>
       {/* header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>

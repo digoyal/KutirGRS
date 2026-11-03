@@ -77,10 +77,9 @@ On a physical phone, `localhost` / `127.0.0.1` is the phone — use the Mac **LA
 
 1. **One row per student** on `student_progress` (unique `student_id`). Track **`six_twelve`** (6→12) or **`nine_twelve`** (9→12) from admission class 5 or 8.
 2. **Marks:** columns `marks_6` … `marks_12`; Add/Edit shows 7 or 4 inputs; server enables the next class when the previous mark is saved.
-3. **Admit hook:** when Admissions **`admitted`** becomes true, API upserts progress with `class_in_year = admission_class + 1`, `academic_year = school_start_year + 1`, `status = enrolled`, entry mark field enabled. No standalone **Add Progress** list action or `/progress/new` form — use Admissions admit or **Bulk Progress Update** backfill.
+3. **Admit hook:** when Admissions **`admitted`** becomes true, API upserts progress with `class_in_year = admission_class + 1`, `academic_year = school_start_year + 1`, `status = enrolled`, entry mark field enabled. No standalone **Add Progress** list action or `/progress/new` form — progress is created on admit.
 4. **Status:** `promoted` is set on save when 6th or 9th marks are first filled. **`transferred`** is legacy/read-only in UI (removed from status dropdown). Writable: enrolled, promoted, dropped_out, graduated, admitted_to_college.
-5. **Bulk Progress Update** (`/new-year-setup`): backfill only — admitted students with no progress row yet (not per-year row creation).
-6. **Registry / form:** `progressFields.ts`, shared **`ProgressForm`**, mark helpers in **`frontend/src/utils/progressTrack.ts`**. Design note: Project store [`docs/progress-single-record-plan.md`](progress-single-record-plan.md) (coordinator copy under store `docs/`).
+5. **Registry / form:** `progressFields.ts`, shared **`ProgressForm`**, mark helpers in **`frontend/src/utils/progressTrack.ts`**. Design note: Project store [`docs/progress-single-record-plan.md`](progress-single-record-plan.md) (coordinator copy under store `docs/`).
 
 ---
 
@@ -91,7 +90,10 @@ One registry per entity: `frontend/src/constants/*Fields.ts` (e.g. `studentsFiel
 1. Do **not** hardcode parallel label/key lists in pages, Column Config, or export.
 2. `label` for list / Column Config / export. Optional `formLabel` when Add/Edit needs a different label (e.g. Kutir `enrollment_5th`: list `"5th Enrollment"`, form `"5th Class"`).
 3. Add/rename field visible in list/config/export/forms: update registry **first**, then wire UI.
-4. **CI guard:** `npm run build` runs `frontend/scripts/check-field-registry.mjs`, which fails if a Column Settings list page column key is missing from that entity’s `*Fields.ts` (or if the page defines a column not in the registry). **`actions`** on `GrsTable` is excluded — not a configurable column.
+4. **CI guards:** `npm run build` runs:
+   - `check-field-registry.mjs` — list page column keys ↔ `*Fields.ts` ( **`actions`** excluded).
+   - `check-field-registry-models.mjs` — `*Fields.ts` ↔ SQLAlchemy columns per `field-registry-model-manifest.mjs` (join/computed keys documented there; Progress ↔ `StudentProgress`).
+   Audits must compare registry to **DB/model**, not registry ↔ table switch cases only. Schema/list changes ship registry + list wiring together.
 
 ---
 
@@ -99,7 +101,8 @@ One registry per entity: `frontend/src/constants/*Fields.ts` (e.g. `studentsFiel
 
 1. **Forms:** Most entities: one `*Form` for Add/Edit/View (`mode`). Users: `UserForm` Add/Edit; View on Detail. `className="grs-form"` on Add/Edit root (not View). Full-width controls; stack on narrow via `.grs-form` / avoid multi-column grids below ~640px. Shells: `max-width: 100%`, `box-sizing: border-box`, `min-width: 0`.
 2. **Reports (phone):** Collapsible filter bar as in **1.2** item 3. Full-width main; vertical page scroll; horizontal scroll **inside** wide tables/cards only — no document horizontal overflow.
-3. **Visit photo (Add/Edit, ≤768px):** `VisitForm` shows **Take photo** (`input capture="environment"`) and **Choose file**; desktop single file input. Same `photoFile` → `uploadVisitPhoto` on save. When a photo is attached (camera or gallery), the app requests browser geolocation once (`navigator.geolocation.getCurrentPosition`); location is optional — denied/timeout still uploads the photo with null coords stored on `kutir_visits` (`visit_photo_latitude`, `visit_photo_longitude`, `visit_photo_accuracy_m`). View mode shows coords + **Open in maps** when present. Offline outbox stores photo GPS on the pending row and sends it with photo sync.
+3. **Visit photo (Add/Edit, ≤768px):** `VisitForm` shows **Take photo** (`input capture="environment"`) and **Choose file**; desktop single file input. Attaching a photo **requires** browser GPS (`navigator.geolocation.getCurrentPosition`); denied/unavailable clears the attachment and blocks save until location works. Coords are stored on `kutir_visits` (`visit_photo_latitude`, `visit_photo_longitude`, `visit_photo_accuracy_m`) and sent with `uploadVisitPhoto`. When the photo is saved and the kutir has **latitude/longitude** (migration `032`, from **manual map coordinates** or **Nominatim geocode on kutir save** — see below), the API also stores **`visit_photo_distance_from_kutir_m`** (migration `033`, haversine metres). Distance is **recorded only** — not enforced (GPS accuracy is not trusted enough to block uploads). If kutir coords are missing, save is allowed with a warning that distance is not shown (photo GPS is still stored). View/detail shows coords, distance when available, and **Open in maps**. Offline outbox requires photo GPS on the pending row; sync still requires GPS on the server but does not reject by distance.
+4. **Kutir geocoding (backend):** On kutir **create** (and on **update** when name/district/state/street change, unless coords are manually set), the API geocodes `{kutir name}, {district name}, {state}, India` via **OSM Nominatim** (no API key; polite `User-Agent`; ~1 req/s). Success sets `latitude`, `longitude`, `location_source = geocoded`, `geocoded_at`. Failure leaves coords null and does not block save (`geocode_message` on create/update response + server log). The separate **`village`** column was removed in migration **`034`**; **kutir name** is the place string for Nominatim.
 
 ---
 

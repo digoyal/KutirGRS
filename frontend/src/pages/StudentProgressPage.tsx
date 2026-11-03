@@ -21,7 +21,11 @@ import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
-import { PROGRESS_FIELDS, PROGRESS_FIELD_KEYS } from "../constants/progressFields";
+import {
+  PROGRESS_FIELDS,
+  PROGRESS_FIELD_KEYS,
+  isProgressMarksKey,
+} from "../constants/progressFields";
 import { studentLabel } from "../utils/studentLabel";
 import {
   PROGRESS_STATUSES,
@@ -45,10 +49,54 @@ import {
   progressFilterYearOptions,
   type ProgressListYearFilter,
 } from "../utils/academicYear";
-import { currentClassMarkPct } from "../utils/progressTrack";
+import { classesForTrack, getMark } from "../utils/progressTrack";
+
+function markClassFromFieldKey(key: string): number | null {
+  if (!key.startsWith("marks_")) return null;
+  const n = Number(key.slice(6));
+  return Number.isInteger(n) && n >= 6 && n <= 12 ? n : null;
+}
+
+function markAppliesToTrack(p: StudentProgress, classNum: number): boolean {
+  return classesForTrack(p.track).includes(classNum);
+}
+
+function formatMarkPctText(m: number): string {
+  const n = parseFloat(String(m));
+  if (!Number.isFinite(n)) return "";
+  const rounded = Math.round(n * 10) / 10;
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return `${text}%`;
+}
 
 const CURRENT_YEAR = new Date().getFullYear();
 const STORAGE_KEY = "progress_filter_state";
+
+/** Narrow marks block (6th–12th): tight padding, tabular % values, list-hub ellipsis. */
+const PROGRESS_MARKS_COL_MIN_PX = 48;
+const PROGRESS_MARKS_TD: React.CSSProperties = {
+  padding: "6px 2px",
+  fontSize: "0.8125rem",
+  whiteSpace: "nowrap",
+  verticalAlign: "middle",
+  fontVariantNumeric: "tabular-nums",
+  maxWidth: PROGRESS_MARKS_COL_MIN_PX + 6,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const PROGRESS_LIST_TD: React.CSSProperties = {
+  padding: "6px 8px",
+  fontSize: "0.8125rem",
+  whiteSpace: "nowrap",
+  verticalAlign: "middle",
+};
+
+/** Cap Year / Class / School so list-hub width:100% does not stretch them toward DATA_COL_MAX. */
+const PROGRESS_YEAR_COL_MIN_PX = 52;
+const PROGRESS_CLASS_COL_MIN_PX = 40;
+const PROGRESS_SCHOOL_COL_MIN_PX = 96;
+const PROGRESS_SCHOOL_COL_MAX_PX = 148;
 
 export default function StudentProgressPage() {
   const { user } = useAuth();
@@ -167,31 +215,51 @@ export default function StudentProgressPage() {
         const sortValue = (p: StudentProgress): string | number => {
           switch (meta.key) {
             case "student": { const s = studentMap2.get(p.student_id); return studentLabel(s as any).toLowerCase(); }
+            case "academic_year": return p.academic_year ?? -1;
             case "class_in_year": return p.class_in_year ?? -1;
             case "school_id": return (schoolMap.get(p.school_id)?.name ?? "").toLowerCase();
-            case "current_marks_pct": {
-              const m = currentClassMarkPct(p, p.class_in_year);
-              return m ?? -1;
-            }
             case "status": return p.status ?? "";
             case "remarks":
               return progressStatusShowsRemarks(p.status) ? (p.remarks ?? "").toLowerCase() : "";
-            default: return "";
+            case "marks_6":
+            case "marks_7":
+            case "marks_8":
+            case "marks_9":
+            case "marks_10":
+            case "marks_11":
+            case "marks_12": {
+              const markClass = markClassFromFieldKey(meta.key)!;
+              if (!markAppliesToTrack(p, markClass)) return -2;
+              const m = getMark(p, markClass);
+              return m ?? -1;
+            }
+            default:
+              return "";
           }
         };
         const csvValue = (p: StudentProgress): string => {
           switch (meta.key) {
             case "student": { const s = studentMap2.get(p.student_id); return studentLabel(s as any, String(p.student_id)); }
+            case "academic_year": return p.academic_year != null ? formatAcademicYear(p.academic_year) : "";
             case "class_in_year": return p.class_in_year != null ? String(p.class_in_year) : "";
             case "school_id": return (p.school ?? schoolMap.get(p.school_id))?.name ?? "";
             case "status": return STATUS_LABELS[p.status as ProgressStatus] ?? p.status;
-            case "current_marks_pct": {
-              const m = currentClassMarkPct(p, p.class_in_year);
-              return m != null ? `${parseFloat(String(m)).toFixed(1)}%` : "";
-            }
             case "remarks":
               return progressStatusShowsRemarks(p.status) ? (p.remarks ?? "") : "";
-            default: return "";
+            case "marks_6":
+            case "marks_7":
+            case "marks_8":
+            case "marks_9":
+            case "marks_10":
+            case "marks_11":
+            case "marks_12": {
+              const markClass = markClassFromFieldKey(meta.key)!;
+              if (!markAppliesToTrack(p, markClass)) return "";
+              const m = getMark(p, markClass);
+              return m != null ? formatMarkPctText(m) : "";
+            }
+            default:
+              return "";
           }
         };
         const render = (p: StudentProgress): React.ReactNode => {
@@ -215,6 +283,12 @@ export default function StudentProgressPage() {
                 </Link>
               );
             }
+            case "academic_year":
+              return (
+                <span style={{ fontSize: "0.8125rem", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                  {p.academic_year != null ? formatAcademicYear(p.academic_year) : "—"}
+                </span>
+              );
             case "class_in_year":
               return (
                 <span
@@ -241,6 +315,10 @@ export default function StudentProgressPage() {
                     fontSize: "0.8125rem",
                     color: "var(--text-primary)",
                     whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    display: "block",
+                    minWidth: 0,
                   }}
                 >
                   {name}
@@ -269,33 +347,91 @@ export default function StudentProgressPage() {
                 </span>
               );
             }
-            case "current_marks_pct": {
-              const m = currentClassMarkPct(p, p.class_in_year);
-              return m != null ? (
-                <span style={{ fontVariantNumeric: "tabular-nums", fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
-                  {parseFloat(String(m)).toFixed(1)}%
-                </span>
-              ) : "—";
-            }
             case "remarks": {
               const text = progressStatusShowsRemarks(p.status) ? p.remarks : null;
               return <span style={{ whiteSpace: "nowrap" }}>{text ?? "—"}</span>;
+            }
+            case "marks_6":
+            case "marks_7":
+            case "marks_8":
+            case "marks_9":
+            case "marks_10":
+            case "marks_11":
+            case "marks_12": {
+              const markClass = markClassFromFieldKey(meta.key)!;
+              if (!markAppliesToTrack(p, markClass)) {
+                return <span style={{ whiteSpace: "nowrap" }}>—</span>;
+              }
+              const m = getMark(p, markClass);
+              return m != null ? (
+                <span style={{ fontVariantNumeric: "tabular-nums", fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
+                  {formatMarkPctText(m)}
+                </span>
+              ) : (
+                <span style={{ whiteSpace: "nowrap" }}>—</span>
+              );
             }
             default:
               return null;
           }
         };
-        const compactTd: React.CSSProperties = {
-          padding: "6px 10px",
-          fontSize: "0.8125rem",
-          whiteSpace: "nowrap",
-          verticalAlign: "middle",
+        const isMarks = isProgressMarksKey(meta.key);
+        const tdStyle: React.CSSProperties = isMarks
+          ? PROGRESS_MARKS_TD
+          : meta.key === "remarks"
+            ? {
+                ...PROGRESS_LIST_TD,
+                maxWidth: 180,
+                color: "var(--text-secondary)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }
+            : meta.key === "academic_year"
+              ? {
+                  ...PROGRESS_LIST_TD,
+                  padding: "6px 4px",
+                  maxWidth: PROGRESS_YEAR_COL_MIN_PX + 4,
+                }
+              : meta.key === "class_in_year"
+                ? {
+                    ...PROGRESS_LIST_TD,
+                    padding: "6px 3px",
+                    maxWidth: PROGRESS_CLASS_COL_MIN_PX + 8,
+                  }
+                : meta.key === "school_id"
+                  ? {
+                      ...PROGRESS_LIST_TD,
+                      padding: "6px 4px 6px 2px",
+                      minWidth: PROGRESS_SCHOOL_COL_MIN_PX,
+                      maxWidth: PROGRESS_SCHOOL_COL_MAX_PX,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }
+                  : meta.key === "status"
+                    ? { ...PROGRESS_LIST_TD, padding: "6px 4px", maxWidth: 118 }
+                    : PROGRESS_LIST_TD;
+        const minWidth =
+          isMarks
+            ? PROGRESS_MARKS_COL_MIN_PX
+            : meta.key === "student"
+              ? 148
+              : meta.key === "academic_year"
+                ? PROGRESS_YEAR_COL_MIN_PX
+                : meta.key === "class_in_year"
+                  ? PROGRESS_CLASS_COL_MIN_PX
+                  : meta.key === "school_id"
+                    ? PROGRESS_SCHOOL_COL_MIN_PX
+                    : undefined;
+        return {
+          key: meta.key,
+          label: meta.label,
+          sortable: true,
+          sortValue,
+          csvValue,
+          render,
+          tdStyle,
+          ...(minWidth != null ? { minWidth, nowrap: true } : {}),
         };
-        const tdStyle: React.CSSProperties =
-          meta.key === "remarks"
-            ? { ...compactTd, maxWidth: 180, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis" }
-            : compactTd;
-        return { key: meta.key, label: meta.label, sortable: true, sortValue, csvValue, render, tdStyle };
       });
   }, [orderedMetas, isVisible, studentMap2, schoolMap]);
 

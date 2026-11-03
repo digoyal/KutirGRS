@@ -1,15 +1,30 @@
 from typing import Optional, List
+
+from email_validator import EmailNotValidError, validate_email
 from pydantic import BaseModel, field_validator
 
 from app.roles import TITLES as VALID_TITLES
 
 
+def _normalize_email_optional(v: Optional[str]) -> Optional[str]:
+    """Trim; blank → None. Validates format when non-empty."""
+    if v is None:
+        return None
+    s = v.strip()
+    if not s:
+        return None
+    try:
+        return validate_email(s, check_deliverability=False, test_environment=True).normalized
+    except EmailNotValidError:
+        raise ValueError("Enter a valid email address") from None
+
+
 def _require_nonblank_email(v: str) -> str:
     """Create/update require email; reads preserve legacy accounts without one."""
-    s = (v or "").strip()
-    if not s:
+    normalized = _normalize_email_optional(v)
+    if normalized is None:
         raise ValueError("email is required")
-    return s
+    return normalized
 
 
 class UserCreate(BaseModel):

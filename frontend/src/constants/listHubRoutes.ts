@@ -1,4 +1,4 @@
-/** GRS list hubs that use full viewport width (see `#root.grs-list-hub-root`). */
+/** GRS list hub routes (Students, Kutirs, Admissions, Progress). App shell width is set in DashboardPage. */
 export const LIST_HUB_PATHS = new Set([
   "/students",
   "/kutirs",

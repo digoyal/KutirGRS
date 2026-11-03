@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormPageActions, FormPageShell } from "@parivaar/ui";
 import { createVisit, uploadVisitPhoto } from "../api/visits";
+import { listKutirs } from "../api/kutirs";
 import { VisitForm, emptyVisitForm, type VisitFormState } from "../components/VisitForm";
 import { grs } from "../styles/grs";
 import {
@@ -13,12 +14,17 @@ import {
 import { isNetworkError } from "../offline/networkError";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import type { VisitPhotoLocation } from "../utils/visitPhotoGeolocation";
+import { validateVisitPhotoForSave } from "../utils/visitPhotoSaveValidation";
 
 export default function VisitDraftCompletePage() {
   const { draftId } = useParams<{ draftId: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const online = useOnlineStatus();
+  const { data: kutirs = [] } = useQuery({
+    queryKey: ["kutirs"],
+    queryFn: () => listKutirs(),
+  });
 
   const [loadingDraft, setLoadingDraft] = useState(true);
   const [missingDraft, setMissingDraft] = useState(false);
@@ -27,6 +33,7 @@ export default function VisitDraftCompletePage() {
   const [photoLocation, setPhotoLocation] = useState<VisitPhotoLocation | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,11 +65,24 @@ export default function VisitDraftCompletePage() {
     }
     setSaving(true);
     setError(null);
+    setSaveWarning(null);
+
+    const photoCheck = validateVisitPhotoForSave(photoFile, photoLocation, form.kutir_id, kutirs);
+    if (photoCheck.error) {
+      setError(photoCheck.error);
+      setSaving(false);
+      return;
+    }
+    if (photoCheck.warning) {
+      setSaveWarning(photoCheck.warning);
+    }
 
     if (online) {
       try {
         const saved = await createVisit(form);
-        if (photoFile) await uploadVisitPhoto(saved.id, photoFile, photoLocation);
+        if (photoFile && photoLocation) {
+          await uploadVisitPhoto(saved.id, photoFile, photoLocation);
+        }
         await removeVisitDraft(draftId);
         qc.invalidateQueries({ queryKey: ["visits"] });
         navigate("/visits/detail", {
@@ -147,6 +167,12 @@ export default function VisitDraftCompletePage() {
           photoLocation={photoLocation}
           setPhotoLocation={setPhotoLocation}
         />
+
+        {saveWarning && !error && (
+          <p style={{ fontSize: 14, color: "var(--warning-text, #a16207)", margin: "0 0 8px" }}>
+            {saveWarning}
+          </p>
+        )}
 
         <FormPageActions
           error={error}

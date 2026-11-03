@@ -47,7 +47,7 @@ export function getMark(marks: MarkFields, classNum: number): number | null {
   return v == null ? null : v;
 }
 
-/** Mirrors backend: no edits when graduated or 12th mark is set; else current class only. */
+/** Mirrors backend: locked when graduated or 12th mark set; else current class + previous if filled. */
 export function enabledMarkClasses(
   track: ProgressTrack,
   classInYear: number | null | undefined,
@@ -57,10 +57,14 @@ export function enabledMarkClasses(
   if (status === "graduated") return [];
   if (marks != null && getMark(marks, 12) != null) return [];
   const classes = classesForTrack(track);
-  if (classInYear != null && classes.includes(classInYear)) {
-    return [classInYear];
+  const current =
+    classInYear != null && classes.includes(classInYear) ? classInYear : classes[0];
+  const idx = classes.indexOf(current);
+  const enabled: number[] = [current];
+  if (idx > 0 && marks != null && getMark(marks, classes[idx - 1]) != null) {
+    enabled.unshift(classes[idx - 1]);
   }
-  return [classes[0]];
+  return enabled;
 }
 
 export function currentClassMarkPct(

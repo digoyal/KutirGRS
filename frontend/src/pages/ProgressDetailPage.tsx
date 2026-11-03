@@ -64,11 +64,12 @@ export default function ProgressDetailPage() {
       try {
         const raw = sessionStorage.getItem(PROGRESS_FILTER_STORAGE_KEY);
         const prev = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-        persistFilters(PROGRESS_FILTER_STORAGE_KEY, {
-          ...prev,
-          year: saved.academic_year,
-          page: 1,
-        });
+        const next: Record<string, unknown> = { ...prev, page: 1 };
+        // Keep "All years" ("") when that was the list filter; only sync year when a specific year was selected.
+        if (prev.year !== "" && prev.year != null) {
+          next.year = saved.academic_year;
+        }
+        persistFilters(PROGRESS_FILTER_STORAGE_KEY, next);
       } catch {
         /* ignore */
       }

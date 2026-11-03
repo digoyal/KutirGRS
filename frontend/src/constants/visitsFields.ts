@@ -32,6 +32,7 @@ export const VISITS_FIELDS: FieldMeta[] = [
   { key: "visit_photo_latitude",     label: "Photo Lat",                    formLabel: "Photo Latitude", hideable: true, defaultVisible: false, form: false },
   { key: "visit_photo_longitude",    label: "Photo Lng",                    formLabel: "Photo Longitude", hideable: true, defaultVisible: false, form: false },
   { key: "visit_photo_accuracy_m",   label: "Photo GPS ±m",                 formLabel: "Photo GPS Accuracy (m)", hideable: true, defaultVisible: false, form: false },
+  { key: "visit_photo_distance_from_kutir_m", label: "Distance from kutir (m)", formLabel: "Photo distance from kutir (m)", hideable: true, defaultVisible: false, form: false },
 ];
 
 export const VISITS_FIELD_KEYS = VISITS_FIELDS.map((f) => f.key) as readonly string[];

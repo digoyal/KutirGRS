@@ -23,9 +23,11 @@ import { mediaBase } from "../api/apiBase";
 import {
   formatVisitPhotoCoords,
   requestVisitPhotoLocation,
+  VisitPhotoLocationError,
   visitPhotoMapsUrl,
   type VisitPhotoLocation,
 } from "../utils/visitPhotoGeolocation";
+import { describeVisitPhotoDistance } from "../utils/geoHaversine";
 
 const MEDIA_BASE = mediaBase();
 
@@ -85,11 +87,44 @@ function VisitPhotoLocationDisplay({
   latitude,
   longitude,
   accuracyM,
+  kutirLatitude,
+  kutirLongitude,
+  savedDistanceFromKutirM,
 }: {
   latitude: number;
   longitude: number;
   accuracyM?: number | null;
+  kutirLatitude?: number | null;
+  kutirLongitude?: number | null;
+  savedDistanceFromKutirM?: number | null;
 }) {
+  let distanceLine: React.ReactNode = null;
+  if (savedDistanceFromKutirM != null) {
+    distanceLine = (
+      <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>
+        {Math.round(savedDistanceFromKutirM)} m from kutir
+      </div>
+    );
+  } else {
+    const distance = describeVisitPhotoDistance(
+      latitude,
+      longitude,
+      kutirLatitude,
+      kutirLongitude,
+    );
+    if (distance.kind === "distance") {
+      distanceLine = (
+        <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>
+          {Math.round(distance.distanceM)} m from kutir
+        </div>
+      );
+    } else if (distance.kind === "no_kutir_coords") {
+      distanceLine = (
+        <div style={{ color: "var(--warning-text, #a16207)", marginTop: 4 }}>{distance.warning}</div>
+      );
+    }
+  }
+
   return (
     <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 6, lineHeight: 1.4 }}>
       <span>{formatVisitPhotoCoords(latitude, longitude, accuracyM)}</span>
@@ -102,6 +137,7 @@ function VisitPhotoLocationDisplay({
       >
         Open in maps
       </a>
+      {distanceLine}
     </div>
   );
 }
@@ -388,6 +424,7 @@ interface VisitFormProps {
   visitPhotoLatitude?: number | null;
   visitPhotoLongitude?: number | null;
   visitPhotoAccuracyM?: number | null;
+  visitPhotoDistanceFromKutirM?: number | null;
   /** Display name for view mode when kutir cannot be changed. */
   kutirName?: string;
   /** Logged visitor (edit/view only; omit on add). */
@@ -408,6 +445,7 @@ export function VisitForm({
   visitPhotoLatitude = null,
   visitPhotoLongitude = null,
   visitPhotoAccuracyM = null,
+  visitPhotoDistanceFromKutirM = null,
   kutirName,
   visitedById,
   visitedByName,
@@ -430,15 +468,23 @@ export function VisitForm({
       setPhotoLocationPending(false);
       return;
     }
-    setPhotoFile?.(file);
     setPhotoLocation?.(null);
     setPhotoLocationHint(null);
     setPhotoLocationPending(true);
-    const loc = await requestVisitPhotoLocation();
-    setPhotoLocationPending(false);
-    setPhotoLocation?.(loc);
-    if (!loc) {
-      setPhotoLocationHint("Location unavailable — photo will still be saved.");
+    try {
+      const loc = await requestVisitPhotoLocation();
+      setPhotoFile?.(file);
+      setPhotoLocation?.(loc);
+    } catch (err) {
+      setPhotoFile?.(null);
+      setPhotoLocation?.(null);
+      setPhotoLocationHint(
+        err instanceof VisitPhotoLocationError
+          ? err.message
+          : "Could not get device location — visit photo was not attached.",
+      );
+    } finally {
+      setPhotoLocationPending(false);
     }
   }
 
@@ -469,6 +515,9 @@ export function VisitForm({
   });
 
   const kutirs = mode === "add" ? addLookups.kutirs : (editLookups.data ?? []);
+  const selectedKutir = kutirs.find((k) => k.id === form.kutir_id);
+  const kutirLatitude = selectedKutir?.latitude ?? null;
+  const kutirLongitude = selectedKutir?.longitude ?? null;
   const allDistricts = mode === "add" ? addLookups.allDistricts : (editDistricts.data ?? []);
   const allAreas = mode === "add" ? addLookups.allAreas : (editAreas.data ?? []);
   const allClusters = mode === "add" ? addLookups.allClusters : (editClusters.data ?? []);
@@ -1289,15 +1338,16 @@ export function VisitForm({
               <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
                 Current photo. Upload a new one to replace it.
               </div>
-              {readOnly &&
-                visitPhotoLatitude != null &&
-                visitPhotoLongitude != null && (
-                  <VisitPhotoLocationDisplay
-                    latitude={visitPhotoLatitude}
-                    longitude={visitPhotoLongitude}
-                    accuracyM={visitPhotoAccuracyM}
-                  />
-                )}
+              {visitPhotoLatitude != null && visitPhotoLongitude != null && (
+                <VisitPhotoLocationDisplay
+                  latitude={visitPhotoLatitude}
+                  longitude={visitPhotoLongitude}
+                  accuracyM={visitPhotoAccuracyM}
+                  kutirLatitude={kutirLatitude}
+                  kutirLongitude={kutirLongitude}
+                  savedDistanceFromKutirM={visitPhotoDistanceFromKutirM}
+                />
+              )}
             </div>
           )}
           {setPhotoFile && (
@@ -1348,7 +1398,13 @@ export function VisitForm({
             </>
           )}
           {photoLocationHint && (
-            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 6 }}>
+            <div
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--error-text, #b91c1c)",
+                marginTop: 6,
+              }}
+            >
               {photoLocationHint}
             </div>
           )}
@@ -1369,6 +1425,8 @@ export function VisitForm({
                   latitude={photoLocation.latitude}
                   longitude={photoLocation.longitude}
                   accuracyM={photoLocation.accuracyM}
+                  kutirLatitude={kutirLatitude}
+                  kutirLongitude={kutirLongitude}
                 />
               )}
             </div>

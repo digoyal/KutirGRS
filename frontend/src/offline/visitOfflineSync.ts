@@ -29,18 +29,22 @@ export async function syncPendingVisits(): Promise<VisitSyncResult> {
       try {
         const saved = await createVisit(row.payload);
         if (row.photoBlob) {
+          if (row.photoLatitude == null || row.photoLongitude == null) {
+            await updatePendingVisitError(
+              row.localId,
+              "Visit photo requires device location — re-open the visit, re-attach the photo with GPS enabled, and sync again.",
+            );
+            failed += 1;
+            continue;
+          }
           const file = new File([row.photoBlob], row.photoName || "visit-photo.jpg", {
             type: row.photoType || row.photoBlob.type || "image/jpeg",
           });
-          const location =
-            row.photoLatitude != null && row.photoLongitude != null
-              ? {
-                  latitude: row.photoLatitude,
-                  longitude: row.photoLongitude,
-                  accuracyM: row.photoAccuracyM ?? null,
-                }
-              : null;
-          await uploadVisitPhoto(saved.id, file, location);
+          await uploadVisitPhoto(saved.id, file, {
+            latitude: row.photoLatitude,
+            longitude: row.photoLongitude,
+            accuracyM: row.photoAccuracyM ?? null,
+          });
         }
         await removePendingVisit(row.localId);
         synced += 1;

@@ -26,6 +26,7 @@ import { FormPageShell } from "@parivaar/ui";
 import { formatAcademicYear } from "../utils/academicYear";
 import { studentLabel } from "../utils/studentLabel";
 import { apiErrorDetail } from "../utils/apiError";
+import { invalidateAdmissionCaches } from "../utils/invalidateAdmissionCaches";
 
 const NAVY_BG = "#1e3a5f";
 const NAVY_TEXT = "#ffffff";
@@ -88,7 +89,7 @@ export default function AdmissionDetailPage() {
     mutationFn: (data: Partial<StudentExamCreate>) => updateExam(Number(id), data),
     onSuccess: (updated: StudentExam) => {
       qc.setQueryData(["admission", id], updated);
-      qc.invalidateQueries({ queryKey: ["student-exams"] });
+      invalidateAdmissionCaches(qc);
       if (enteredViaEdit) {
         navigate(-1);
       } else {

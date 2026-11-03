@@ -10,6 +10,8 @@ import { UserForm, EMPTY_USER_FORM, type UserFormState } from "../components/Use
 import { canManageUsers, assignableTitles as titlesAssignableTo } from "../constants/roles";
 import { userFieldLabel } from "../constants/usersFields";
 import { grs } from "../styles/grs";
+import { apiErrorDetail } from "../utils/apiError";
+import { emailFormatError } from "../utils/email";
 
 function namesFor(ids: number[], items: { id: number; name: string }[] | undefined): string {
   return ids.map((id) => items?.find((x) => x.id === id)?.name ?? String(id)).join(", ");
@@ -109,7 +111,7 @@ export default function UserDetailPage() {
         setSaveError("");
       }
     },
-    onError: (e: any) => setSaveError(e?.response?.data?.detail ?? "Save failed"),
+    onError: (e: unknown) => setSaveError(apiErrorDetail(e)),
   });
 
   function handleSave() {
@@ -119,6 +121,11 @@ export default function UserDetailPage() {
     }
     if (!form.email?.trim()) {
       setSaveError("Email is required");
+      return;
+    }
+    const emailErr = emailFormatError(form.email);
+    if (emailErr) {
+      setSaveError(emailErr);
       return;
     }
     setSaveError("");

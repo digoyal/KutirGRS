@@ -88,9 +88,20 @@ def editable_mark_class(progress) -> Optional[int]:
 
 
 def enabled_mark_classes(progress) -> list[int]:
-    """Only the current class mark field is editable (matches class_in_year after admit/marks sync)."""
-    editable = editable_mark_class(progress)
-    return [editable] if editable is not None else []
+    """Current class_in_year plus the previous track class when that mark is already set (typo fix)."""
+    if mark_editing_locked(progress):
+        return []
+    current = editable_mark_class(progress)
+    if current is None:
+        return []
+    classes = classes_for_track(progress.track)
+    idx = classes.index(current)
+    enabled: list[int] = [current]
+    if idx > 0:
+        prev = classes[idx - 1]
+        if get_mark(progress, prev) is not None:
+            enabled.insert(0, prev)
+    return enabled
 
 
 def _marks_12_effective(progress, updates: Optional[dict] = None) -> bool:
@@ -136,8 +147,8 @@ def _mark_values_equal(a: Optional[Decimal], b) -> bool:
 
 
 def validate_marks_write(progress, updates: dict) -> None:
-    """Reject changes to mark columns other than the current class_in_year."""
-    editable = editable_mark_class(progress)
+    """Reject changes to mark columns outside enabled_mark_classes."""
+    enabled = set(enabled_mark_classes(progress))
     for key, val in updates.items():
         if not key.startswith("marks_"):
             continue
@@ -145,14 +156,15 @@ def validate_marks_write(progress, updates: dict) -> None:
             cls = int(key.split("_")[1])
         except (IndexError, ValueError):
             continue
-        if cls == editable:
+        if cls in enabled:
             continue
         current = get_mark(progress, cls)
         if _mark_values_equal(current, val):
             continue
+        allowed = ", ".join(str(c) for c in sorted(enabled))
         raise HTTPException(
             400,
-            f"Only marks for class {editable} (current class) can be edited.",
+            f"Only marks for class(es) {allowed} can be edited.",
         )
 
 
@@ -201,11 +213,17 @@ def apply_graduated_status(progress) -> None:
         progress.status = "graduated"
 
 
+def admitted_school_id_for_exam(exam):
+    """UI sets admitted_school_id; imports may only have school_id."""
+    return exam.admitted_school_id or getattr(exam, "school_id", None)
+
+
 def initial_progress_fields_from_exam(exam) -> dict:
     track = track_from_admission_class(exam.admission_class)
+    school_id = admitted_school_id_for_exam(exam)
     return {
         "student_id": exam.student_id,
-        "school_id": exam.admitted_school_id,
+        "school_id": school_id,
         "academic_year": exam.school_start_year + 1,
         "class_in_year": exam.admission_class + 1,
         "track": track,
@@ -223,7 +241,7 @@ def merge_progress_payload(progress, data: dict) -> dict:
 
 async def ensure_progress_from_admitted_exam(db, exam) -> None:
     """Create or refresh progress when a student is admitted (idempotent)."""
-    if not exam.admitted or not exam.admitted_school_id:
+    if not exam.admitted or not admitted_school_id_for_exam(exam):
         return
     if exam.admission_class not in (5, 8):
         return

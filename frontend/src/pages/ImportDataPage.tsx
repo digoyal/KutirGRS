@@ -34,8 +34,6 @@ const SHEET_GUIDE = [
 const s = {
   page: {
     padding: "28px 24px",
-    maxWidth: 1100,
-    margin: "0 auto",
     width: "100%",
     boxSizing: "border-box",
     minWidth: 0,

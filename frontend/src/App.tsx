@@ -28,7 +28,6 @@ import AdmissionAddPage from "./pages/AdmissionAddPage";
 import AdmissionDetailPage from "./pages/AdmissionDetailPage";
 import StudentProgressPage from "./pages/StudentProgressPage";
 import ProgressDetailPage from "./pages/ProgressDetailPage";
-import NewYearSetupPage from "./pages/NewYearSetupPage";
 import ImportDataPage from "./pages/ImportDataPage";
 import {
   AdmissionFunnelReportPage,
@@ -98,7 +97,7 @@ function AppRoutes() {
         <Route path="progress" element={<StudentProgressPage />} />
         <Route path="progress/new" element={<Navigate to="/progress" replace />} />
         <Route path="progress/:id" element={<ProgressDetailPage />} />
-        <Route path="new-year-setup" element={<NewYearSetupPage />} />
+        <Route path="new-year-setup" element={<Navigate to="/progress" replace />} />
         <Route path="import" element={<ImportDataPage />} />
         <Route path="admin/field-config" element={<FieldConfigPage />} />
         <Route path="admin/change-password" element={<ChangePasswordPage />} />

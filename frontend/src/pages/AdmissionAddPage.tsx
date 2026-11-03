@@ -19,6 +19,7 @@ import {
 import { ADMISSIONS_FILTER_STORAGE_KEY } from "../constants/admissionsList";
 import { consumePersistedFilters, persistFilters } from "../hooks/usePersistedFilters";
 import { apiErrorDetail } from "../utils/apiError";
+import { invalidateAdmissionCaches } from "../utils/invalidateAdmissionCaches";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -78,7 +79,7 @@ export default function AdmissionAddPage() {
 
     try {
       await createExam(payload);
-      qc.invalidateQueries({ queryKey: ["student-exams"] });
+      invalidateAdmissionCaches(qc);
       persistListYearAfterCreate(payload.school_start_year);
       navigate("/admissions", { replace: true });
     } catch (e: unknown) {

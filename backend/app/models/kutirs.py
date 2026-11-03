@@ -1,5 +1,6 @@
 from typing import Optional
-from sqlalchemy import String, Integer, SmallInteger, ForeignKey, Text
+from datetime import datetime
+from sqlalchemy import String, Integer, SmallInteger, ForeignKey, Text, Float, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -25,6 +26,12 @@ class Kutir(Base, TimestampMixin):
     street: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     state: Mapped[str] = mapped_column(String(50), nullable=False, default="Madhya Pradesh")
     pincode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+
+    # Map coordinates (WGS84) for visit photo proximity checks
+    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    location_source: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    geocoded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Associations
     donor_id: Mapped[Optional[int]] = mapped_column(ForeignKey("donors.id"), nullable=True)

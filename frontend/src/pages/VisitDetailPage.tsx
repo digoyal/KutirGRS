@@ -14,6 +14,7 @@ import {
   type VisitFormState,
 } from "../components/VisitForm";
 import type { VisitPhotoLocation } from "../utils/visitPhotoGeolocation";
+import { validateVisitPhotoForSave } from "../utils/visitPhotoSaveValidation";
 
 export default function VisitDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +32,7 @@ export default function VisitDetailPage() {
   const [photoLocation, setPhotoLocation] = useState<VisitPhotoLocation | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
 
   const { data: visit, isLoading } = useQuery({
     queryKey: ["visit-record", Number(id)],
@@ -55,9 +57,23 @@ export default function VisitDetailPage() {
     }
     setSaving(true);
     setError(null);
+    setSaveWarning(null);
+
+    const photoCheck = validateVisitPhotoForSave(photoFile, photoLocation, form.kutir_id, kutirs);
+    if (photoCheck.error) {
+      setError(photoCheck.error);
+      setSaving(false);
+      return;
+    }
+    if (photoCheck.warning) {
+      setSaveWarning(photoCheck.warning);
+    }
+
     try {
       const saved = await updateVisit(Number(id), form);
-      if (photoFile) await uploadVisitPhoto(saved.id, photoFile, photoLocation);
+      if (photoFile && photoLocation) {
+        await uploadVisitPhoto(saved.id, photoFile, photoLocation);
+      }
       qc.invalidateQueries({ queryKey: ["visits"] });
       qc.invalidateQueries({ queryKey: ["visit-record", Number(id)] });
       if (enteredViaEdit) navigate(-1);
@@ -98,6 +114,7 @@ export default function VisitDetailPage() {
       visitPhotoLatitude={visit.visit_photo_latitude}
       visitPhotoLongitude={visit.visit_photo_longitude}
       visitPhotoAccuracyM={visit.visit_photo_accuracy_m}
+      visitPhotoDistanceFromKutirM={visit.visit_photo_distance_from_kutir_m}
       kutirName={kutirName}
       visitedById={visit.visited_by_id}
       visitedByName={visit.visited_by_name}
@@ -135,6 +152,12 @@ export default function VisitDetailPage() {
       {editing ? (
         <div className="visit-add-card">
           {formBody}
+          {saveWarning && !error && (
+            <p style={{ fontSize: 14, color: "var(--warning-text, #a16207)", margin: "0 0 8px" }}>
+              {saveWarning}
+            </p>
+          )}
+
           <FormPageActions
             error={error}
             saving={saving}

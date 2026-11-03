@@ -121,7 +121,7 @@ export default function ExamCentersPage() {
   }, [orderedMetas, isVisible]);
 
   return (
-    <div className="grs-page" style={{ padding: "24px 28px", maxWidth: 1100 }}>
+    <div className="grs-page" style={{ padding: "24px 28px" }}>
       <GrsTable
         title="Exam Centers"
         subtitle="Venues where entrance exams are held"

@@ -87,6 +87,7 @@ export interface AdmissionFormState {
   applied: boolean;
   admit_card: boolean;
   appeared: boolean;
+  result_declared: boolean;
   selected: boolean;
   admitted: boolean;
   admitted_school_id: number | null;
@@ -116,6 +117,7 @@ export function emptyAdmissionForm(year = CURRENT_YEAR): AdmissionFormState {
     applied: false,
     admit_card: false,
     appeared: false,
+    result_declared: false,
     selected: false,
     admitted: false,
     admitted_school_id: null,
@@ -135,6 +137,7 @@ export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
     applied: exam.applied,
     admit_card: exam.admit_card,
     appeared: exam.appeared,
+    result_declared: exam.result_declared,
     selected: exam.selected,
     admitted: exam.admitted,
   });
@@ -151,6 +154,7 @@ export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
     applied: stages.applied,
     admit_card: stages.admit_card,
     appeared: stages.appeared,
+    result_declared: stages.result_declared,
     selected: stages.selected,
     admitted: stages.admitted,
     admitted_school_id: exam.admitted_school_id,
@@ -179,6 +183,7 @@ export function admissionPayloadFromForm(
     applied: form.applied,
     admit_card: form.admit_card,
     appeared: form.appeared,
+    result_declared: form.result_declared,
     selected: form.selected,
     admitted: form.admitted,
   });
@@ -190,15 +195,16 @@ export function admissionPayloadFromForm(
     student_id: form.student_id,
     school_id: null,
     school_type: showSchool ? form.school_type || null : null,
-    exam_type_id: form.exam_type_id,
+    exam_type_id: show("exam_type") ? form.exam_type_id : null,
     school_start_year: form.school_start_year,
     eligible: stageFlags.eligible,
     applied: stageFlags.applied,
     admit_card: stageFlags.admit_card,
     appeared: stageFlags.appeared,
+    result_declared: stageFlags.result_declared,
     selected: stageFlags.selected,
     admitted: stageFlags.admitted,
-    exam_category_id: form.exam_category_id,
+    exam_category_id: show("exam_category") ? form.exam_category_id : null,
     exam_center_id: show("exam_center") ? form.exam_center_id : null,
     application_number: show("application_number") ? form.application_number : null,
     roll_number: show("roll_number") ? form.roll_number : null,
@@ -249,10 +255,10 @@ export function validateAdmissionForm(
   if (form.admission_class == null) {
     return ADMISSION_CLASS_REQUIRED_MSG;
   }
-  if (form.exam_type_id == null) {
+  if (show("exam_type") && form.exam_type_id == null) {
     return "Exam type is required.";
   }
-  if (form.exam_category_id == null) {
+  if (show("exam_category") && form.exam_category_id == null) {
     return `${admissionFieldLabel("exam_category_id")} is required.`;
   }
   if (show("parivaar_district") && form.ui_exam_district === "") {
@@ -631,7 +637,9 @@ export function AdmissionForm({
 
   const show = (field: Parameters<typeof pipelineFieldVisible>[1]) =>
     pipelineFieldVisible(form, field);
-  const showAppliedExam = show("parivaar_district");
+  const showExamBasics = show("exam_type");
+  const showExamGeo = show("parivaar_district");
+  const showApplicationNumber = show("application_number");
   const showRoll = show("roll_number");
   const showReasonNotAppeared = show("reason_not_appeared");
   const showScores = show("scores");
@@ -704,23 +712,25 @@ export function AdmissionForm({
 
         <section style={sec}>
           <div style={secTitle}>Exam Details</div>
-          <div style={{ display: "grid", gridTemplateColumns: "90px 130px 1fr", gap: 12 }}>
-            <div style={fieldStyle}>
-              <span style={labelStyle}>Year</span>
-              <span style={valueStyle}>{formatAcademicYear(form.school_start_year)}</span>
+          {showExamBasics && (
+            <div style={{ display: "grid", gridTemplateColumns: "90px 130px 1fr", gap: 12 }}>
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Year</span>
+                <span style={valueStyle}>{formatAcademicYear(form.school_start_year)}</span>
+              </div>
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Exam Type</span>
+                <span style={valueStyle}>
+                  {examTypes.find((e) => e.id === form.exam_type_id)?.name ?? "—"}
+                </span>
+              </div>
+              <div style={fieldStyle}>
+                <span style={labelStyle}>{admissionFieldLabel("exam_category_id")}</span>
+                <span style={valueStyle}>{viewExamCategory?.name ?? "—"}</span>
+              </div>
             </div>
-            <div style={fieldStyle}>
-              <span style={labelStyle}>Exam Type</span>
-              <span style={valueStyle}>
-                {examTypes.find((e) => e.id === form.exam_type_id)?.name ?? "—"}
-              </span>
-            </div>
-            <div style={fieldStyle}>
-              <span style={labelStyle}>{admissionFieldLabel("exam_category_id")}</span>
-              <span style={valueStyle}>{viewExamCategory?.name ?? "—"}</span>
-            </div>
-          </div>
-          {showAppliedExam && (
+          )}
+          {showExamGeo && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
               <div style={fieldStyle}>
                 <span style={labelStyle}>Parivaar District</span>
@@ -736,9 +746,9 @@ export function AdmissionForm({
               </div>
             </div>
           )}
-          {(showAppliedExam || showRoll) && (
+          {(showApplicationNumber || showRoll) && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
-              {showAppliedExam && (
+              {showApplicationNumber && (
                 <div style={fieldStyle}>
                   <span style={labelStyle}>{admissionFieldLabel("application_number")}</span>
                   <span style={valueStyle}>{form.application_number ?? "—"}</span>
@@ -1107,64 +1117,66 @@ export function AdmissionForm({
       <section style={sec}>
         <div style={secTitle}>Exam Details</div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "130px 1fr",
-            gap: 12,
-            alignItems: "end",
-          }}
-        >
-          <div>
-            <label style={grs.fieldLabel}>
-              {admissionFieldLabel("exam_type_id")}
-              {admissionFieldRequired(form, "exam_type") && (
-                <span style={{ color: "var(--danger)" }}> *</span>
-              )}
-            </label>
-            <select
-              value={form.exam_type_id ?? ""}
-              onChange={(e) =>
-                setField("exam_type_id", e.target.value === "" ? null : Number(e.target.value))
-              }
-              style={selStyles}
-            >
-              <option value="">-- select --</option>
-              {examTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+        {showExamBasics && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "130px 1fr",
+              gap: 12,
+              alignItems: "end",
+            }}
+          >
+            <div>
+              <label style={grs.fieldLabel}>
+                {admissionFieldLabel("exam_type_id")}
+                {admissionFieldRequired(form, "exam_type") && (
+                  <span style={{ color: "var(--danger)" }}> *</span>
+                )}
+              </label>
+              <select
+                value={form.exam_type_id ?? ""}
+                onChange={(e) =>
+                  setField("exam_type_id", e.target.value === "" ? null : Number(e.target.value))
+                }
+                style={selStyles}
+              >
+                <option value="">-- select --</option>
+                {examTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={grs.fieldLabel}>
+                {admissionFieldLabel("exam_category_id")}
+                {admissionFieldRequired(form, "exam_category") && (
+                  <span style={{ color: "var(--danger)" }}> *</span>
+                )}
+              </label>
+              <select
+                value={form.exam_category_id ?? ""}
+                onChange={(e) =>
+                  setField(
+                    "exam_category_id",
+                    e.target.value === "" ? null : Number(e.target.value),
+                  )
+                }
+                style={selStyles}
+              >
+                <option value="">-- select --</option>
+                {examCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div>
-            <label style={grs.fieldLabel}>
-              {admissionFieldLabel("exam_category_id")}
-              {admissionFieldRequired(form, "exam_category") && (
-                <span style={{ color: "var(--danger)" }}> *</span>
-              )}
-            </label>
-            <select
-              value={form.exam_category_id ?? ""}
-              onChange={(e) =>
-                setField(
-                  "exam_category_id",
-                  e.target.value === "" ? null : Number(e.target.value),
-                )
-              }
-              style={selStyles}
-            >
-              <option value="">-- select --</option>
-              {examCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        )}
 
-        {showAppliedExam && (
+        {showExamGeo && (
           <div
             style={{
               display: "grid",
@@ -1222,7 +1234,7 @@ export function AdmissionForm({
           </div>
         )}
 
-        {(showAppliedExam || showRoll) && (
+        {(showApplicationNumber || showRoll) && (
           <div
             style={{
               display: "grid",
@@ -1232,7 +1244,7 @@ export function AdmissionForm({
               marginTop: 12,
             }}
           >
-            {showAppliedExam ? (
+            {showApplicationNumber ? (
               <div>
                 <label style={grs.fieldLabel}>
                   {admissionFieldLabel("application_number")}
@@ -1299,7 +1311,7 @@ export function AdmissionForm({
         </section>
       )}
 
-      {/* Reason Not Appeared — only at Admit Card Downloaded stage */}
+      {/* Reason Not Appeared — only at Admin Card Downloaded stage */}
       {showReasonNotAppeared && (
         <section style={sec}>
           <div style={secTitle}>

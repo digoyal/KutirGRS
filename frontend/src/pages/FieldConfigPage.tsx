@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useFieldConfig, type FieldMeta, type FieldConfigEntry } from "../hooks/useFieldConfig";
-import { PROGRESS_FIELDS } from "../constants/progressFields";
+import { PROGRESS_FIELDS, coalesceProgressMarksOrder } from "../constants/progressFields";
 import { ADMISSIONS_FIELDS } from "../constants/admissionsFields";
 import { EXAM_CENTERS_FIELDS } from "../constants/examCentersFields";
 import { KUTIRS_FIELDS } from "../constants/kutirsFields";
@@ -123,7 +123,9 @@ function FieldConfigEditor({
     const next = [...localOrder!];
     const [item] = next.splice(from, 1);
     next.splice(to, 0, item);
-    setLocalOrder(next);
+    const reordered =
+      tableName === "progress" ? coalesceProgressMarksOrder(next) : next;
+    setLocalOrder(reordered);
     dragIdx.current = null;
     dragOverIdx.current = null;
     setDidSave(false);
@@ -136,7 +138,11 @@ function FieldConfigEditor({
 
   async function apply() {
     setSaving(true);
-    const entries: FieldConfigEntry[] = localOrder!.map((m, i) => ({
+    const order =
+      tableName === "progress"
+        ? coalesceProgressMarksOrder(localOrder!)
+        : localOrder!;
+    const entries: FieldConfigEntry[] = order.map((m, i) => ({
       key: m.key,
       visible: m.hideable ? (localVisible[m.key] ?? m.defaultVisible) : true,
       position: i,

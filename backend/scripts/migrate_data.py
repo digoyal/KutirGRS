@@ -177,7 +177,7 @@ async def migrate():
         # teacher_id → NULL (users not migrated)
         print("\n→ Migrating kutirs...")
         rows = await src.fetch("""
-            SELECT id, cluster_id, kutir_type, name, village, district_id, state,
+            SELECT id, cluster_id, kutir_type, name, district_id, state,
                    pincode, street, donor_id, enrollment_5th, enrollment_8th,
                    created_at, updated_at
             FROM grs_kutir ORDER BY id
@@ -185,13 +185,13 @@ async def migrate():
         if rows:
             await enable_replica(dst)
             await dst.executemany(
-                """INSERT INTO kutirs (id, cluster_id, kutir_type, name, village, district_id,
+                """INSERT INTO kutirs (id, cluster_id, kutir_type, name, district_id,
                      state, pincode, street, teacher_id, donor_id,
                      enrollment_5th, enrollment_8th, created_at, updated_at)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
                    ON CONFLICT DO NOTHING""",
                 [(r["id"], r["cluster_id"], r["kutir_type"], r["name"],
-                  r["village"] or None, r["district_id"],
+                  r["district_id"],
                   r["state"] or "Madhya Pradesh", r["pincode"] or None, r["street"] or None,
                   None,  # teacher_id: users not migrated
                   r["donor_id"], r["enrollment_5th"], r["enrollment_8th"],

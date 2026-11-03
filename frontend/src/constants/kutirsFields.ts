@@ -17,6 +17,8 @@ export const KUTIRS_FIELDS: FieldMeta[] = [
   { key: "donor_id",       label: "Donor",       hideable: true,  defaultVisible: false },
   { key: "enrollment_5th", label: "5th Enrollment", formLabel: "5th Class", hideable: true, defaultVisible: true },
   { key: "enrollment_8th", label: "8th Enrollment", formLabel: "8th Class", hideable: true, defaultVisible: true },
+  { key: "latitude",       label: "Latitude",    hideable: true,  defaultVisible: false, formLabel: "Latitude (WGS84)" },
+  { key: "longitude",      label: "Longitude",   hideable: true,  defaultVisible: false, formLabel: "Longitude (WGS84)" },
   { key: "teachers",       label: "Teachers",    hideable: true,  defaultVisible: false, form: false },
 ];
 

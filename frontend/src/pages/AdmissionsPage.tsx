@@ -282,7 +282,7 @@ export default function AdmissionsPage() {
       nowrap: true,
       minWidth: 180,
     },
-    ...(["eligible", "applied", "admit_card", "appeared", "selected", "admitted"] as const).map((stageKey): Col<StudentExam> => ({
+    ...(["eligible", "applied", "admit_card", "appeared", "result_declared", "selected", "admitted"] as const).map((stageKey): Col<StudentExam> => ({
       key: stageKey,
       label: "",
       sortable: true,

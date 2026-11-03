@@ -424,6 +424,21 @@ export default function VisitsPage() {
       csvValue: v => (isOfflineLocalVisit(v) || v.visit_photo_accuracy_m == null ? "" : String(v.visit_photo_accuracy_m)),
       render: v => (isOfflineLocalVisit(v) ? draftPlaceholder : v.visit_photo_accuracy_m ?? "—"),
     },
+    {
+      key: "visit_photo_distance_from_kutir_m",
+      label: "",
+      sortable: true,
+      csvValue: v =>
+        isOfflineLocalVisit(v) || v.visit_photo_distance_from_kutir_m == null
+          ? ""
+          : String(Math.round(v.visit_photo_distance_from_kutir_m)),
+      render: v =>
+        isOfflineLocalVisit(v)
+          ? draftPlaceholder
+          : v.visit_photo_distance_from_kutir_m == null
+            ? "—"
+            : `${Math.round(v.visit_photo_distance_from_kutir_m)}`,
+    },
   ], [kutirMap]);
 
   const { isVisible, orderedMetas } = useFieldConfig("visits", VISITS_FIELDS);

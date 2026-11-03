@@ -6,6 +6,8 @@ import { createUser, type UserCreate } from "../api/users";
 import { useAuth } from "../context/AuthContext";
 import { UserForm, EMPTY_USER_FORM, type UserFormState } from "../components/UserForm";
 import { assignableTitles as titlesAssignableTo } from "../constants/roles";
+import { apiErrorDetail } from "../utils/apiError";
+import { emailFormatError } from "../utils/email";
 
 export default function UserAddPage() {
   const navigate = useNavigate();
@@ -27,10 +29,7 @@ export default function UserAddPage() {
       qc.invalidateQueries({ queryKey: ["users"] });
       navigate(-1);
     },
-    onError: (e: unknown) => {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setSaveError(detail ?? "Failed to create user");
-    },
+    onError: (e: unknown) => setSaveError(apiErrorDetail(e, "Failed to create user")),
   });
 
   function handleSave() {
@@ -44,6 +43,11 @@ export default function UserAddPage() {
     }
     if (!form.email?.trim()) {
       setSaveError("Email is required");
+      return;
+    }
+    const emailErr = emailFormatError(form.email);
+    if (emailErr) {
+      setSaveError(emailErr);
       return;
     }
     setSaveError("");

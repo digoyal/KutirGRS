@@ -9,8 +9,19 @@ import { hasGlobalDataScope } from "../constants/roles";
 import { GeoFilterBar } from "../components/GeoFilterBar";
 import { scopeDistricts, scopeKutirs, type FilterId } from "../utils/geoFilters";
 import { studentLabel } from "../utils/studentLabel";
+import type { Student } from "../api/students";
 
 const BULK_LIMIT = 5000;
+
+type BulkAdmittedRow = {
+  student: Student;
+  exam: StudentExam;
+  hasProgress: boolean;
+};
+
+function admittedSchoolId(exam: StudentExam): number | null {
+  return exam.admitted_school_id ?? exam.school_id ?? null;
+}
 
 export default function NewYearSetupPage() {
   const qc = useQueryClient();
@@ -42,10 +53,12 @@ export default function NewYearSetupPage() {
   const { data: existingProgress = [] } = useQuery({
     queryKey: ["progress", "bulk-all"],
     queryFn: () => listProgress({ limit: BULK_LIMIT }),
+    staleTime: 0,
   });
   const { data: admittedExams = [] } = useQuery<StudentExam[]>({
     queryKey: ["exams", "admitted"],
     queryFn: () => listExams({ admitted: true }),
+    staleTime: 0,
   });
 
   const kutirMap = new Map(allKutirs.map((k) => [k.id, k]));
@@ -72,23 +85,30 @@ export default function NewYearSetupPage() {
     if (scopedDistricts.length === 1) setFilterDistrict(scopedDistricts[0].id);
   }, [scopedDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const missingRows = useMemo(() => {
-    return allStudents.filter((s) => {
-      if (!s.kutir_id) return false;
-      if (progressStudentIds.has(s.id)) return false;
+  const admittedRows = useMemo((): BulkAdmittedRow[] => {
+    const rows: BulkAdmittedRow[] = [];
+    for (const s of allStudents) {
+      if (!s.kutir_id) continue;
       const exam = admittedByStudent.get(s.id);
-      if (!exam?.admitted || !exam.admitted_school_id || exam.admission_class == null) return false;
-      if (filterKutir !== "" && s.kutir_id !== filterKutir) return false;
+      if (!exam?.admitted || exam.admission_class == null) continue;
+      if (admittedSchoolId(exam) == null) continue;
+      if (filterKutir !== "" && s.kutir_id !== filterKutir) continue;
       if (filterDistrict !== "") {
         const kutir = kutirMap.get(s.kutir_id);
-        if (!kutir) return false;
+        if (!kutir) continue;
         const cl = clusterMap.get(kutir.cluster_id);
-        if (!cl) return false;
+        if (!cl) continue;
         const ar = areaMap.get(cl.area_id);
-        if (!ar || ar.district_id !== filterDistrict) return false;
+        if (!ar || ar.district_id !== filterDistrict) continue;
       }
-      return true;
-    });
+      rows.push({
+        student: s,
+        exam,
+        hasProgress: progressStudentIds.has(s.id),
+      });
+    }
+    rows.sort((a, b) => studentLabel(a.student).localeCompare(studentLabel(b.student)));
+    return rows;
   }, [
     allStudents,
     progressStudentIds,
@@ -100,6 +120,11 @@ export default function NewYearSetupPage() {
     areaMap,
   ]);
 
+  const missingRows = useMemo(
+    () => admittedRows.filter((r) => !r.hasProgress),
+    [admittedRows],
+  );
+
   async function handleSave() {
     if (missingRows.length === 0) {
       setError("No admitted students without a progress record in this filter.");
@@ -109,14 +134,18 @@ export default function NewYearSetupPage() {
     setError(null);
     let created = 0;
     let skipped = 0;
-    for (const s of missingRows) {
-      const exam = admittedByStudent.get(s.id)!;
+    for (const { student: s, exam } of missingRows) {
+      const schoolId = admittedSchoolId(exam);
+      if (schoolId == null || exam.admission_class == null) {
+        skipped++;
+        continue;
+      }
       try {
         await createProgress({
           student_id: s.id,
-          school_id: exam.admitted_school_id!,
+          school_id: schoolId,
           academic_year: exam.school_start_year + 1,
-          class_in_year: exam.admission_class! + 1,
+          class_in_year: exam.admission_class + 1,
           track: exam.admission_class === 8 ? "nine_twelve" : "six_twelve",
           status: "enrolled",
         });
@@ -134,8 +163,10 @@ export default function NewYearSetupPage() {
     <div className="grs-page" style={{ padding: "24px 28px" }}>
       <h2 style={{ margin: "0 0 4px", color: "var(--text-primary)" }}>Bulk Progress Update</h2>
       <p style={{ margin: "0 0 20px", color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-        Progress is created automatically when a student is <strong>Admitted</strong>. Use this page
-        only to backfill missing journey records for admitted students (one record per student).
+        Saving an admission as <strong>Admitted</strong> creates a Progress record automatically.
+        This page lists all admitted students in your filters: use <strong>Create</strong> only for
+        rows marked missing a record (legacy backfill). Students who already have Progress appear
+        for review — open them from the Progress menu.
       </p>
 
       <GeoFilterBar
@@ -210,16 +241,43 @@ export default function NewYearSetupPage() {
         </div>
       )}
 
-      {missingRows.length === 0 ? (
-        <p style={{ color: "var(--text-secondary)", marginTop: 16 }}>No missing progress records for these filters.</p>
+      {admittedRows.length === 0 ? (
+        <p style={{ color: "var(--text-secondary)", marginTop: 16 }}>
+          No admitted students match these filters.
+        </p>
       ) : (
-        <ul style={{ marginTop: 16, paddingLeft: 20, color: "var(--text-primary)" }}>
-          {missingRows.map((s) => (
-            <li key={s.id} style={{ marginBottom: 4 }}>
-              {studentLabel(s)}
-            </li>
-          ))}
-        </ul>
+        <div style={{ marginTop: 16, overflowX: "auto" }}>
+          <p style={{ margin: "0 0 10px", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+            {missingRows.length} missing record{missingRows.length === 1 ? "" : "s"},{" "}
+            {admittedRows.length - missingRows.length} already on Progress.
+          </p>
+          <table className="grs-table" style={{ minWidth: 420 }}>
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Progress record</th>
+              </tr>
+            </thead>
+            <tbody>
+              {admittedRows.map(({ student, hasProgress }) => (
+                <tr key={student.id}>
+                  <td>{studentLabel(student)}</td>
+                  <td>
+                    {hasProgress ? (
+                      <span style={{ color: "var(--status-success-fg)", fontWeight: 600 }}>
+                        Exists (created on Admit)
+                      </span>
+                    ) : (
+                      <span style={{ color: "var(--badge-purple-fg)", fontWeight: 600 }}>
+                        Missing — will backfill
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

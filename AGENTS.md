@@ -68,7 +68,10 @@ Each **list hub** entity that supports Column Settings has one module under `fro
 2. `label` for list / Column Config / export. Optional `formLabel` when Add/Edit needs a different label than the list.
 3. **New list column:** add a `FieldMeta` entry whose `key` matches the table column key, in the **same change** as the list renderer (skip form-only fields unless they appear as list columns).
 4. Rename or extend fields in list/config/export/forms: update the registry **first**, then wire UI.
-5. **`npm run build`** runs `frontend/scripts/check-field-registry.mjs` so list column keys stay aligned with `*Fields.ts`. Only **`actions`** (shared table row menu, not a configurable column) is exempt.
+5. **`npm run build`** runs two registry guards:
+   - `frontend/scripts/check-field-registry.mjs` — list-page column/switch keys match `*Fields.ts` (only **`actions`** exempt).
+   - `frontend/scripts/check-field-registry-models.mjs` — each list hub registry covers **SQLAlchemy model columns** users can list, not self-consistency alone. Rules (join keys, computed list cells, form-only omissions) live in `frontend/scripts/field-registry-model-manifest.mjs`. Progress source of truth: `StudentProgress` / `student_progress` (e.g. `academic_year`, `school_id`, status/remarks; `student_id` → registry `student`; per-grade `marks_6`…`marks_12` in the list registry).
+6. Schema or model changes that affect lists: update **migration (if needed) + model + `*Fields.ts` + list render/export** in the same change.
 
 ## 6. Mobile (laptop + phone)
 

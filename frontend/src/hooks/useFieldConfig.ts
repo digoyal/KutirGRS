@@ -1,5 +1,9 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { fetchFieldConfig, saveFieldConfig } from "../api/settings";
+import {
+  coalesceProgressMarksOrder,
+  normalizeProgressSavedConfig,
+} from "../constants/progressFields";
 
 export interface FieldMeta {
   key: string;
@@ -78,11 +82,29 @@ export function useFieldConfig(tableName: string, allFields: FieldMeta[]) {
     [saved, allFields]
   );
 
-  const orderedMetas = [...allFields].sort((a, b) => {
-    const pa = saved[a.key]?.position ?? allFields.indexOf(a);
-    const pb = saved[b.key]?.position ?? allFields.indexOf(b);
-    return pa - pb;
-  });
+  const orderedMetas = useMemo(() => {
+    const sorted = [...allFields].sort((a, b) => {
+      const pa = saved[a.key]?.position ?? allFields.indexOf(a);
+      const pb = saved[b.key]?.position ?? allFields.indexOf(b);
+      return pa - pb;
+    });
+    if (tableName === "progress") {
+      return coalesceProgressMarksOrder(sorted);
+    }
+    return sorted;
+  }, [allFields, saved, tableName]);
+
+  // One-time localStorage fix when saved positions split the marks block (pre–marks_6…12 registry).
+  const progressLsNormalized = useRef(false);
+  useEffect(() => {
+    if (tableName !== "progress") return;
+    if (progressLsNormalized.current) return;
+    const normalized = normalizeProgressSavedConfig(saved, allFields);
+    if (!normalized) return;
+    progressLsNormalized.current = true;
+    setSaved(normalized);
+    writeCache(tableName, normalized);
+  }, [tableName, allFields, saved]);
 
   const saveConfig = useCallback(
     async (entries: FieldConfigEntry[]) => {
