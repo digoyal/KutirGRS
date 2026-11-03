@@ -167,7 +167,6 @@ class StudentProgress(Base, TimestampMixin):
         String(20), nullable=False, default="enrolled",
     )  # enrolled|promoted|transferred|dropped_out|graduated|admitted_to_college
     transfer_school: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    exit_reason: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)  # dropout reason
     marks_6: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     marks_7: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     marks_8: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)

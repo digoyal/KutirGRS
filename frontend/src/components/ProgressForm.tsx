@@ -1,5 +1,5 @@
 /**
- * Shared progress form used by ProgressAddPage and ProgressDetailPage.
+ * Shared progress form used by ProgressDetailPage (edit/view).
  */
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
@@ -21,6 +21,7 @@ import {
   STATUS_LABELS,
   STATUS_OPTIONS,
   STATUS_BADGES,
+  progressStatusShowsRemarks,
 } from "../constants/progressStatus";
 import { formatAcademicYear } from "../utils/academicYear";
 import { studentLabel } from "../utils/studentLabel";
@@ -43,7 +44,6 @@ export interface ProgressFormState {
   track: ProgressTrack;
   status: ProgressStatus;
   transfer_school: string | null;
-  exit_reason: string | null;
   marks_6: number | null;
   marks_7: number | null;
   marks_8: number | null;
@@ -63,7 +63,6 @@ export function emptyProgressForm(year = CURRENT_YEAR): ProgressFormState {
     track: "six_twelve",
     status: "enrolled",
     transfer_school: null,
-    exit_reason: null,
     marks_6: null,
     marks_7: null,
     marks_8: null,
@@ -75,6 +74,27 @@ export function emptyProgressForm(year = CURRENT_YEAR): ProgressFormState {
   };
 }
 
+/** PATCH payload: student/class/year/track/school are server-managed (admit + marks sync). */
+export function progressUpdatePayloadFromForm(
+  form: ProgressFormState,
+): Omit<
+  ProgressFormState,
+  "student_id" | "school_id" | "academic_year" | "class_in_year" | "track"
+> {
+  const {
+    student_id: _studentId,
+    school_id: _schoolId,
+    academic_year: _year,
+    class_in_year: _class,
+    track: _track,
+    ...writable
+  } = form;
+  if (!progressStatusShowsRemarks(form.status)) {
+    return { ...writable, remarks: null };
+  }
+  return writable;
+}
+
 export function progressToFormState(record: {
   student_id: number;
   school_id: number;
@@ -83,7 +103,6 @@ export function progressToFormState(record: {
   track: ProgressTrack;
   status: ProgressStatus;
   transfer_school: string | null;
-  exit_reason: string | null;
   marks_6: number | null;
   marks_7: number | null;
   marks_8: number | null;
@@ -93,7 +112,7 @@ export function progressToFormState(record: {
   marks_12: number | null;
   remarks: string | null;
 }): ProgressFormState {
-  return { ...record };
+  return record;
 }
 
 interface StudentMin {
@@ -115,6 +134,16 @@ function trackFromAdmissionClass(admissionClass: number | null | undefined): Pro
   return admissionClass === 8 ? "nine_twelve" : "six_twelve";
 }
 
+function classColumnLabel(classNum: number): string {
+  const mod100 = classNum % 100;
+  const mod10 = classNum % 10;
+  let suffix = "th";
+  if (mod10 === 1 && mod100 !== 11) suffix = "st";
+  else if (mod10 === 2 && mod100 !== 12) suffix = "nd";
+  else if (mod10 === 3 && mod100 !== 13) suffix = "rd";
+  return `${classNum}${suffix}`;
+}
+
 export function ProgressForm({
   form,
   setForm,
@@ -134,6 +163,7 @@ export function ProgressForm({
   const { data: schools = [] } = useQuery<School[]>({
     queryKey: ["schools"],
     queryFn: () => listSchools(),
+    enabled: isAdd,
   });
 
   const { data: allKutirs = [] } = useQuery({
@@ -262,9 +292,8 @@ export function ProgressForm({
   const marksSlice = form as MarkFields;
   const enabled = enabledMarkClasses(form.track, marksSlice);
   const statusLockedTransferred = currentStatus === "transferred";
-
-  const trackLabel =
-    form.track === "nine_twelve" ? "9th → 12th" : "6th → 12th";
+  const showRemarks = progressStatusShowsRemarks(currentStatus);
+  const classYearReadOnly = readOnly || !isAdd;
 
   return (
     <div className={readOnly ? "grs-form-layout" : "grs-form"}>
@@ -362,9 +391,9 @@ export function ProgressForm({
       )}
 
       {!isAdd && (
-        readOnly ? (
-          <div style={{ marginBottom: 14 }}>
-            <ViewField label={progressFieldLabel("student")}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {readOnly ? (
+            <ViewField label={progressFieldLabel("student")} style={{ flex: 1, minWidth: 140 }}>
               {form.student_id ? (
                 <Link
                   to={`/students/${form.student_id}`}
@@ -378,18 +407,33 @@ export function ProgressForm({
                 </Link>
               ) : null}
             </ViewField>
-          </div>
-        ) : (
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>{progressFieldLabel("student")}</label>
-            <div style={{ ...inp, color: "var(--text-secondary)", background: "var(--bg-input)" }}>
-              {studentName ?? `Student #${form.student_id}`}
+          ) : (
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <label style={labelStyle}>{progressFieldLabel("student")}</label>
+              <div style={{ ...inp, color: "var(--text-secondary)", background: "var(--bg-input)" }}>
+                {studentName ?? `Student #${form.student_id}`}
+              </div>
             </div>
-          </div>
-        )
+          )}
+          {readOnly ? (
+            <ViewField
+              label={progressFieldLabel("school_id")}
+              style={{ flex: 1, minWidth: 140 }}
+            >
+              {schoolName}
+            </ViewField>
+          ) : (
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <label style={labelStyle}>{progressFieldLabel("school_id")}</label>
+              <div style={{ ...inp, color: "var(--text-secondary)", background: "var(--bg-input)" }}>
+                {schoolName ?? "—"}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
-      {readOnly ? (
+      {classYearReadOnly ? (
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <ViewField label="Academic Year" style={{ flex: 1, minWidth: 120 }}>
             {formatAcademicYear(form.academic_year)}
@@ -397,11 +441,8 @@ export function ProgressForm({
           <ViewField label={progressFieldLabel("class_in_year")} style={{ flex: 1, minWidth: 100 }}>
             {form.class_in_year != null ? `Class ${form.class_in_year}` : null}
           </ViewField>
-          <ViewField label="Track" style={{ flex: 1, minWidth: 100 }}>
-            {trackLabel}
-          </ViewField>
         </div>
-      ) : mode === "add" ? (
+      ) : (
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 120 }}>
             <label style={labelStyle}>Academic Year</label>
@@ -434,32 +475,10 @@ export function ProgressForm({
               ))}
             </select>
           </div>
-          <div style={{ flex: 1, minWidth: 100 }}>
-            <label style={labelStyle}>Track</label>
-            <div style={{ ...inp, color: "var(--text-secondary)", background: "var(--bg-input)" }}>
-              {trackLabel}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <ViewField label="Academic Year" style={{ flex: 1, minWidth: 120 }}>
-            {formatAcademicYear(form.academic_year)}
-          </ViewField>
-          <ViewField label={progressFieldLabel("class_in_year")} style={{ flex: 1, minWidth: 100 }}>
-            {form.class_in_year != null ? `Class ${form.class_in_year}` : null}
-          </ViewField>
-          <ViewField label="Track" style={{ flex: 1, minWidth: 100 }}>
-            {trackLabel}
-          </ViewField>
         </div>
       )}
 
-      {readOnly ? (
-        <ViewField label={progressFieldLabel("school_id", { required: true })} style={{ marginBottom: 14 }}>
-          {schoolName}
-        </ViewField>
-      ) : (
+      {isAdd && (
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>{progressFieldLabel("school_id", { required: true })}</label>
           <select
@@ -479,52 +498,49 @@ export function ProgressForm({
 
       <div style={{ marginBottom: 14 }}>
         <label style={labelStyle}>Marks by class (%)</label>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-            gap: 8,
-          }}
-        >
-          {markClasses.map((classNum) => {
-            const field: MarkFieldKey = markField(classNum);
-            const val = form[field];
-            const canEdit = !readOnly && enabled.includes(classNum);
-            const disabled = readOnly || !canEdit;
-            if (readOnly) {
+        <div className="grs-scroll-x">
+          <div style={marksGridStyle(markClasses.length)}>
+            <span style={marksRowLabel}>Class</span>
+            {markClasses.map((classNum) => (
+              <span key={classNum} style={marksClassHeader}>
+                {classColumnLabel(classNum)}
+              </span>
+            ))}
+            <span style={marksRowLabel}>Marks</span>
+            {markClasses.map((classNum) => {
+              const field: MarkFieldKey = markField(classNum);
+              const val = form[field];
+              const canEdit = !readOnly && enabled.includes(classNum);
+              const disabled = readOnly || !canEdit;
+              if (readOnly) {
+                return (
+                  <span key={classNum} style={marksViewCell}>
+                    {val != null ? `${parseFloat(String(val)).toFixed(1)}%` : "—"}
+                  </span>
+                );
+              }
               return (
-                <ViewField key={classNum} label={`Class ${classNum}`}>
-                  {val != null ? `${parseFloat(String(val)).toFixed(1)}%` : "—"}
-                </ViewField>
-              );
-            }
-            return (
-              <div key={classNum}>
-                <label style={{ ...labelStyle, opacity: disabled ? 0.55 : 1 }}>
-                  Class {classNum}
-                </label>
                 <input
+                  key={classNum}
                   type="number"
                   min={0}
                   max={100}
                   step={0.1}
+                  aria-label={`Marks for class ${classNum}`}
                   style={{
                     ...inp,
+                    ...marksInputCell,
                     opacity: disabled ? 0.55 : 1,
-                    background: disabled ? "var(--bg-input)" : "var(--bg-input)",
                   }}
                   disabled={disabled}
                   value={val ?? ""}
                   onChange={(e) =>
-                    set(
-                      field,
-                      e.target.value === "" ? null : Number(e.target.value),
-                    )
+                    set(field, e.target.value === "" ? null : Number(e.target.value))
                   }
                 />
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -549,11 +565,6 @@ export function ProgressForm({
                 {form.transfer_school}
               </div>
             )}
-            {currentStatus === "dropped_out" && form.exit_reason && (
-              <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 4 }}>
-                {form.exit_reason}
-              </div>
-            )}
           </ViewField>
         ) : (
           <>
@@ -561,7 +572,14 @@ export function ProgressForm({
             <select
               style={inp}
               value={currentStatus}
-              onChange={(e) => set("status", e.target.value as ProgressStatus)}
+              onChange={(e) => {
+                const next = e.target.value as ProgressStatus;
+                setForm((f) => ({
+                  ...f,
+                  status: next,
+                  ...(progressStatusShowsRemarks(next) ? {} : { remarks: null }),
+                }));
+              }}
             >
               {STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -573,35 +591,25 @@ export function ProgressForm({
         )}
       </div>
 
-      {!readOnly && !statusLockedTransferred && currentStatus === "dropped_out" && (
+      {showRemarks && (
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Reason</label>
-          <input
-            style={inp}
-            placeholder="Reason for dropping out"
-            value={form.exit_reason ?? ""}
-            onChange={(e) => set("exit_reason", e.target.value || null)}
-          />
+          {readOnly ? (
+            <ViewField label={progressFieldLabel("remarks")} valueStyle={{ ...viewVal, whiteSpace: "pre-wrap" }}>
+              {form.remarks}
+            </ViewField>
+          ) : (
+            <>
+              <label style={labelStyle}>{progressFieldLabel("remarks")}</label>
+              <textarea
+                style={{ ...inp, resize: "vertical" }}
+                rows={2}
+                value={form.remarks ?? ""}
+                onChange={(e) => set("remarks", e.target.value || null)}
+              />
+            </>
+          )}
         </div>
       )}
-
-      <div style={{ marginBottom: 14 }}>
-        {readOnly ? (
-          <ViewField label={progressFieldLabel("remarks")} valueStyle={{ ...viewVal, whiteSpace: "pre-wrap" }}>
-            {form.remarks}
-          </ViewField>
-        ) : (
-          <>
-            <label style={labelStyle}>{progressFieldLabel("remarks")}</label>
-            <textarea
-              style={{ ...inp, resize: "vertical" }}
-              rows={2}
-              value={form.remarks ?? ""}
-              onChange={(e) => set("remarks", e.target.value || null)}
-            />
-          </>
-        )}
-      </div>
     </div>
   );
 }
@@ -626,3 +634,49 @@ const inp: React.CSSProperties = {
 };
 
 const viewVal: React.CSSProperties = viewStyles.value;
+
+/** Fit all track columns inside the form shell; scroll only on very narrow viewports. */
+function marksGridStyle(columnCount: number): React.CSSProperties {
+  const labelRem = 4.25;
+  const colMinPx = 44;
+  const gapPx = 8;
+  const minWidth =
+    labelRem * 16 + columnCount * colMinPx + Math.max(0, columnCount - 1) * gapPx;
+  return {
+    display: "grid",
+    gridTemplateColumns: `${labelRem}rem repeat(${columnCount}, minmax(0, 1fr))`,
+    columnGap: gapPx,
+    rowGap: gapPx,
+    alignItems: "center",
+    width: "100%",
+    minWidth: Math.max(280, minWidth),
+  };
+}
+
+const marksRowLabel: React.CSSProperties = {
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  color: "var(--text-secondary)",
+};
+
+const marksClassHeader: React.CSSProperties = {
+  minWidth: 0,
+  textAlign: "center",
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  color: "var(--text-secondary)",
+};
+
+const marksInputCell: React.CSSProperties = {
+  minWidth: 0,
+  width: "100%",
+};
+
+const marksViewCell: React.CSSProperties = {
+  minWidth: 0,
+  textAlign: "center",
+  fontSize: 16,
+  color: "var(--text-primary)",
+  padding: "7px 4px",
+  boxSizing: "border-box",
+};

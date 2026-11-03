@@ -1134,7 +1134,6 @@ async def _import_progress(rows, db):
             "tr": track,
             "st": status,
             "ts": _str(r.get("transfer_school")) or None,
-            "er": _str(r.get("exit_reason")) or None,
             "m6": _mark("marks_6"), "m7": _mark("marks_7"), "m8": _mark("marks_8"),
             "m9": _mark("marks_9"), "m10": _mark("marks_10"), "m11": _mark("marks_11"), "m12": _mark("marks_12"),
             "rm": _str(r.get("remarks")) or None,
@@ -1158,7 +1157,7 @@ async def _import_progress(rows, db):
             await db.execute(text("""
                 UPDATE student_progress SET
                     school_id=:sc, academic_year=:yr, class_in_year=:cl, track=:tr,
-                    status=:st, transfer_school=:ts, exit_reason=:er,
+                    status=:st, transfer_school=:ts,
                     marks_6=:m6, marks_7=:m7, marks_8=:m8, marks_9=:m9,
                     marks_10=:m10, marks_11=:m11, marks_12=:m12,
                     remarks=:rm, updated_at=now()
@@ -1171,12 +1170,12 @@ async def _import_progress(rows, db):
                     text("""
                         INSERT INTO student_progress
                             (student_id, school_id, academic_year, class_in_year, track,
-                             status, transfer_school, exit_reason,
+                             status, transfer_school,
                              marks_6, marks_7, marks_8, marks_9, marks_10, marks_11, marks_12,
                              remarks, created_at, updated_at)
                         VALUES
                             (:si, :sc, :yr, :cl, :tr,
-                             :st, :ts, :er,
+                             :st, :ts,
                              :m6, :m7, :m8, :m9, :m10, :m11, :m12,
                              :rm, now(), now())
                         RETURNING id

@@ -87,7 +87,6 @@ export interface StudentProgress {
   track: ProgressTrack;
   status: ProgressStatus;
   transfer_school: string | null;
-  exit_reason: string | null;
   marks_6: number | null;
   marks_7: number | null;
   marks_8: number | null;
@@ -110,7 +109,6 @@ export interface StudentProgressCreate {
   track?: ProgressTrack;
   status?: ProgressStatus;
   transfer_school?: string | null;
-  exit_reason?: string | null;
   marks_6?: number | null;
   marks_7?: number | null;
   marks_8?: number | null;

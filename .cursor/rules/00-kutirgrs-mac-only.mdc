@@ -1,0 +1,14 @@
+---
+description: Mandatory Mac-only development
+alwaysApply: true
+---
+
+# KutirGRS — Mac-only agent environment (mandatory)
+
+These rules bind on every agent turn. They mirror **AGENTS.md §0**.
+
+1. All **code changes and verification** for KutirGRS (and linked **parivaar-ui** when touched) happen on **Dinesh's Mac** via the **self-hosted Mac worker** — not a Cursor cloud VM `/workspace` clone.
+2. **Do not** `git push`, open PRs, or create feature branches unless Dinesh explicitly asks in chat.
+3. Until push: **at most one** unpushed commit on local `main`; further work → `git commit --amend` (see AGENTS.md **§9.1**).
+4. Local dev: **http://localhost:5173** and `scripts/dev-ui.sh`; restart the API when backend changes.
+5. Cloud agents may **read** GitHub for context only — they must **not** edit KutirGRS or parivaar-ui in the cloud.

@@ -25,6 +25,7 @@ import {
 import { FormPageShell } from "@parivaar/ui";
 import { formatAcademicYear } from "../utils/academicYear";
 import { studentLabel } from "../utils/studentLabel";
+import { apiErrorDetail } from "../utils/apiError";
 
 const NAVY_BG = "#1e3a5f";
 const NAVY_TEXT = "#ffffff";
@@ -96,8 +97,7 @@ export default function AdmissionDetailPage() {
       }
     },
     onError: (e: unknown) => {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setSaveError(detail ?? "Save failed");
+      setSaveError(apiErrorDetail(e, "Save failed."));
     },
   });
 

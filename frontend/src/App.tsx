@@ -28,7 +28,6 @@ import AdmissionAddPage from "./pages/AdmissionAddPage";
 import AdmissionDetailPage from "./pages/AdmissionDetailPage";
 import StudentProgressPage from "./pages/StudentProgressPage";
 import ProgressDetailPage from "./pages/ProgressDetailPage";
-import ProgressAddPage from "./pages/ProgressAddPage";
 import NewYearSetupPage from "./pages/NewYearSetupPage";
 import ImportDataPage from "./pages/ImportDataPage";
 import {
@@ -97,7 +96,7 @@ function AppRoutes() {
         <Route path="exam-centers/new" element={<ExamCenterAddPage />} />
         <Route path="exam-centers/:id" element={<ExamCenterDetailPage />} />
         <Route path="progress" element={<StudentProgressPage />} />
-        <Route path="progress/new" element={<ProgressAddPage />} />
+        <Route path="progress/new" element={<Navigate to="/progress" replace />} />
         <Route path="progress/:id" element={<ProgressDetailPage />} />
         <Route path="new-year-setup" element={<NewYearSetupPage />} />
         <Route path="import" element={<ImportDataPage />} />

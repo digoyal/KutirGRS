@@ -18,6 +18,7 @@ import {
 } from "../components/AdmissionForm";
 import { ADMISSIONS_FILTER_STORAGE_KEY } from "../constants/admissionsList";
 import { consumePersistedFilters, persistFilters } from "../hooks/usePersistedFilters";
+import { apiErrorDetail } from "../utils/apiError";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -81,8 +82,7 @@ export default function AdmissionAddPage() {
       persistListYearAfterCreate(payload.school_start_year);
       navigate("/admissions", { replace: true });
     } catch (e: unknown) {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setSaveError(detail ?? "Save failed.");
+      setSaveError(apiErrorDetail(e));
       setSaving(false);
     }
   }

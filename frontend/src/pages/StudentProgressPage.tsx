@@ -28,6 +28,7 @@ import {
   STATUS_LABELS,
   STATUS_BADGES,
   STATUS_TILES,
+  progressStatusShowsRemarks,
 } from "../constants/progressStatus";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
@@ -166,7 +167,8 @@ export default function StudentProgressPage() {
               return m ?? -1;
             }
             case "status": return p.status ?? "";
-            case "remarks": return (p.remarks ?? "").toLowerCase();
+            case "remarks":
+              return progressStatusShowsRemarks(p.status) ? (p.remarks ?? "").toLowerCase() : "";
             default: return "";
           }
         };
@@ -180,7 +182,8 @@ export default function StudentProgressPage() {
               const m = currentClassMarkPct(p, p.class_in_year);
               return m != null ? `${parseFloat(String(m)).toFixed(1)}%` : "";
             }
-            case "remarks": return p.remarks ?? "";
+            case "remarks":
+              return progressStatusShowsRemarks(p.status) ? (p.remarks ?? "") : "";
             default: return "";
           }
         };
@@ -241,11 +244,7 @@ export default function StudentProgressPage() {
               const st = p.status as ProgressStatus;
               const b = STATUS_BADGES[st] ?? STATUS_BADGES.enrolled;
               const detail =
-                st === "transferred" && p.transfer_school
-                  ? p.transfer_school
-                  : st === "dropped_out" && p.exit_reason
-                    ? p.exit_reason
-                    : undefined;
+                st === "transferred" && p.transfer_school ? p.transfer_school : undefined;
               return (
                 <span
                   title={detail}
@@ -271,8 +270,10 @@ export default function StudentProgressPage() {
                 </span>
               ) : "—";
             }
-            case "remarks":
-              return <span style={{ whiteSpace: "nowrap" }}>{p.remarks ?? "—"}</span>;
+            case "remarks": {
+              const text = progressStatusShowsRemarks(p.status) ? p.remarks : null;
+              return <span style={{ whiteSpace: "nowrap" }}>{text ?? "—"}</span>;
+            }
             default:
               return null;
           }
@@ -378,7 +379,6 @@ export default function StudentProgressPage() {
         }
         exportFilename="progress"
         printTitle="Student Progress"
-        onAdd={() => { saveFilters(); navigate(`/progress/new?year=${filterYear}`); }}
         actions={(p) => ({
           onView: () => { saveFilters(); navigate(`/progress/${p.id}`); },
           onEdit: () => { saveFilters(); navigate(`/progress/${p.id}?edit=1`); },

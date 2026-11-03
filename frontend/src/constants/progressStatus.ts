@@ -9,6 +9,18 @@ export const PROGRESS_STATUSES: ProgressStatus[] = [
   "admitted_to_college",
 ];
 
+/** Remarks field is shown on forms/list only for these statuses. */
+export const PROGRESS_STATUSES_WITH_REMARKS: ProgressStatus[] = [
+  "dropped_out",
+  "admitted_to_college",
+];
+
+export function progressStatusShowsRemarks(
+  status: ProgressStatus | string | null | undefined,
+): boolean {
+  return status === "dropped_out" || status === "admitted_to_college";
+}
+
 /** Short labels for badges, table cells, and summary tiles. */
 export const STATUS_LABELS: Record<ProgressStatus, string> = {
   enrolled: "Enrolled",

@@ -40,24 +40,14 @@ test.describe("Progress smoke", () => {
         )
         .first(),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "+ Add" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "+ Add" })).toHaveCount(0);
   });
 
-  test("Add Progress shows key fields", async ({ page }) => {
+  test("legacy /progress/new redirects to list", async ({ page }) => {
     await loginAsAdmin(page);
-    await openProgress(page);
-
-    await page.getByRole("button", { name: "+ Add" }).click();
-    await expect(page).toHaveURL(/\/progress\/new/);
-    await expect(page.getByRole("heading", { name: "Add Progress Record" })).toBeVisible();
-
-    await expect(page.getByText("Student *", { exact: true })).toBeVisible();
-    await expect(page.getByText("Academic Year", { exact: true })).toBeVisible();
-    await expect(page.getByText("Marks by class (%)", { exact: true })).toBeVisible();
-    await expect(page.getByText("School *", { exact: true })).toBeVisible();
-    await expect(page.getByText("Status", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add Record" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
+    await page.goto("/progress/new");
+    await expect(page).toHaveURL(/\/progress\/?$/);
+    await expect(page.getByRole("heading", { name: "Student Progress" })).toBeVisible();
   });
 
   test("Edit existing row loads key fields", async ({ page }) => {
@@ -66,6 +56,8 @@ test.describe("Progress smoke", () => {
 
     await expect(page.getByText("Academic Year", { exact: true })).toBeVisible();
     await expect(page.getByText("Class", { exact: true })).toBeVisible();
+    // Class/year are server-managed — edit shows labels, not dropdowns.
+    await expect(page.locator(".grs-form select")).toHaveCount(1);
     await expect(page.getByText("School *", { exact: true })).toBeVisible();
     await expect(page.getByText("Status", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Save Changes" })).toBeVisible();

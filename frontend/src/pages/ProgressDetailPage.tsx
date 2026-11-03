@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormPageShell } from "@parivaar/ui";
-import { getProgress, updateProgress, type StudentProgressCreate } from "../api/admissions";
+import { getProgress, updateProgress } from "../api/admissions";
 import { listSchools, type School } from "../api/schools";
 import { listStudents } from "../api/students";
 import {
   ProgressForm,
   emptyProgressForm,
   progressToFormState,
+  progressUpdatePayloadFromForm,
   type ProgressFormState,
 } from "../components/ProgressForm";
 import { grs } from "../styles/grs";
@@ -56,8 +57,7 @@ export default function ProgressDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const payload: Partial<StudentProgressCreate> = { ...form };
-      await updateProgress(Number(id), payload);
+      await updateProgress(Number(id), progressUpdatePayloadFromForm(form));
       qc.invalidateQueries({ queryKey: ["progress"] });
       qc.invalidateQueries({ queryKey: ["progress-record", Number(id)] });
       if (enteredViaEdit) navigate(-1);

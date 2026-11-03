@@ -45,7 +45,8 @@ UPDATE student_progress sp SET
   marks_11 = COALESCE(a.marks_11, sp.marks_11),
   marks_12 = COALESCE(a.marks_12, sp.marks_12)
 FROM agg a
-JOIN keeper k ON k.student_id = a.student_id AND sp.id = k.id;
+JOIN keeper k ON k.student_id = a.student_id
+WHERE sp.id = k.id;
 
 DELETE FROM student_progress sp
 USING student_progress newer

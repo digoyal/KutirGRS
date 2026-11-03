@@ -85,7 +85,6 @@ function formMobileRoutes(ids: SampleIds): { path: string; label: string }[] {
     { path: "/users/new", label: "Add User" },
     { path: "/admissions/new", label: "Add Admission" },
     { path: "/exam-centers/new", label: "Add Exam Center" },
-    { path: "/progress/new", label: "Add Progress" },
     { path: "/import", label: "Import Data" },
     { path: "/admin/change-password", label: "Change Password" },
     { path: `/students/${studentId}`, label: "Student detail" },

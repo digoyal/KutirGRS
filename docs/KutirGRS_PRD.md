@@ -100,7 +100,7 @@ Zone → District → Area → Cluster → Kutir
 - **Exam centre:** name, district, street, city, state, pincode.
 - **Lookups:** categories + sub-categories; exam categories; no-exam reasons; no-admit reasons; subjects; school types; exam types (many-to-many with school types); exam-type → subjects matrix; **Donors** (name, email, phone, notes).
 - **Student exam (admission attempt):** one row per student attempt for a school-start year / path; pipeline flags; application/roll numbers; exam centre; scores by subject; admitted school; reasons when not appeared / not admitted.
-- **Student progress:** one row per student per school per academic year after admission path is in play; class, status, transfer/exit fields, previous-year %, remarks.
+- **Student progress:** one row per student after admission; class, status, transfer school, per-class marks, remarks.
 - **Kutir visit:** one inspection per Kutir per visit date (unique on kutir + date); rich checklist (attendance, plans, topics, ratings, registers, remarks); optional photo; visited-by user.
 
 ### 4.4 Configuration

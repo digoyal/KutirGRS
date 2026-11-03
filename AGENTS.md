@@ -4,6 +4,15 @@
 
 Rules for agents on **database-backed web apps** (Python/FastAPI + React or similar). Product rules per app: `docs/<project>.md` (this repo: [`docs/kutirgrs.md`](docs/kutirgrs.md)). Other apps: each repo’s `docs/`.
 
+## 0. Agent environment (mandatory — KutirGRS)
+
+1. All **code changes and verification** for this repo (and linked `parivaar-ui` when touched) happen on **Dinesh's Mac** via the **self-hosted Mac worker** — not a Cursor cloud VM `/workspace` clone.
+2. **Do not** `git push`, open PRs, or create feature branches unless Dinesh explicitly asks in chat.
+3. Until push: **at most one** unpushed commit on local `main`; further work → `git commit --amend` (see **§9.1**).
+4. Local dev: **http://localhost:5173** + `scripts/dev-ui.sh`; restart API when backend changes.
+5. Cloud agents may **read** GitHub for context only — they must **not** edit KutirGRS/parivaar-ui in cloud.
+6. Cursor loads `.cursor/rules/00-kutirgrs-mac-only.mdc` on every agent turn — rules there are binding.
+
 ## 1. Architecture & layering
 
 1. **Layers:** DB models → API schemas/routers → FE clients/types → pages/components. No skipping (pages → ORM, raw ORM from routers).

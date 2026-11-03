@@ -25,6 +25,7 @@ from app.schemas.students import (
 import os, uuid, shutil
 from app.config import settings
 from app.admission_uniqueness import assert_admission_uniqueness, admission_duplicate_detail
+from app.db_integrity import raise_http_for_integrity
 from app.progress_logic import (
     apply_promoted_status,
     classes_for_track,
@@ -381,9 +382,9 @@ async def create_exam(
     db.add(exam)
     try:
         await db.flush()  # get exam.id
-    except IntegrityError:
+    except IntegrityError as e:
         await db.rollback()
-        raise HTTPException(409, admission_duplicate_detail(exam_data["school_start_year"]))
+        raise_http_for_integrity(e, school_start_year=exam_data["school_start_year"])
 
     for s in scores:
         db.add(StudentExamScore(exam_id=exam.id, subject_id=s.subject_id, score=s.score))
@@ -393,9 +394,9 @@ async def create_exam(
 
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         await db.rollback()
-        raise HTTPException(409, admission_duplicate_detail(exam_data["school_start_year"]))
+        raise_http_for_integrity(e, school_start_year=exam_data["school_start_year"])
     await db.refresh(exam)
     return exam
 
@@ -459,9 +460,9 @@ async def update_exam(
         await ensure_progress_from_admitted_exam(db, obj)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         await db.rollback()
-        raise HTTPException(409, admission_duplicate_detail(obj.school_start_year))
+        raise_http_for_integrity(e, school_start_year=obj.school_start_year)
     await db.refresh(obj)
     return obj
 

@@ -289,7 +289,7 @@ async def migrate():
         print("\n→ Migrating student_progress...")
         rows = await src.fetch("""
             SELECT id, student_id, school_id, academic_year, grade,
-                   is_enrolled, exit_reason, previous_year_percentage, remarks,
+                   is_enrolled, previous_year_percentage, remarks,
                    created_at, updated_at
             FROM grs_studentprogress ORDER BY id
         """)
@@ -297,12 +297,12 @@ async def migrate():
             await enable_replica(dst)
             await dst.executemany(
                 """INSERT INTO student_progress (id, student_id, school_id, academic_year, grade,
-                     is_enrolled, exit_reason, previous_year_percentage, remarks,
+                     is_enrolled, previous_year_percentage, remarks,
                      created_at, updated_at)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
                    ON CONFLICT DO NOTHING""",
                 [(r["id"], r["student_id"], r["school_id"], r["academic_year"], r["grade"],
-                  r["is_enrolled"], r["exit_reason"] or None,
+                  r["is_enrolled"],
                   r["previous_year_percentage"], r["remarks"] or None,
                   r["created_at"], r["updated_at"]) for r in rows]
             )

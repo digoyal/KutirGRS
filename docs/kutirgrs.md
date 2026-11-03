@@ -4,6 +4,8 @@ Companion to root [`AGENTS.md`](../AGENTS.md) — not auto-loaded; read both at 
 
 Product and repo rules for **KutirGRS** only. Generic engineering practices for database-backed web apps live in [`AGENTS.md`](../AGENTS.md) at the repo root — agents working here should follow **both**.
 
+**Where work runs:** all code changes and verification happen on Dinesh's Mac (self-hosted worker), not in a cloud VM — see [`AGENTS.md`](../AGENTS.md) **§0**.
+
 ---
 
 ## 1. This repo
@@ -42,7 +44,7 @@ On a physical phone, `localhost` / `127.0.0.1` is the phone — use the Mac **LA
 
 ### 1.4 Offline add (phase 1 + drafts)
 
-**Kutir Visits only** (Students, Admissions, and Progress are online Add only): IndexedDB (`kutirgrs-offline`) with visit **drafts** (minimal fields) and **outbox** (full create payload). **`GrsOfflineSyncMount`** (dashboard layout) syncs the visit outbox on load and on `online`. Visits list merges local rows with badges **Saved for offline** / **Waiting to sync**. **Add + complete-draft only** — edit/view existing server records unchanged. Drafts expire **7 days** (purged on list load). Geo/kutir lookups cached when Visit Add opens online (`geo-kutir-lookups` meta).
+**Kutir Visits only** (Students and Admissions are online Add only; **Progress** has no Add UI — rows are created when admission is **Admitted**, then **Edit** only): IndexedDB (`kutirgrs-offline`) with visit **drafts** (minimal fields) and **outbox** (full create payload). **`GrsOfflineSyncMount`** (dashboard layout) syncs the visit outbox on load and on `online`. Visits list merges local rows with badges **Saved for offline** / **Waiting to sync**. **Add + complete-draft only** — edit/view existing server records unchanged. Drafts expire **7 days** (purged on list load). Geo/kutir lookups cached when Visit Add opens online (`geo-kutir-lookups` meta).
 
 | Entity | Minimal draft (Save for offline) | Complete draft route | Outbox sync API |
 |--------|----------------------------------|----------------------|-----------------|
@@ -75,7 +77,7 @@ On a physical phone, `localhost` / `127.0.0.1` is the phone — use the Mac **LA
 
 1. **One row per student** on `student_progress` (unique `student_id`). Track **`six_twelve`** (6→12) or **`nine_twelve`** (9→12) from admission class 5 or 8.
 2. **Marks:** columns `marks_6` … `marks_12`; Add/Edit shows 7 or 4 inputs; server enables the next class when the previous mark is saved.
-3. **Admit hook:** when Admissions **`admitted`** becomes true, API upserts progress with `class_in_year = admission_class + 1`, `academic_year = school_start_year + 1`, `status = enrolled`, entry mark field enabled.
+3. **Admit hook:** when Admissions **`admitted`** becomes true, API upserts progress with `class_in_year = admission_class + 1`, `academic_year = school_start_year + 1`, `status = enrolled`, entry mark field enabled. No standalone **Add Progress** list action or `/progress/new` form — use Admissions admit or **Bulk Progress Update** backfill.
 4. **Status:** `promoted` is set on save when 6th or 9th marks are first filled. **`transferred`** is legacy/read-only in UI (removed from status dropdown). Writable: enrolled, promoted, dropped_out, graduated, admitted_to_college.
 5. **Bulk Progress Update** (`/new-year-setup`): backfill only — admitted students with no progress row yet (not per-year row creation).
 6. **Registry / form:** `progressFields.ts`, shared **`ProgressForm`**, mark helpers in **`frontend/src/utils/progressTrack.ts`**. Design note: Project store [`docs/progress-single-record-plan.md`](progress-single-record-plan.md) (coordinator copy under store `docs/`).

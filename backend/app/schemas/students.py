@@ -153,7 +153,6 @@ class StudentProgressBase(BaseModel):
     track: str  # six_twelve | nine_twelve
     status: str = "enrolled"
     transfer_school: Optional[str] = None
-    exit_reason: Optional[str] = None
     marks_6: Optional[Decimal] = None
     marks_7: Optional[Decimal] = None
     marks_8: Optional[Decimal] = None
@@ -172,7 +171,6 @@ class StudentProgressUpdate(BaseModel):
     track: Optional[str] = None
     status: Optional[str] = None
     transfer_school: Optional[str] = None
-    exit_reason: Optional[str] = None
     marks_6: Optional[Decimal] = None
     marks_7: Optional[Decimal] = None
     marks_8: Optional[Decimal] = None
