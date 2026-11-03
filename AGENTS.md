@@ -49,6 +49,7 @@ Rules for agents on **database-backed web apps** (Python/FastAPI + React or simi
    - Apply → Back: avoid **bfcache** stale state — cache-bust query, strip on load, reload on `pageshow` when `persisted`.
    - Racing API must not overwrite non-empty local column-config cache.
 10. Extract repeats (`ConfirmDialog`, geo filter bar, bfcache reload) instead of copying.
+11. **List table cell ellipsis:** Desktop list hubs use `@parivaar/ui` **`Table`** with **`shellFullWidth`** (app wrappers such as **`GrsTable`** pass it on hub routes). Default data cells: single line, **`text-overflow: ellipsis`** — implemented in **`parivaar-ui`** (`colTextCellStyle`: `nowrap` unless the column opts out). Do not reintroduce mid-word wrap in app list CSS (`overflow-wrap: anywhere` on cells). Long values that must wrap: set column **`wrap: true`** on **`Col`** (`wrap: true` forces wrap; otherwise list-hub desktop defaults to nowrap, with legacy **`nowrap: false`** when not on a list hub). Fix ellipsis behavior in **`parivaar-ui`**, not per-page CSS.
 
 ## 5. Field registry
 
