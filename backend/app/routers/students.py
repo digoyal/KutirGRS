@@ -27,6 +27,7 @@ from app.config import settings
 from app.admission_uniqueness import assert_admission_uniqueness, admission_duplicate_detail
 from app.db_integrity import raise_http_for_integrity
 from app.progress_logic import (
+    apply_graduated_status,
     apply_promoted_status,
     classes_for_track,
     ensure_progress_from_admitted_exam,
@@ -561,10 +562,11 @@ async def create_progress(
         payload["track"] = await infer_track_for_student(db, data.student_id)
     obj = StudentProgress(**payload)
     validate_marks_write(obj, payload)
-    obj.status = validate_status_write("enrolled", obj.status)
+    obj.status = validate_status_write(obj, obj.status, payload)
     marks_before = {c: None for c in classes_for_track(obj.track)}
     sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
+    apply_graduated_status(obj)
     db.add(obj)
     try:
         await db.commit()
@@ -604,6 +606,7 @@ async def update_progress(
         setattr(obj, k, v)
     sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
+    apply_graduated_status(obj)
     await db.commit()
     await db.refresh(obj)
     return obj

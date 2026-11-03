@@ -39,7 +39,12 @@ import {
   scopeKutirs,
   type FilterId,
 } from "../utils/geoFilters";
-import { formatAcademicYear } from "../utils/academicYear";
+import {
+  defaultProgressListYearFilter,
+  formatAcademicYear,
+  progressFilterYearOptions,
+  type ProgressListYearFilter,
+} from "../utils/academicYear";
 import { currentClassMarkPct } from "../utils/progressTrack";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -58,7 +63,7 @@ export default function StudentProgressPage() {
     district?: FilterId;
     cluster?: FilterId;
     kutir?: FilterId;
-    year?: number;
+    year?: ProgressListYearFilter;
     search?: string;
     page?: number;
   }>(STORAGE_KEY);
@@ -68,7 +73,9 @@ export default function StudentProgressPage() {
   const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? defaults.district);
   const [filterCluster, setFilterCluster] = useState<FilterId>(saved?.cluster ?? defaults.cluster);
   const [filterKutir, setFilterKutir] = useState<FilterId>(saved?.kutir ?? defaults.kutir);
-  const [filterYear, setFilterYear] = useState(saved?.year ?? CURRENT_YEAR);
+  const [filterYear, setFilterYear] = useState<ProgressListYearFilter>(
+    saved?.year ?? defaultProgressListYearFilter(),
+  );
   const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,7 +103,7 @@ export default function StudentProgressPage() {
   const { data: progressPage = { items: [], total: 0 }, isLoading } = useQuery({
     queryKey: ["progress", filterYear, filterDistrict, filterCluster, filterKutir, debouncedSearch, page],
     queryFn: () => listProgressPaged({
-      academic_year: filterYear,
+      academic_year: filterYear !== "" ? filterYear : undefined,
       district_id: filterDistrict !== "" ? filterDistrict : undefined,
       cluster_id: filterCluster !== "" ? filterCluster : undefined,
       kutir_id: filterKutir !== "" ? filterKutir : undefined,
@@ -334,9 +341,13 @@ export default function StudentProgressPage() {
         searchPlaceholder="Search by student name…"
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
-        emptyMessage={`No progress records for ${formatAcademicYear(filterYear)}.`}
+        emptyMessage={
+          filterYear === ""
+            ? "No progress records match your filters. Try another year or clear geo filters."
+            : `No progress records for ${formatAcademicYear(filterYear)}. Rows move to the next year after marks are saved — try All years or ${formatAcademicYear(filterYear + 1)}.`
+        }
         activeFilterCount={countActiveFilters(
-          filterYear !== CURRENT_YEAR ? filterYear : "",
+          filterYear,
           filterDistrict,
           filterCluster,
           filterKutir,
@@ -346,10 +357,15 @@ export default function StudentProgressPage() {
             leading={
               <select
                 style={{ ...filterSelectStyle, width: 110 }}
-                value={filterYear}
-                onChange={e => { setFilterYear(Number(e.target.value)); setPage(1); }}
+                value={filterYear === "" ? "" : String(filterYear)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFilterYear(v === "" ? "" : Number(v));
+                  setPage(1);
+                }}
               >
-                {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map(y => (
+                <option value="">All years</option>
+                {progressFilterYearOptions(CURRENT_YEAR).map(y => (
                   <option key={y} value={y}>{formatAcademicYear(y)}</option>
                 ))}
               </select>

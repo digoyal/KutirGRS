@@ -14,6 +14,9 @@ import {
 } from "../components/ProgressForm";
 import { grs } from "../styles/grs";
 import { studentLabel } from "../utils/studentLabel";
+import { persistFilters } from "../hooks/usePersistedFilters";
+
+const PROGRESS_FILTER_STORAGE_KEY = "progress_filter_state";
 
 export default function ProgressDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -57,7 +60,18 @@ export default function ProgressDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      await updateProgress(Number(id), progressUpdatePayloadFromForm(form));
+      const saved = await updateProgress(Number(id), progressUpdatePayloadFromForm(form));
+      try {
+        const raw = sessionStorage.getItem(PROGRESS_FILTER_STORAGE_KEY);
+        const prev = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+        persistFilters(PROGRESS_FILTER_STORAGE_KEY, {
+          ...prev,
+          year: saved.academic_year,
+          page: 1,
+        });
+      } catch {
+        /* ignore */
+      }
       qc.invalidateQueries({ queryKey: ["progress"] });
       qc.invalidateQueries({ queryKey: ["progress-record", Number(id)] });
       if (enteredViaEdit) navigate(-1);

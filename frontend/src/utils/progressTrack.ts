@@ -1,4 +1,4 @@
-import type { ProgressTrack } from "../api/admissions";
+import type { ProgressStatus, ProgressTrack } from "../api/admissions";
 
 const SIX_TWELVE = [6, 7, 8, 9, 10, 11, 12] as const;
 const NINE_TWELVE = [9, 10, 11, 12] as const;
@@ -47,22 +47,20 @@ export function getMark(marks: MarkFields, classNum: number): number | null {
   return v == null ? null : v;
 }
 
-/** Mirrors backend enablement: entry class, then each next when previous mark is set. */
-export function enabledMarkClasses(track: ProgressTrack, marks: MarkFields): number[] {
+/** Mirrors backend: no edits when graduated or 12th mark is set; else current class only. */
+export function enabledMarkClasses(
+  track: ProgressTrack,
+  classInYear: number | null | undefined,
+  status?: ProgressStatus,
+  marks?: MarkFields,
+): number[] {
+  if (status === "graduated") return [];
+  if (marks != null && getMark(marks, 12) != null) return [];
   const classes = classesForTrack(track);
-  const enabled: number[] = [];
-  for (let i = 0; i < classes.length; i++) {
-    if (i === 0) {
-      enabled.push(classes[i]);
-      continue;
-    }
-    if (getMark(marks, classes[i - 1]) != null) {
-      enabled.push(classes[i]);
-    } else {
-      break;
-    }
+  if (classInYear != null && classes.includes(classInYear)) {
+    return [classInYear];
   }
-  return enabled;
+  return [classes[0]];
 }
 
 export function currentClassMarkPct(

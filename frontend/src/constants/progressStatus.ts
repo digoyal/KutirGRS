@@ -40,6 +40,23 @@ export const STATUS_OPTIONS: { value: ProgressStatus; label: string }[] = [
   { value: "admitted_to_college", label: "Admitted to College" },
 ];
 
+/** Status choices once 12th marks are recorded (aligns with backend after marks_12). */
+export const PROGRESS_STATUSES_AFTER_12TH_MARK: ProgressStatus[] = [
+  "graduated",
+  "admitted_to_college",
+];
+
+export function progressStatusSelectOptions(
+  marks12: number | null | undefined,
+): { value: ProgressStatus; label: string }[] {
+  if (marks12 != null) {
+    return STATUS_OPTIONS.filter((o) =>
+      PROGRESS_STATUSES_AFTER_12TH_MARK.includes(o.value),
+    );
+  }
+  return STATUS_OPTIONS;
+}
+
 export const STATUS_BADGES: Record<
   ProgressStatus,
   { bg: string; fg: string; prefix: string }

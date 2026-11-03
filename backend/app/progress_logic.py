@@ -26,6 +26,18 @@ PROGRESS_STATUSES_WRITABLE = frozenset({
     "admitted_to_college",
 })
 
+# User-selected terminal statuses — do not overwrite via mark sync on save.
+PROGRESS_STATUSES_MANUAL = frozenset({
+    "dropped_out",
+    "admitted_to_college",
+})
+
+# Selectable statuses once 12th mark is recorded (PATCH / form dropdown).
+PROGRESS_STATUSES_AFTER_12TH_MARK = frozenset({
+    "graduated",
+    "admitted_to_college",
+})
+
 MARK_CLASSES = (6, 7, 8, 9, 10, 11, 12)
 
 
@@ -57,22 +69,44 @@ def get_mark(progress, class_num: int) -> Optional[Decimal]:
     return getattr(progress, mark_attr(class_num), None)
 
 
-def enabled_mark_classes(progress) -> list[int]:
-    """Entry class always in chain; each next class unlocks when the previous mark is set."""
+def mark_editing_locked(progress) -> bool:
+    """No further mark edits after graduation or when 12th mark is recorded."""
+    if progress.status == "graduated":
+        return True
+    return get_mark(progress, 12) is not None
+
+
+def editable_mark_class(progress) -> Optional[int]:
+    """The single class column that may receive mark writes (current class_in_year on track)."""
+    if mark_editing_locked(progress):
+        return None
     classes = classes_for_track(progress.track)
-    enabled: list[int] = []
-    for i, c in enumerate(classes):
-        if i == 0:
-            enabled.append(c)
-            continue
-        if get_mark(progress, classes[i - 1]) is not None:
-            enabled.append(c)
-        else:
-            break
-    return enabled
+    ciy = progress.class_in_year
+    if ciy is not None and ciy in classes:
+        return ciy
+    return entry_class_for_track(progress.track)
 
 
-def validate_status_write(current: str, new: Optional[str]) -> str:
+def enabled_mark_classes(progress) -> list[int]:
+    """Only the current class mark field is editable (matches class_in_year after admit/marks sync)."""
+    editable = editable_mark_class(progress)
+    return [editable] if editable is not None else []
+
+
+def _marks_12_effective(progress, updates: Optional[dict] = None) -> bool:
+    if get_mark(progress, 12) is not None:
+        return True
+    if updates and updates.get("marks_12") is not None:
+        return True
+    return False
+
+
+def validate_status_write(
+    progress,
+    new: Optional[str],
+    updates: Optional[dict] = None,
+) -> str:
+    current = progress.status
     if new is None:
         return current
     if new not in PROGRESS_STATUSES_READ:
@@ -81,26 +115,45 @@ def validate_status_write(current: str, new: Optional[str]) -> str:
         raise HTTPException(400, "Status 'transferred' is no longer selectable.")
     if new not in PROGRESS_STATUSES_WRITABLE and new != current:
         raise HTTPException(400, f"Status '{new}' is not allowed.")
+    if _marks_12_effective(progress, updates):
+        if new in PROGRESS_STATUSES_AFTER_12TH_MARK or new == current:
+            return new
+        raise HTTPException(
+            400,
+            "After 12th marks are recorded, status must be Graduated or Admitted to College.",
+        )
     return new
 
 
+def _mark_values_equal(a: Optional[Decimal], b) -> bool:
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    if not isinstance(b, Decimal):
+        b = Decimal(str(b))
+    return a == b
+
+
 def validate_marks_write(progress, updates: dict) -> None:
-    """Reject writes to mark columns that are not enabled."""
-    enabled = set(enabled_mark_classes(progress))
+    """Reject changes to mark columns other than the current class_in_year."""
+    editable = editable_mark_class(progress)
     for key, val in updates.items():
         if not key.startswith("marks_"):
-            continue
-        if val is None:
             continue
         try:
             cls = int(key.split("_")[1])
         except (IndexError, ValueError):
             continue
-        if cls not in enabled:
-            raise HTTPException(
-                400,
-                f"Marks for class {cls} are not editable until prior year marks are entered.",
-            )
+        if cls == editable:
+            continue
+        current = get_mark(progress, cls)
+        if _mark_values_equal(current, val):
+            continue
+        raise HTTPException(
+            400,
+            f"Only marks for class {editable} (current class) can be edited.",
+        )
 
 
 def snapshot_marks(progress) -> dict[int, Optional[Decimal]]:
@@ -115,10 +168,13 @@ def sync_class_year_from_marks(progress, marks_before: dict[int, Optional[Decima
         after = get_mark(progress, c)
         if before is not None or after is None:
             continue
-        if progress.academic_year is not None:
-            progress.academic_year += 1
         idx = classes.index(c)
-        progress.class_in_year = classes[idx + 1] if idx + 1 < len(classes) else c
+        if idx + 1 < len(classes):
+            if progress.academic_year is not None:
+                progress.academic_year += 1
+            progress.class_in_year = classes[idx + 1]
+        else:
+            progress.class_in_year = c
 
 
 def recompute_class_in_year_from_marks(progress) -> None:
@@ -137,6 +193,14 @@ def apply_promoted_status(progress) -> None:
         progress.status = "promoted"
 
 
+def apply_graduated_status(progress) -> None:
+    """After marks change: 12th mark recorded → graduated (both tracks end at class 12)."""
+    if progress.status in PROGRESS_STATUSES_MANUAL:
+        return
+    if get_mark(progress, 12) is not None:
+        progress.status = "graduated"
+
+
 def initial_progress_fields_from_exam(exam) -> dict:
     track = track_from_admission_class(exam.admission_class)
     return {
@@ -153,7 +217,7 @@ def merge_progress_payload(progress, data: dict) -> dict:
     """Apply mark/status rules to an update/create payload."""
     validate_marks_write(progress, data)
     if "status" in data:
-        data["status"] = validate_status_write(progress.status, data["status"])
+        data["status"] = validate_status_write(progress, data["status"], data)
     return data
 
 
