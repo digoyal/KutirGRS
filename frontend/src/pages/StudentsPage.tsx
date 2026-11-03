@@ -1,5 +1,5 @@
-import { Link, useNavigate } from "react-router-dom";
-import React, { useState, useMemo, useRef, type ReactNode } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import React, { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listStudentsPaged, deleteStudent, type Student } from "../api/students";
 import { listKutirs } from "../api/kutirs";
@@ -24,18 +24,42 @@ import {
 } from "../utils/geoFilters";
 import { hasGlobalDataScope } from "../constants/roles";
 import { displayPhone } from "../utils/displayPhone";
+import { useEntityOfflineList, useEntityOfflinePendingCount } from "../hooks/useEntityOfflineList";
+import {
+  listPendingStudents,
+  listStudentDrafts,
+  purgeExpiredStudentDrafts,
+  removePendingStudent,
+  removeStudentDraft,
+  STUDENT_OFFLINE_CHANGED,
+  countPendingStudents,
+} from "../offline/studentOfflineDb";
+import {
+  isOfflineLocalStudent,
+  isOfflineStudentDraft,
+  isOfflineStudentPending,
+  offlineStudentDraftRowKey,
+  offlineStudentPendingRowKey,
+  pendingStudentToListItem,
+  studentOfflineDisplayName,
+  type OfflineStudentDraftListItem,
+  type OfflineStudentPendingListItem,
+  type StudentTableRow,
+} from "../offline/studentDraftTypes";
+import { offlineDraftPlaceholder, offlineSyncBadge } from "../offline/offlineUi";
 
 const STORAGE_KEY = "students_filter_state";
 
 type EnrichedStudent = Student & { docsCount: number; addedDate: string };
+type StudentListRow = StudentTableRow & Partial<EnrichedStudent>;
 
 type KutirLike = { id: number; name: string };
 
 /** Cell/export/sort helpers keyed by STUDENTS_FIELDS.key — labels/order/visibility come from the registry. */
 type StudentColRenderer = {
-  render?: (s: EnrichedStudent) => ReactNode;
-  csvValue?: (s: EnrichedStudent) => string;
-  sortValue?: (s: EnrichedStudent) => string | number;
+  render?: (s: StudentListRow) => ReactNode;
+  csvValue?: (s: StudentListRow) => string;
+  sortValue?: (s: StudentListRow) => string | number;
 };
 
 function docCount(s: Student) {
@@ -43,15 +67,50 @@ function docCount(s: Student) {
 }
 
 function studentColRenderers(kutirMap: Map<number, KutirLike>): Record<string, StudentColRenderer> {
+  function kutirIdForRow(s: StudentListRow): number | null {
+    if (isOfflineStudentDraft(s)) return s.kutir_id;
+    if (isOfflineStudentPending(s)) return s.payload.kutir_id ?? null;
+    return s.kutir_id ?? null;
+  }
+
   const renderers: Record<string, StudentColRenderer> = {
     name: {
-      render: (s) => (
-        <Link to={`/students/${s.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
-          {s.first_name} {s.last_name}
-        </Link>
-      ),
-      csvValue: (s) => `${s.first_name} ${s.last_name}`,
-      sortValue: (s) => `${s.first_name} ${s.last_name}`.toLowerCase(),
+      render: (s) => {
+        const label = isOfflineLocalStudent(s)
+          ? studentOfflineDisplayName(s)
+          : `${s.first_name} ${s.last_name}`;
+        if (isOfflineStudentDraft(s)) {
+          return (
+            <>
+              <span style={{ fontWeight: 600 }}>{label}</span>
+              {offlineSyncBadge("draft")}
+            </>
+          );
+        }
+        if (isOfflineStudentPending(s)) {
+          return (
+            <>
+              <span style={{ fontWeight: 600 }}>{label}</span>
+              {offlineSyncBadge("pending")}
+            </>
+          );
+        }
+        return (
+          <Link to={`/students/${s.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
+            {label}
+          </Link>
+        );
+      },
+      csvValue: (s) => {
+        const label = isOfflineLocalStudent(s)
+          ? studentOfflineDisplayName(s)
+          : `${s.first_name} ${s.last_name}`;
+        if (isOfflineStudentPending(s)) return `${label} (Waiting to sync)`;
+        if (isOfflineStudentDraft(s)) return `${label} (Saved for offline)`;
+        return label;
+      },
+      sortValue: (s) =>
+        (isOfflineLocalStudent(s) ? studentOfflineDisplayName(s) : `${s.first_name} ${s.last_name}`).toLowerCase(),
     },
     gender: {},
     phone: {
@@ -82,14 +141,24 @@ function studentColRenderers(kutirMap: Map<number, KutirLike>): Record<string, S
       csvValue: (s) => `${s.docsCount}/5`,
     },
     addedDate: {
-      csvValue: (s) => s.addedDate,
+      csvValue: (s) => s.addedDate ?? "",
     },
     kutir_id: {
-      sortValue: (s) => s.kutir_id != null ? (kutirMap.get(s.kutir_id)?.name ?? "") : "",
-      render: (s) => s.kutir_id != null
-        ? <span style={{ fontSize: "0.82rem" }}>{kutirMap.get(s.kutir_id)?.name ?? "—"}</span>
-        : <span style={{ color: "var(--text-secondary)" }}>—</span>,
-      csvValue: (s) => s.kutir_id != null ? (kutirMap.get(s.kutir_id)?.name ?? "") : "",
+      sortValue: (s) => {
+        const kid = kutirIdForRow(s);
+        return kid != null ? (kutirMap.get(kid)?.name ?? "") : "";
+      },
+      render: (s) => {
+        const kid = kutirIdForRow(s);
+        if (isOfflineLocalStudent(s) && kid == null) return offlineDraftPlaceholder;
+        return kid != null
+          ? <span style={{ fontSize: "0.82rem" }}>{kutirMap.get(kid)?.name ?? "—"}</span>
+          : <span style={{ color: "var(--text-secondary)" }}>—</span>;
+      },
+      csvValue: (s) => {
+        const kid = kutirIdForRow(s);
+        return kid != null ? (kutirMap.get(kid)?.name ?? "") : "";
+      },
     },
     dob: {
       render: (s) => s.dob
@@ -128,8 +197,31 @@ export default function StudentsPage() {
   const qc = useQueryClient();
   const unscoped = hasGlobalDataScope(user?.title);
   const navigate = useNavigate();
+  const location = useLocation();
+  const pendingOfflineCount = useEntityOfflinePendingCount(countPendingStudents, STUDENT_OFFLINE_CHANGED);
+  const offlinePending = useEntityOfflineList(listPendingStudents, STUDENT_OFFLINE_CHANGED);
+  const offlineDrafts = useEntityOfflineList(listStudentDrafts, STUDENT_OFFLINE_CHANGED);
+  const [offlineNotice, setOfflineNotice] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<
+    | { kind: "student"; id: number; name: string }
+    | { kind: "draft"; localId: string; name: string }
+    | { kind: "pending"; localId: string; name: string }
+    | null
+  >(null);
 
   useBfcacheReload();
+
+  useEffect(() => {
+    void purgeExpiredStudentDrafts();
+  }, []);
+
+  useEffect(() => {
+    const st = location.state as { offlineQueued?: boolean; offlineMessage?: string } | null;
+    if (st?.offlineQueued && st.offlineMessage) {
+      setOfflineNotice(st.offlineMessage);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
 
   const saved = usePersistedFilterRestore<{
     district?: FilterId;
@@ -152,7 +244,6 @@ export default function StudentsPage() {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(saved?.page ?? 1);
-  const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
   const handleSearch = (q: string) => {
     setSearchQuery(q);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -197,11 +288,60 @@ export default function StudentsPage() {
     clusterMode: "scoped-non-admin",
   });
 
-  const enriched: EnrichedStudent[] = students.map(s => ({
-    ...s,
-    docsCount: docCount(s),
-    addedDate: new Date(s.created_at).toLocaleDateString("en-IN"),
-  }));
+  const scopedKutirIds = useMemo(() => {
+    if (unscoped) return null;
+    return new Set(scopedKutirs.map((k) => k.id));
+  }, [unscoped, scopedKutirs]);
+
+  function passesGeoFilters(kutirId: number | null): boolean {
+    if (kutirId == null) return filterKutir === "";
+    if (filterKutir !== "" && kutirId !== Number(filterKutir)) return false;
+    if (scopedKutirIds !== null && !scopedKutirIds.has(kutirId)) return false;
+    const kutir = kutirMap.get(kutirId);
+    if (filterCluster !== "") {
+      if (!kutir || kutir.cluster_id !== filterCluster) return false;
+    } else if (filterDistrict !== "") {
+      if (!kutir) return false;
+      const cl = allClusters.find((c) => c.id === kutir.cluster_id);
+      if (!cl) return false;
+      const ar = allAreas.find((a) => a.id === (cl as { area_id: number }).area_id);
+      if (!ar || (ar as { district_id: number }).district_id !== filterDistrict) return false;
+    }
+    return true;
+  }
+
+  const draftListItems = useMemo((): OfflineStudentDraftListItem[] => {
+    return offlineDrafts
+      .filter((d) => passesGeoFilters(d.kutir_id))
+      .map((d) => ({ ...d, kind: "offline-draft" as const }));
+  }, [offlineDrafts, filterKutir, filterCluster, filterDistrict, kutirMap, allClusters, allAreas, scopedKutirIds]);
+
+  const pendingListItems = useMemo((): OfflineStudentPendingListItem[] => {
+    return offlinePending
+      .filter((p) => passesGeoFilters(p.payload.kutir_id ?? null))
+      .map(pendingStudentToListItem);
+  }, [offlinePending, filterKutir, filterCluster, filterDistrict, kutirMap, allClusters, allAreas, scopedKutirIds]);
+
+  const enriched: StudentListRow[] = useMemo(() => {
+    const serverRows: EnrichedStudent[] = students.map((s) => ({
+      ...s,
+      docsCount: docCount(s),
+      addedDate: new Date(s.created_at).toLocaleDateString("en-IN"),
+    }));
+    const offlineRows: StudentListRow[] = [
+      ...draftListItems.map((d) => ({
+        ...d,
+        docsCount: 0,
+        addedDate: new Date(d.createdAt).toLocaleDateString("en-IN"),
+      })),
+      ...pendingListItems.map((p) => ({
+        ...p,
+        docsCount: 0,
+        addedDate: new Date(p.createdAt).toLocaleDateString("en-IN"),
+      })),
+    ];
+    return [...serverRows, ...offlineRows];
+  }, [students, draftListItems, pendingListItems]);
 
   const deleteMut = useMutation({
     mutationFn: deleteStudent,
@@ -217,11 +357,11 @@ export default function StudentsPage() {
 
   // List columns, labels, visibility, order, and CSV headers all come from STUDENTS_FIELDS.
   const { isVisible, orderedMetas } = useFieldConfig("students", STUDENTS_FIELDS);
-  const columns = useMemo<Col<EnrichedStudent>[]>(() => {
+  const columns = useMemo<Col<StudentListRow>[]>(() => {
     const renderers = studentColRenderers(kutirMap);
     return orderedMetas
       .filter((m) => isVisible(m.key))
-      .map((meta): Col<EnrichedStudent> => {
+      .map((meta): Col<StudentListRow> => {
         const r = renderers[meta.key] ?? {};
         return {
           key: meta.key,
@@ -271,24 +411,74 @@ export default function StudentsPage() {
     />
   );
 
+  const tableSubtitle =
+    pendingOfflineCount > 0
+      ? `${pendingOfflineCount} student${pendingOfflineCount === 1 ? "" : "s"} waiting to upload`
+      : undefined;
+
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
+      {offlineNotice && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "10px 14px",
+            borderRadius: 8,
+            background: "var(--status-success-bg)",
+            color: "var(--status-success-fg)",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <span>{offlineNotice}</span>
+          <button type="button" onClick={() => setOfflineNotice(null)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+            ✕
+          </button>
+        </div>
+      )}
       <GrsTable
         title="Students"
+        subtitle={tableSubtitle}
         columns={columns}
         data={enriched}
-        rowKey={s => s.id}
+        rowKey={(s) => {
+          if (isOfflineStudentDraft(s)) return offlineStudentDraftRowKey(s);
+          if (isOfflineStudentPending(s)) return offlineStudentPendingRowKey(s);
+          return String((s as EnrichedStudent).id);
+        }}
         isLoading={isLoading}
         emptyMessage="No students found."
         pagination={{ page, pageSize: PAGE_SIZE, total: studentTotal, onPageChange: setPage }}
-        actions={s => ({
-          onView: () => { saveFilters(); navigate(`/students/${s.id}`); },
-          onEdit: () => {
-            saveFilters();
-            navigate(`/students/${s.id}?edit=1`);
-          },
-          onDelete: () => setPendingDelete({ id: s.id, name: `${s.first_name} ${s.last_name}` }),
-        })}
+        actions={(s) => {
+          if (isOfflineStudentDraft(s)) {
+            const name = studentOfflineDisplayName(s);
+            return {
+              onView: () => { saveFilters(); navigate(`draft/${s.localId}`); },
+              onEdit: () => { saveFilters(); navigate(`draft/${s.localId}`); },
+              onDelete: () => setPendingDelete({ kind: "draft", localId: s.localId, name }),
+            };
+          }
+          if (isOfflineStudentPending(s)) {
+            const name = studentOfflineDisplayName(s);
+            return {
+              onDelete: () => setPendingDelete({ kind: "pending", localId: s.localId, name }),
+            };
+          }
+          return {
+            onView: () => { saveFilters(); navigate(`/students/${s.id}`); },
+            onEdit: () => {
+              saveFilters();
+              navigate(`/students/${s.id}?edit=1`);
+            },
+            onDelete: () =>
+              setPendingDelete({
+                kind: "student",
+                id: s.id!,
+                name: `${s.first_name} ${s.last_name}`,
+              }),
+          };
+        }}
         searchable
         searchPlaceholder="Search by name, phone…"
         externalSearch={searchQuery}
@@ -301,8 +491,23 @@ export default function StudentsPage() {
       />
       {pendingDelete && (
         <ConfirmDialog
-          message={<>Delete <strong>{pendingDelete.name}</strong>?</>}
-          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          message={
+            pendingDelete.kind === "draft"
+              ? <>Remove saved offline student <strong>{pendingDelete.name}</strong>?</>
+              : pendingDelete.kind === "pending"
+                ? <>Remove student waiting to sync: <strong>{pendingDelete.name}</strong>?</>
+                : <>Delete <strong>{pendingDelete.name}</strong>?</>
+          }
+          onConfirm={() => {
+            if (pendingDelete.kind === "draft") {
+              void removeStudentDraft(pendingDelete.localId);
+            } else if (pendingDelete.kind === "pending") {
+              void removePendingStudent(pendingDelete.localId);
+            } else {
+              deleteMut.mutate(pendingDelete.id);
+            }
+            setPendingDelete(null);
+          }}
           onCancel={() => setPendingDelete(null)}
         />
       )}

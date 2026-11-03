@@ -8,6 +8,7 @@ import DashboardPage from "./pages/DashboardPage";
 import StudentsPage from "./pages/StudentsPage";
 import StudentDetailPage from "./pages/StudentDetailPage";
 import StudentAddPage from "./pages/StudentAddPage";
+import StudentDraftCompletePage from "./pages/StudentDraftCompletePage";
 import KutirsPage from "./pages/KutirsPage";
 import KutirDetailPage from "./pages/KutirDetailPage";
 import KutirAddPage from "./pages/KutirAddPage";
@@ -25,10 +26,12 @@ import UserAddPage from "./pages/UserAddPage";
 import GeoPage from "./pages/GeoPage";
 import AdmissionsPage from "./pages/AdmissionsPage";
 import AdmissionAddPage from "./pages/AdmissionAddPage";
+import AdmissionDraftCompletePage from "./pages/AdmissionDraftCompletePage";
 import AdmissionDetailPage from "./pages/AdmissionDetailPage";
 import StudentProgressPage from "./pages/StudentProgressPage";
 import ProgressDetailPage from "./pages/ProgressDetailPage";
 import ProgressAddPage from "./pages/ProgressAddPage";
+import ProgressDraftCompletePage from "./pages/ProgressDraftCompletePage";
 import NewYearSetupPage from "./pages/NewYearSetupPage";
 import ImportDataPage from "./pages/ImportDataPage";
 import {
@@ -73,6 +76,7 @@ function AppRoutes() {
       <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>}>
         <Route path="students" element={<StudentsPage />} />
         <Route path="students/new" element={<StudentAddPage />} />
+        <Route path="students/draft/:draftId" element={<StudentDraftCompletePage />} />
         <Route path="students/:id" element={<StudentDetailPage />} />
         <Route path="kutirs" element={<KutirsPage />} />
         <Route path="kutirs/new" element={<KutirAddPage />} />
@@ -91,6 +95,7 @@ function AppRoutes() {
         <Route path="geo" element={<GeoPage />} />
         <Route path="admissions" element={<AdmissionsPage />} />
         <Route path="admissions/new" element={<AdmissionAddPage />} />
+        <Route path="admissions/draft/:draftId" element={<AdmissionDraftCompletePage />} />
         <Route path="admissions/:id" element={<AdmissionDetailPage />} />
         <Route path="lookups" element={<LookupsPage />} />
         <Route path="exam-centers" element={<ExamCentersPage />} />
@@ -98,6 +103,7 @@ function AppRoutes() {
         <Route path="exam-centers/:id" element={<ExamCenterDetailPage />} />
         <Route path="progress" element={<StudentProgressPage />} />
         <Route path="progress/new" element={<ProgressAddPage />} />
+        <Route path="progress/draft/:draftId" element={<ProgressDraftCompletePage />} />
         <Route path="progress/:id" element={<ProgressDetailPage />} />
         <Route path="new-year-setup" element={<NewYearSetupPage />} />
         <Route path="import" element={<ImportDataPage />} />

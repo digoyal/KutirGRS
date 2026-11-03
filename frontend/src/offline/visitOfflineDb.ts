@@ -1,27 +1,17 @@
 import type { KutirVisitCreate } from "../api/visits";
-import type { Kutir } from "../api/kutirs";
-import type { Area, Cluster, District } from "../api/geo";
 
 import type { VisitOfflineDraft } from "./visitDraftTypes";
 import { VISIT_DRAFT_TTL_DAYS } from "./visitDraftTypes";
 
-const DB_NAME = "kutirgrs-offline";
-const DB_VERSION = 2;
-const OUTBOX_STORE = "visit-outbox";
-const DRAFTS_STORE = "visit-drafts";
-const META_STORE = "meta";
+import { openDb, txDone, VISIT_DRAFTS_STORE, VISIT_OUTBOX_STORE } from "./offlineDbCore";
+import { loadGeoKutirLookupCache, saveGeoKutirLookupCache, type GeoKutirLookupCache } from "./geoLookupCache";
+
+const OUTBOX_STORE = VISIT_OUTBOX_STORE;
+const DRAFTS_STORE = VISIT_DRAFTS_STORE;
 
 const VISIT_DRAFT_TTL_MS = VISIT_DRAFT_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 export const VISIT_OFFLINE_CHANGED = "visit-offline-changed";
-
-export type VisitLookupCache = {
-  kutirs: Kutir[];
-  districts: District[];
-  areas: Area[];
-  clusters: Cluster[];
-  cachedAt: string;
-};
 
 export type PendingVisitRecord = {
   localId: string;
@@ -37,54 +27,14 @@ function notifyChanged() {
   window.dispatchEvent(new Event(VISIT_OFFLINE_CHANGED));
 }
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onerror = () => reject(req.error ?? new Error("IndexedDB open failed"));
-    req.onsuccess = () => resolve(req.result);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(OUTBOX_STORE)) {
-        db.createObjectStore(OUTBOX_STORE, { keyPath: "localId" });
-      }
-      if (!db.objectStoreNames.contains(META_STORE)) {
-        db.createObjectStore(META_STORE);
-      }
-      if (!db.objectStoreNames.contains(DRAFTS_STORE)) {
-        db.createObjectStore(DRAFTS_STORE, { keyPath: "localId" });
-      }
-    };
-  });
-}
-
-function txDone(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
-    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-  });
-}
+export type VisitLookupCache = GeoKutirLookupCache;
 
 export async function saveVisitLookupCache(cache: Omit<VisitLookupCache, "cachedAt">): Promise<void> {
-  const db = await openDb();
-  const payload: VisitLookupCache = { ...cache, cachedAt: new Date().toISOString() };
-  const tx = db.transaction(META_STORE, "readwrite");
-  tx.objectStore(META_STORE).put(payload, "visit-lookups");
-  await txDone(tx);
-  db.close();
+  await saveGeoKutirLookupCache(cache);
 }
 
 export async function loadVisitLookupCache(): Promise<VisitLookupCache | null> {
-  const db = await openDb();
-  const tx = db.transaction(META_STORE, "readonly");
-  const req = tx.objectStore(META_STORE).get("visit-lookups");
-  const value = await new Promise<VisitLookupCache | undefined>((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result as VisitLookupCache | undefined);
-    req.onerror = () => reject(req.error ?? new Error("IndexedDB read failed"));
-  });
-  await txDone(tx);
-  db.close();
-  return value ?? null;
+  return loadGeoKutirLookupCache();
 }
 
 export async function enqueuePendingVisit(

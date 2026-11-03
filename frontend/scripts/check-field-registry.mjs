@@ -78,7 +78,10 @@ function extractAllColumnKeys(pageRelPath) {
 
 function extractProgressCaseKeys(pageRelPath) {
   const text = read(pageRelPath);
-  const start = text.indexOf("const columns = useMemo");
+  const marker = text.includes("const baseColumns = useMemo")
+    ? "const baseColumns = useMemo"
+    : "const columns = useMemo";
+  const start = text.indexOf(marker);
   if (start < 0) {
     throw new Error(`${pageRelPath}: progress columns useMemo not found`);
   }

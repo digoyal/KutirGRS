@@ -19,6 +19,7 @@ import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
 import { studentFieldLabel } from "../constants/studentsFields";
 import { grs } from "../styles/grs";
+import { useStudentFormLookups } from "../hooks/useStudentFormLookups";
 
 const DOCS: { key: keyof StudentFormState; label: string }[] = [
   { key: "aadhaar", label: "Aadhaar Card" },
@@ -148,26 +149,39 @@ export function StudentForm({
   const [selCluster, setSelCluster] = useState<number | null>(null);
   const [geoSeeded, setGeoSeeded] = useState(false);
 
-  const { data: allKutirs = [] } = useQuery({
+  const addLookups = useStudentFormLookups({ enabled: isAdd });
+
+  const kutirsQuery = useQuery({
     queryKey: ["all-kutirs"],
     queryFn: () => listKutirs(),
+    enabled: !isAdd,
   });
-  const { data: allDistricts = [] } = useQuery({
+  const districtsQuery = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
+    enabled: !isAdd,
   });
-  const { data: allAreas = [] } = useQuery({
+  const areasQuery = useQuery({
     queryKey: ["all-areas"],
     queryFn: () => listAreas(),
+    enabled: !isAdd,
   });
-  const { data: allClusters = [] } = useQuery({
+  const clustersQuery = useQuery({
     queryKey: ["all-clusters"],
     queryFn: () => listClusters(),
+    enabled: !isAdd,
   });
-  const { data: categories = [] } = useQuery({
+  const categoriesQuery = useQuery({
     queryKey: ["categories"],
     queryFn: listCategories,
+    enabled: !isAdd,
   });
+
+  const allKutirs = isAdd ? addLookups.allKutirs : (kutirsQuery.data ?? []);
+  const allDistricts = isAdd ? addLookups.allDistricts : (districtsQuery.data ?? []);
+  const allAreas = isAdd ? addLookups.allAreas : (areasQuery.data ?? []);
+  const allClusters = isAdd ? addLookups.allClusters : (clustersQuery.data ?? []);
+  const categories = isAdd ? addLookups.categories : (categoriesQuery.data ?? []);
 
   const formCategoryId = form.category_id ?? null;
   const { data: subCategories = [] } = useQuery({
@@ -280,6 +294,15 @@ export function StudentForm({
 
   return (
     <div className={readOnly ? "grs-form-layout" : "grs-form"}>
+      {isAdd && !addLookups.online && (
+        <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+          {addLookups.offlineCacheMissing
+            ? "You are offline and student lookup data is not cached yet. Open this form once while online, then try again."
+            : addLookups.usingOfflineCache
+              ? "You are offline. District, cluster, kutir, and category lists use the last data saved on this device."
+              : "You are offline. Loading saved lookup data…"}
+        </p>
+      )}
       <section style={sec}>
         <div style={secTitle}>Location</div>
         {readOnly ? (

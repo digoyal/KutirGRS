@@ -1,6 +1,6 @@
 import React from "react";
-import { useState, useMemo, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   listProgressPaged,
@@ -9,9 +9,9 @@ import {
   type ProgressStatus,
 } from "../api/admissions";
 import { listSchools, type School } from "../api/schools";
-import { listKutirs } from "../api/kutirs";
+import { listKutirs, type Kutir } from "../api/kutirs";
 import { listStudents } from "../api/students";
-import { listDistricts, listAreas, listClusters } from "../api/geo";
+import { listDistricts, listAreas, listClusters, type Area, type Cluster } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
 import { GrsTable } from "../components/GrsTable";
@@ -39,6 +39,28 @@ import {
   type FilterId,
 } from "../utils/geoFilters";
 import { formatAcademicYear } from "../utils/academicYear";
+import { useEntityOfflineList, useEntityOfflinePendingCount } from "../hooks/useEntityOfflineList";
+import {
+  countPendingProgress,
+  listPendingProgress,
+  listProgressDrafts,
+  purgeExpiredProgressDrafts,
+  removePendingProgress,
+  removeProgressDraft,
+  PROGRESS_OFFLINE_CHANGED,
+} from "../offline/progressOfflineDb";
+import {
+  isOfflineProgressDraft,
+  isOfflineProgressPending,
+  isOfflineLocalProgress,
+  offlineProgressDraftRowKey,
+  offlineProgressPendingRowKey,
+  pendingProgressToListItem,
+  type OfflineProgressDraftListItem,
+  type OfflineProgressPendingListItem,
+  type ProgressTableRow,
+} from "../offline/progressDraftTypes";
+import { offlineStudentNameCell, wrapColumnsForOffline } from "../offline/offlineColumnWrap";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const STORAGE_KEY = "progress_filter_state";
@@ -46,10 +68,33 @@ const STORAGE_KEY = "progress_filter_state";
 export default function StudentProgressPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const unscoped = hasGlobalDataScope(user?.title);
   const qc = useQueryClient();
+  const pendingOfflineCount = useEntityOfflinePendingCount(countPendingProgress, PROGRESS_OFFLINE_CHANGED);
+  const offlinePending = useEntityOfflineList(listPendingProgress, PROGRESS_OFFLINE_CHANGED);
+  const offlineDrafts = useEntityOfflineList(listProgressDrafts, PROGRESS_OFFLINE_CHANGED);
+  const [offlineNotice, setOfflineNotice] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<
+    | { kind: "progress"; id: number }
+    | { kind: "draft"; localId: string; label: string }
+    | { kind: "pending"; localId: string; label: string }
+    | null
+  >(null);
 
   useBfcacheReload();
+
+  useEffect(() => {
+    void purgeExpiredProgressDrafts();
+  }, []);
+
+  useEffect(() => {
+    const st = location.state as { offlineQueued?: boolean; offlineMessage?: string } | null;
+    if (st?.offlineQueued && st.offlineMessage) {
+      setOfflineNotice(st.offlineMessage);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
 
   const saved = usePersistedFilterRestore<{
     district?: FilterId;
@@ -72,7 +117,6 @@ export default function StudentProgressPage() {
 
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(saved?.page ?? 1);
-  const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
   const handleSearch = (q: string) => {
     setSearchQuery(q);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -111,13 +155,13 @@ export default function StudentProgressPage() {
     queryFn: () => listSchools(),
   });
   const { data: allStudents = [] } = useQuery({ queryKey: ["students-names"], queryFn: () => listStudents({ name_only: true }) });
-  const { data: allKutirs = [] }   = useQuery({ queryKey: ["all-kutirs"],   queryFn: () => listKutirs() });
+  const { data: allKutirs = [] }   = useQuery<Kutir[]>({ queryKey: ["all-kutirs"],   queryFn: () => listKutirs() });
   const { data: allDistricts = [] } = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
-  const { data: allAreas = [] }    = useQuery({ queryKey: ["all-areas"],    queryFn: () => listAreas() });
-  const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
+  const { data: allAreas = [] }    = useQuery<Area[]>({ queryKey: ["all-areas"],    queryFn: () => listAreas() });
+  const { data: allClusters = [] } = useQuery<Cluster[]>({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
 
   // Stable map references so columns useMemo deps stay clean
   const studentMap2  = useMemo(() => new Map(allStudents.map((s: any) => [s.id, s])),  [allStudents]);
@@ -143,8 +187,51 @@ export default function StudentProgressPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["progress"] }),
   });
 
+  const kutirMap = useMemo(() => new Map(allKutirs.map((k) => [k.id, k])), [allKutirs]);
+  const areaMap = useMemo(() => new Map(allAreas.map((a) => [a.id, a])), [allAreas]);
+  const clusterMap = useMemo(() => new Map(allClusters.map((c) => [c.id, c])), [allClusters]);
+
+  const scopedKutirIds = useMemo(() => {
+    if (unscoped) return null;
+    return new Set(scopedKutirs.map((k) => k.id));
+  }, [unscoped, scopedKutirs]);
+
+  function passesProgressGeo(kutirId: number | null): boolean {
+    if (kutirId == null) return filterKutir === "";
+    if (filterKutir !== "" && kutirId !== Number(filterKutir)) return false;
+    if (scopedKutirIds !== null && !scopedKutirIds.has(kutirId)) return false;
+    const kutir = kutirMap.get(kutirId);
+    if (filterCluster !== "") {
+      if (!kutir || kutir.cluster_id !== filterCluster) return false;
+    } else if (filterDistrict !== "") {
+      if (!kutir) return false;
+      const cl = clusterMap.get(kutir.cluster_id);
+      if (!cl) return false;
+      const ar = areaMap.get(cl.area_id);
+      if (!ar || ar.district_id !== filterDistrict) return false;
+    }
+    return true;
+  }
+
+  const draftListItems = useMemo((): OfflineProgressDraftListItem[] => {
+    return offlineDrafts
+      .filter((d) => d.academic_year === filterYear && passesProgressGeo(d.kutir_id))
+      .map((d) => ({ ...d, kind: "offline-draft" as const }));
+  }, [offlineDrafts, filterYear, filterKutir, filterCluster, filterDistrict, scopedKutirIds]);
+
+  const pendingListItems = useMemo((): OfflineProgressPendingListItem[] => {
+    return offlinePending
+      .filter((p) => p.payload.academic_year === filterYear && passesProgressGeo(p.kutir_id ?? null))
+      .map(pendingProgressToListItem);
+  }, [offlinePending, filterYear, filterKutir, filterCluster, filterDistrict, scopedKutirIds]);
+
+  const tableRows: ProgressTableRow[] = useMemo(
+    () => [...progressList, ...draftListItems, ...pendingListItems],
+    [progressList, draftListItems, pendingListItems],
+  );
+
   // List columns, labels, visibility, order, and CSV headers all come from PROGRESS_FIELDS.
-  const columns = useMemo<Col<StudentProgress>[]>(() => {
+  const baseColumns = useMemo<Col<StudentProgress>[]>(() => {
     if (import.meta.env.DEV) {
       for (const key of PROGRESS_FIELD_KEYS) {
         if (!orderedMetas.some((m) => m.key === key)) {
@@ -282,6 +369,29 @@ export default function StudentProgressPage() {
       });
   }, [orderedMetas, isVisible, studentMap2, schoolMap]);
 
+  const columns = useMemo(
+    () =>
+      wrapColumnsForOffline<
+        OfflineProgressDraftListItem | OfflineProgressPendingListItem,
+        StudentProgress
+      >(baseColumns, (row): row is OfflineProgressDraftListItem | OfflineProgressPendingListItem => isOfflineLocalProgress(row), (row, key) => {
+        if (key === "student") {
+          const label = isOfflineProgressDraft(row)
+            ? row.student_label
+            : row.student_label ?? `Student #${row.payload.student_id}`;
+          return offlineStudentNameCell(label, isOfflineProgressPending(row) ? "pending" : "draft");
+        }
+        if (key === "school_id") {
+          const name = isOfflineProgressDraft(row)
+            ? row.school_name
+            : row.school_name ?? `School #${row.payload.school_id}`;
+          return <span style={{ fontSize: "0.8125rem" }}>{name}</span>;
+        }
+        return undefined;
+      }),
+    [baseColumns],
+  );
+
   const filterSelectStyle: React.CSSProperties = {
     padding: "7px 10px",
     borderRadius: 8,
@@ -292,8 +402,32 @@ export default function StudentProgressPage() {
     flexShrink: 0,
   };
 
+  const tableSubtitle =
+    pendingOfflineCount > 0
+      ? `${pendingOfflineCount} record${pendingOfflineCount === 1 ? "" : "s"} waiting to upload`
+      : undefined;
+
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
+      {offlineNotice && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "10px 14px",
+            borderRadius: 8,
+            background: "var(--status-success-bg)",
+            color: "var(--status-success-fg)",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <span>{offlineNotice}</span>
+          <button type="button" onClick={() => setOfflineNotice(null)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+            ✕
+          </button>
+        </div>
+      )}
       {/* Status summary tiles */}
       {progressList.length > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
@@ -311,11 +445,16 @@ export default function StudentProgressPage() {
         </div>
       )}
 
-      <GrsTable<StudentProgress>
+      <GrsTable<ProgressTableRow>
         title="Student Progress"
+        subtitle={tableSubtitle}
         columns={columns}
-        data={progressList}
-        rowKey={(p) => p.id}
+        data={tableRows}
+        rowKey={(p) => {
+          if (isOfflineProgressDraft(p)) return offlineProgressDraftRowKey(p);
+          if (isOfflineProgressPending(p)) return offlineProgressPendingRowKey(p);
+          return String(p.id);
+        }}
         isLoading={isLoading}
         pagination={{ page, pageSize: PAGE_SIZE, total: progressTotal, onPageChange: setPage }}
         searchable
@@ -368,16 +507,47 @@ export default function StudentProgressPage() {
         exportFilename="progress"
         printTitle="Student Progress"
         onAdd={() => { saveFilters(); navigate(`/progress/new?year=${filterYear}`); }}
-        actions={(p) => ({
-          onView:   () => { saveFilters(); navigate(`/progress/${p.id}`); },
-          onEdit:   () => { saveFilters(); navigate(`/progress/${p.id}?edit=1`); },
-          onDelete: () => setPendingDelete({ id: p.id }),
-        })}
+        actions={(p) => {
+          if (isOfflineProgressDraft(p)) {
+            const label = `${p.student_label} · ${p.school_name}`;
+            return {
+              onView: () => { saveFilters(); navigate(`draft/${p.localId}`); },
+              onEdit: () => { saveFilters(); navigate(`draft/${p.localId}`); },
+              onDelete: () => setPendingDelete({ kind: "draft", localId: p.localId, label }),
+            };
+          }
+          if (isOfflineProgressPending(p)) {
+            const label = p.student_label ?? `Student #${p.payload.student_id}`;
+            return {
+              onDelete: () => setPendingDelete({ kind: "pending", localId: p.localId, label }),
+            };
+          }
+          return {
+            onView: () => { saveFilters(); navigate(`/progress/${p.id}`); },
+            onEdit: () => { saveFilters(); navigate(`/progress/${p.id}?edit=1`); },
+            onDelete: () => setPendingDelete({ kind: "progress", id: p.id }),
+          };
+        }}
       />
       {pendingDelete && (
         <ConfirmDialog
-          message="Delete this record?"
-          onConfirm={() => { deleteMut.mutate(pendingDelete.id); setPendingDelete(null); }}
+          message={
+            pendingDelete.kind === "draft"
+              ? <>Remove saved offline progress for <strong>{pendingDelete.label}</strong>?</>
+              : pendingDelete.kind === "pending"
+                ? <>Remove progress waiting to sync for <strong>{pendingDelete.label}</strong>?</>
+                : "Delete this record?"
+          }
+          onConfirm={() => {
+            if (pendingDelete.kind === "draft") {
+              void removeProgressDraft(pendingDelete.localId);
+            } else if (pendingDelete.kind === "pending") {
+              void removePendingProgress(pendingDelete.localId);
+            } else {
+              deleteMut.mutate(pendingDelete.id);
+            }
+            setPendingDelete(null);
+          }}
           onCancel={() => setPendingDelete(null)}
         />
       )}
