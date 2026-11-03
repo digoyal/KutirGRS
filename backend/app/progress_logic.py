@@ -147,10 +147,8 @@ async def ensure_progress_from_admitted_exam(db, exam) -> None:
     existing = result.scalar_one_or_none()
     fields = initial_progress_fields_from_exam(exam)
     if existing:
-        for key, val in fields.items():
-            if key == "student_id":
-                continue
-            setattr(existing, key, val)
+        for key in ("school_id", "academic_year", "class_in_year", "track"):
+            setattr(existing, key, fields[key])
         return
     db.add(StudentProgress(**fields))
 
