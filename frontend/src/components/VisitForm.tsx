@@ -20,6 +20,12 @@ import { canViewUsers, hasGlobalDataScope } from "../constants/roles";
 import { visitFieldLabel } from "../constants/visitsFields";
 import { grs } from "../styles/grs";
 import { mediaBase } from "../api/apiBase";
+import {
+  formatVisitPhotoCoords,
+  requestVisitPhotoLocation,
+  visitPhotoMapsUrl,
+  type VisitPhotoLocation,
+} from "../utils/visitPhotoGeolocation";
 
 const MEDIA_BASE = mediaBase();
 
@@ -65,11 +71,39 @@ export function visitFormFromVisit(visit: KutirVisit): VisitFormState {
     id: _id,
     visited_by_id: _vid,
     visit_photo: _vp,
+    visit_photo_latitude: _vplat,
+    visit_photo_longitude: _vplng,
+    visit_photo_accuracy_m: _vpacc,
     created_at: _ca,
     updated_at: _ua,
     ...rest
   } = visit;
   return rest;
+}
+
+function VisitPhotoLocationDisplay({
+  latitude,
+  longitude,
+  accuracyM,
+}: {
+  latitude: number;
+  longitude: number;
+  accuracyM?: number | null;
+}) {
+  return (
+    <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 6, lineHeight: 1.4 }}>
+      <span>{formatVisitPhotoCoords(latitude, longitude, accuracyM)}</span>
+      {" · "}
+      <a
+        href={visitPhotoMapsUrl(latitude, longitude)}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: "var(--link-color)" }}
+      >
+        Open in maps
+      </a>
+    </div>
+  );
 }
 
 function SectionHead({ label }: { label: string }) {
@@ -347,8 +381,13 @@ interface VisitFormProps {
   mode: "add" | "edit" | "view";
   photoFile?: File | null;
   setPhotoFile?: (f: File | null) => void;
+  photoLocation?: VisitPhotoLocation | null;
+  setPhotoLocation?: (loc: VisitPhotoLocation | null) => void;
   /** Existing photo path from the visit record (edit/view). */
   existingPhoto?: string | null;
+  visitPhotoLatitude?: number | null;
+  visitPhotoLongitude?: number | null;
+  visitPhotoAccuracyM?: number | null;
   /** Display name for view mode when kutir cannot be changed. */
   kutirName?: string;
   /** Logged visitor (edit/view only; omit on add). */
@@ -363,7 +402,12 @@ export function VisitForm({
   mode,
   photoFile = null,
   setPhotoFile,
+  photoLocation = null,
+  setPhotoLocation,
   existingPhoto = null,
+  visitPhotoLatitude = null,
+  visitPhotoLongitude = null,
+  visitPhotoAccuracyM = null,
   kutirName,
   visitedById,
   visitedByName,
@@ -373,10 +417,29 @@ export function VisitForm({
   const { user } = useAuth();
   const visitCameraInputRef = useRef<HTMLInputElement>(null);
   const visitGalleryInputRef = useRef<HTMLInputElement>(null);
+  const [photoLocationHint, setPhotoLocationHint] = useState<string | null>(null);
+  const [photoLocationPending, setPhotoLocationPending] = useState(false);
 
-  function onVisitPhotoSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    setPhotoFile?.(e.target.files?.[0] ?? null);
+  async function onVisitPhotoSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
     e.target.value = "";
+    if (!file) {
+      setPhotoFile?.(null);
+      setPhotoLocation?.(null);
+      setPhotoLocationHint(null);
+      setPhotoLocationPending(false);
+      return;
+    }
+    setPhotoFile?.(file);
+    setPhotoLocation?.(null);
+    setPhotoLocationHint(null);
+    setPhotoLocationPending(true);
+    const loc = await requestVisitPhotoLocation();
+    setPhotoLocationPending(false);
+    setPhotoLocation?.(loc);
+    if (!loc) {
+      setPhotoLocationHint("Location unavailable — photo will still be saved.");
+    }
   }
 
   const [filterDistrict, setFilterDistrict] = useState<number | "">("");
@@ -1226,6 +1289,15 @@ export function VisitForm({
               <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
                 Current photo. Upload a new one to replace it.
               </div>
+              {readOnly &&
+                visitPhotoLatitude != null &&
+                visitPhotoLongitude != null && (
+                  <VisitPhotoLocationDisplay
+                    latitude={visitPhotoLatitude}
+                    longitude={visitPhotoLongitude}
+                    accuracyM={visitPhotoAccuracyM}
+                  />
+                )}
             </div>
           )}
           {setPhotoFile && (
@@ -1275,6 +1347,16 @@ export function VisitForm({
               </div>
             </>
           )}
+          {photoLocationHint && (
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 6 }}>
+              {photoLocationHint}
+            </div>
+          )}
+          {photoLocationPending && (
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 6 }}>
+              Getting location…
+            </div>
+          )}
           {photoFile && (
             <div style={{ marginTop: 8 }}>
               <img
@@ -1282,6 +1364,13 @@ export function VisitForm({
                 alt="Preview"
                 style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 6 }}
               />
+              {photoLocation && (
+                <VisitPhotoLocationDisplay
+                  latitude={photoLocation.latitude}
+                  longitude={photoLocation.longitude}
+                  accuracyM={photoLocation.accuracyM}
+                />
+              )}
             </div>
           )}
         </div>

@@ -2,7 +2,7 @@ from datetime import date as date_type
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, Date, ForeignKey, Integer, SmallInteger,
+    Boolean, Date, Float, ForeignKey, Integer, SmallInteger,
     String, Text, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -90,6 +90,9 @@ class KutirVisit(Base, TimestampMixin):
 
     # ── Visit photo ──────────────────────────────────────────────────────────
     visit_photo: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    visit_photo_latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    visit_photo_longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    visit_photo_accuracy_m: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     final_remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

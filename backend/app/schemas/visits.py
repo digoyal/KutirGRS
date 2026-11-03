@@ -124,6 +124,9 @@ class KutirVisitUpdate(BaseModel):
 class KutirVisitOut(KutirVisitBase):
     id: int
     visit_photo: Optional[str] = None
+    visit_photo_latitude: Optional[float] = None
+    visit_photo_longitude: Optional[float] = None
+    visit_photo_accuracy_m: Optional[float] = None
     created_at: datetime
     updated_at: datetime
     visited_by_name: Optional[str] = None

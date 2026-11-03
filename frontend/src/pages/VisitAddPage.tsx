@@ -7,12 +7,14 @@ import { grs } from "../styles/grs";
 import { enqueuePendingVisit, saveVisitDraft } from "../offline/visitOfflineDb";
 import { isNetworkError } from "../offline/networkError";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import type { VisitPhotoLocation } from "../utils/visitPhotoGeolocation";
 
 export default function VisitAddPage() {
   const navigate = useNavigate();
   const online = useOnlineStatus();
   const [form, setForm] = useState<VisitFormState>(emptyVisitForm);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoLocation, setPhotoLocation] = useState<VisitPhotoLocation | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +54,7 @@ export default function VisitAddPage() {
     if (online) {
       try {
         const saved = await createVisit(form);
-        if (photoFile) await uploadVisitPhoto(saved.id, photoFile);
+        if (photoFile) await uploadVisitPhoto(saved.id, photoFile, photoLocation);
         navigate(-1);
         return;
       } catch (e: unknown) {
@@ -66,7 +68,7 @@ export default function VisitAddPage() {
     }
 
     try {
-      await enqueuePendingVisit(form, photoFile);
+      await enqueuePendingVisit(form, photoFile, photoLocation);
       navigate("/visits/detail", {
         state: {
           offlineVisitQueued: true,
@@ -103,6 +105,8 @@ export default function VisitAddPage() {
           mode="add"
           photoFile={photoFile}
           setPhotoFile={setPhotoFile}
+          photoLocation={photoLocation}
+          setPhotoLocation={setPhotoLocation}
         />
 
         <FormPageActions

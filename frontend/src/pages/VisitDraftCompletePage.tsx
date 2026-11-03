@@ -12,6 +12,7 @@ import {
 } from "../offline/visitOfflineDb";
 import { isNetworkError } from "../offline/networkError";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import type { VisitPhotoLocation } from "../utils/visitPhotoGeolocation";
 
 export default function VisitDraftCompletePage() {
   const { draftId } = useParams<{ draftId: string }>();
@@ -23,6 +24,7 @@ export default function VisitDraftCompletePage() {
   const [missingDraft, setMissingDraft] = useState(false);
   const [form, setForm] = useState<VisitFormState>(emptyVisitForm);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoLocation, setPhotoLocation] = useState<VisitPhotoLocation | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,7 +62,7 @@ export default function VisitDraftCompletePage() {
     if (online) {
       try {
         const saved = await createVisit(form);
-        if (photoFile) await uploadVisitPhoto(saved.id, photoFile);
+        if (photoFile) await uploadVisitPhoto(saved.id, photoFile, photoLocation);
         await removeVisitDraft(draftId);
         qc.invalidateQueries({ queryKey: ["visits"] });
         navigate("/visits/detail", {
@@ -82,7 +84,7 @@ export default function VisitDraftCompletePage() {
     }
 
     try {
-      await enqueuePendingVisit(form, photoFile);
+      await enqueuePendingVisit(form, photoFile, photoLocation);
       await removeVisitDraft(draftId);
       navigate("/visits/detail", {
         replace: true,
@@ -142,6 +144,8 @@ export default function VisitDraftCompletePage() {
           mode="add"
           photoFile={photoFile}
           setPhotoFile={setPhotoFile}
+          photoLocation={photoLocation}
+          setPhotoLocation={setPhotoLocation}
         />
 
         <FormPageActions

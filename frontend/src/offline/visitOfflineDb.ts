@@ -1,4 +1,5 @@
 import type { KutirVisitCreate } from "../api/visits";
+import type { VisitPhotoLocation } from "../utils/visitPhotoGeolocation";
 
 import type { VisitOfflineDraft } from "./visitDraftTypes";
 import { VISIT_DRAFT_TTL_DAYS } from "./visitDraftTypes";
@@ -19,6 +20,9 @@ export type PendingVisitRecord = {
   photoBlob?: Blob;
   photoName?: string;
   photoType?: string;
+  photoLatitude?: number;
+  photoLongitude?: number;
+  photoAccuracyM?: number | null;
   createdAt: string;
   lastError?: string;
 };
@@ -40,6 +44,7 @@ export async function loadVisitLookupCache(): Promise<VisitLookupCache | null> {
 export async function enqueuePendingVisit(
   payload: KutirVisitCreate,
   photoFile?: File | null,
+  photoLocation?: VisitPhotoLocation | null,
 ): Promise<string> {
   const localId = crypto.randomUUID();
   const record: PendingVisitRecord = {
@@ -51,6 +56,11 @@ export async function enqueuePendingVisit(
     record.photoBlob = photoFile;
     record.photoName = photoFile.name;
     record.photoType = photoFile.type;
+    if (photoLocation) {
+      record.photoLatitude = photoLocation.latitude;
+      record.photoLongitude = photoLocation.longitude;
+      record.photoAccuracyM = photoLocation.accuracyM;
+    }
   }
   const db = await openDb();
   const tx = db.transaction(OUTBOX_STORE, "readwrite");

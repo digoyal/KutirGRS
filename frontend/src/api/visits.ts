@@ -1,4 +1,5 @@
 import api from "./client";
+import type { VisitPhotoLocation } from "../utils/visitPhotoGeolocation";
 
 export interface KutirVisit {
   id: number;
@@ -50,12 +51,25 @@ export interface KutirVisit {
   timeslot_value_ed: boolean;
   timeslot_gk_map: boolean;
   visit_photo: string | null;
+  visit_photo_latitude: number | null;
+  visit_photo_longitude: number | null;
+  visit_photo_accuracy_m: number | null;
   final_remarks: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export type KutirVisitCreate = Omit<KutirVisit, "id" | "visited_by_id" | "visit_photo" | "created_at" | "updated_at">;
+export type KutirVisitCreate = Omit<
+  KutirVisit,
+  | "id"
+  | "visited_by_id"
+  | "visit_photo"
+  | "visit_photo_latitude"
+  | "visit_photo_longitude"
+  | "visit_photo_accuracy_m"
+  | "created_at"
+  | "updated_at"
+>;
 
 export const BLANK_VISIT: KutirVisitCreate = {
   kutir_id: 0,
@@ -145,9 +159,20 @@ export async function deleteVisit(id: number): Promise<void> {
   await api.delete(`/kutir-visits/${id}`);
 }
 
-export async function uploadVisitPhoto(id: number, file: File): Promise<KutirVisit> {
+export async function uploadVisitPhoto(
+  id: number,
+  file: File,
+  location?: VisitPhotoLocation | null,
+): Promise<KutirVisit> {
   const form = new FormData();
   form.append("file", file);
+  if (location) {
+    form.append("visit_photo_latitude", String(location.latitude));
+    form.append("visit_photo_longitude", String(location.longitude));
+    if (location.accuracyM != null && Number.isFinite(location.accuracyM)) {
+      form.append("visit_photo_accuracy_m", String(location.accuracyM));
+    }
+  }
   const { data } = await api.post(`/kutir-visits/${id}/photo`, form, {
     headers: { "Content-Type": "multipart/form-data" },
   });

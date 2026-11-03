@@ -29,6 +29,9 @@ export const VISITS_FIELDS: FieldMeta[] = [
   { key: "grs_prep_remarks",         label: "GRS Prep Remarks",             formLabel: "GRS Preparation Remarks", hideable: true, defaultVisible: false },
   { key: "final_remarks",            label: "Final Remarks",                hideable: true,  defaultVisible: false },
   { key: "visit_photo",              label: "Photo",                        formLabel: "Visit Photo", hideable: true, defaultVisible: false },
+  { key: "visit_photo_latitude",     label: "Photo Lat",                    formLabel: "Photo Latitude", hideable: true, defaultVisible: false, form: false },
+  { key: "visit_photo_longitude",    label: "Photo Lng",                    formLabel: "Photo Longitude", hideable: true, defaultVisible: false, form: false },
+  { key: "visit_photo_accuracy_m",   label: "Photo GPS ±m",                 formLabel: "Photo GPS Accuracy (m)", hideable: true, defaultVisible: false, form: false },
 ];
 
 export const VISITS_FIELD_KEYS = VISITS_FIELDS.map((f) => f.key) as readonly string[];

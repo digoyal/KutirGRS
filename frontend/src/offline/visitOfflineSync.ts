@@ -32,7 +32,15 @@ export async function syncPendingVisits(): Promise<VisitSyncResult> {
           const file = new File([row.photoBlob], row.photoName || "visit-photo.jpg", {
             type: row.photoType || row.photoBlob.type || "image/jpeg",
           });
-          await uploadVisitPhoto(saved.id, file);
+          const location =
+            row.photoLatitude != null && row.photoLongitude != null
+              ? {
+                  latitude: row.photoLatitude,
+                  longitude: row.photoLongitude,
+                  accuracyM: row.photoAccuracyM ?? null,
+                }
+              : null;
+          await uploadVisitPhoto(saved.id, file, location);
         }
         await removePendingVisit(row.localId);
         synced += 1;

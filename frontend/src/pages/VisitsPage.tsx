@@ -403,6 +403,27 @@ export default function VisitsPage() {
         <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>—</span>
       )),
     },
+    {
+      key: "visit_photo_latitude",
+      label: "",
+      sortable: true,
+      csvValue: v => (isOfflineLocalVisit(v) || v.visit_photo_latitude == null ? "" : String(v.visit_photo_latitude)),
+      render: v => (isOfflineLocalVisit(v) ? draftPlaceholder : v.visit_photo_latitude ?? "—"),
+    },
+    {
+      key: "visit_photo_longitude",
+      label: "",
+      sortable: true,
+      csvValue: v => (isOfflineLocalVisit(v) || v.visit_photo_longitude == null ? "" : String(v.visit_photo_longitude)),
+      render: v => (isOfflineLocalVisit(v) ? draftPlaceholder : v.visit_photo_longitude ?? "—"),
+    },
+    {
+      key: "visit_photo_accuracy_m",
+      label: "",
+      sortable: true,
+      csvValue: v => (isOfflineLocalVisit(v) || v.visit_photo_accuracy_m == null ? "" : String(v.visit_photo_accuracy_m)),
+      render: v => (isOfflineLocalVisit(v) ? draftPlaceholder : v.visit_photo_accuracy_m ?? "—"),
+    },
   ], [kutirMap]);
 
   const { isVisible, orderedMetas } = useFieldConfig("visits", VISITS_FIELDS);

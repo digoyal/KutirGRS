@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Literal, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File, Form
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -607,10 +607,36 @@ async def delete_visit(
 
 
 # ── Photo upload ─────────────────────────────────────────────────────────────
+def _optional_photo_coords(
+    latitude: Optional[float],
+    longitude: Optional[float],
+    accuracy_m: Optional[float],
+) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    """Validate optional geolocation fields; all null clears stored coords."""
+    if latitude is None and longitude is None:
+        if accuracy_m is not None:
+            raise HTTPException(
+                422, "visit_photo_accuracy_m requires visit_photo_latitude and visit_photo_longitude"
+            )
+        return None, None, None
+    if latitude is None or longitude is None:
+        raise HTTPException(422, "visit_photo_latitude and visit_photo_longitude must both be provided")
+    if not (-90 <= latitude <= 90):
+        raise HTTPException(422, "visit_photo_latitude out of range")
+    if not (-180 <= longitude <= 180):
+        raise HTTPException(422, "visit_photo_longitude out of range")
+    if accuracy_m is not None and accuracy_m < 0:
+        raise HTTPException(422, "visit_photo_accuracy_m must be non-negative")
+    return latitude, longitude, accuracy_m
+
+
 @router.post("/kutir-visits/{id}/photo", response_model=KutirVisitOut, tags=["Kutir Visits"])
 async def upload_visit_photo(
     id: int,
     file: UploadFile = File(...),
+    visit_photo_latitude: Optional[float] = Form(None),
+    visit_photo_longitude: Optional[float] = Form(None),
+    visit_photo_accuracy_m: Optional[float] = Form(None),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
     _=Depends(require_roles(MANAGE_VISITS)),
@@ -619,12 +645,18 @@ async def upload_visit_photo(
     if not obj:
         raise HTTPException(404, "KutirVisit not found")
     require_kutir_in_scope(obj.kutir_id, scope, detail="KutirVisit not found")
+    lat, lng, acc = _optional_photo_coords(
+        visit_photo_latitude, visit_photo_longitude, visit_photo_accuracy_m
+    )
     ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
     filename = f"{uuid.uuid4()}{ext}"
     dest = os.path.join(_media("visit_photos"), filename)
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
     obj.visit_photo = f"visit_photos/{filename}"
+    obj.visit_photo_latitude = lat
+    obj.visit_photo_longitude = lng
+    obj.visit_photo_accuracy_m = acc
     await db.commit()
     await db.refresh(obj)
     return await _visit_to_out(obj, db)

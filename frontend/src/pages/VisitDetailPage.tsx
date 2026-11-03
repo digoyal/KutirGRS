@@ -13,6 +13,7 @@ import {
   visitFormFromVisit,
   type VisitFormState,
 } from "../components/VisitForm";
+import type { VisitPhotoLocation } from "../utils/visitPhotoGeolocation";
 
 export default function VisitDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,7 @@ export default function VisitDetailPage() {
   const [editing, setEditing] = useState(enteredViaEdit);
   const [form, setForm] = useState<VisitFormState>(emptyVisitForm);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoLocation, setPhotoLocation] = useState<VisitPhotoLocation | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,13 +57,14 @@ export default function VisitDetailPage() {
     setError(null);
     try {
       const saved = await updateVisit(Number(id), form);
-      if (photoFile) await uploadVisitPhoto(saved.id, photoFile);
+      if (photoFile) await uploadVisitPhoto(saved.id, photoFile, photoLocation);
       qc.invalidateQueries({ queryKey: ["visits"] });
       qc.invalidateQueries({ queryKey: ["visit-record", Number(id)] });
       if (enteredViaEdit) navigate(-1);
       else {
         setEditing(false);
         setPhotoFile(null);
+        setPhotoLocation(null);
       }
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -89,7 +92,12 @@ export default function VisitDetailPage() {
       mode={editing ? "edit" : "view"}
       photoFile={editing ? photoFile : undefined}
       setPhotoFile={editing ? setPhotoFile : undefined}
+      photoLocation={editing ? photoLocation : undefined}
+      setPhotoLocation={editing ? setPhotoLocation : undefined}
       existingPhoto={visit.visit_photo}
+      visitPhotoLatitude={visit.visit_photo_latitude}
+      visitPhotoLongitude={visit.visit_photo_longitude}
+      visitPhotoAccuracyM={visit.visit_photo_accuracy_m}
       kutirName={kutirName}
       visitedById={visit.visited_by_id}
       visitedByName={visit.visited_by_name}

@@ -93,7 +93,7 @@ One registry per entity: `frontend/src/constants/*Fields.ts` (e.g. `studentsFiel
 
 1. **Forms:** Most entities: one `*Form` for Add/Edit/View (`mode`). Users: `UserForm` Add/Edit; View on Detail. `className="grs-form"` on Add/Edit root (not View). Full-width controls; stack on narrow via `.grs-form` / avoid multi-column grids below ~640px. Shells: `max-width: 100%`, `box-sizing: border-box`, `min-width: 0`.
 2. **Reports (phone):** Collapsible filter bar as in **1.2** item 3. Full-width main; vertical page scroll; horizontal scroll **inside** wide tables/cards only — no document horizontal overflow.
-3. **Visit photo (Add/Edit, ≤768px):** `VisitForm` shows **Take photo** (`input capture="environment"`) and **Choose file**; desktop single file input. Same `photoFile` → `uploadVisitPhoto` on save.
+3. **Visit photo (Add/Edit, ≤768px):** `VisitForm` shows **Take photo** (`input capture="environment"`) and **Choose file**; desktop single file input. Same `photoFile` → `uploadVisitPhoto` on save. When a photo is attached (camera or gallery), the app requests browser geolocation once (`navigator.geolocation.getCurrentPosition`); location is optional — denied/timeout still uploads the photo with null coords stored on `kutir_visits` (`visit_photo_latitude`, `visit_photo_longitude`, `visit_photo_accuracy_m`). View mode shows coords + **Open in maps** when present. Offline outbox stores photo GPS on the pending row and sends it with photo sync.
 
 ---
 
