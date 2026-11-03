@@ -150,8 +150,7 @@ class StudentExamScore(Base):
 class StudentProgress(Base, TimestampMixin):
     __tablename__ = "student_progress"
     __table_args__ = (
-        UniqueConstraint("student_id", "school_id", "academic_year",
-                         name="uq_student_school_academic_year"),
+        UniqueConstraint("student_id", name="uq_student_progress_student"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -162,11 +161,20 @@ class StudentProgress(Base, TimestampMixin):
         Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False
     )
     academic_year: Mapped[int] = mapped_column(Integer, nullable=False)
-    class_in_year: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)  # class 1-12
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="enrolled")  # enrolled|transferred|dropped_out|graduated|admitted_to_college
+    class_in_year: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)  # current class in journey
+    track: Mapped[str] = mapped_column(String(20), nullable=False)  # six_twelve | nine_twelve
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="enrolled",
+    )  # enrolled|promoted|transferred|dropped_out|graduated|admitted_to_college
     transfer_school: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     exit_reason: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)  # dropout reason
-    previous_year_percentage: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    marks_6: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    marks_7: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    marks_8: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    marks_9: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    marks_10: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    marks_11: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    marks_12: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     student: Mapped[object] = relationship("Student", back_populates="progress_records")

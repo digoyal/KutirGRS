@@ -70,10 +70,13 @@ export interface StudentExamCreate {
 // ── StudentProgress ──────────────────────────────────────────────────────────
 export type ProgressStatus =
   | "enrolled"
+  | "promoted"
   | "transferred"
   | "dropped_out"
   | "graduated"
   | "admitted_to_college";
+
+export type ProgressTrack = "six_twelve" | "nine_twelve";
 
 export interface StudentProgress {
   id: number;
@@ -81,10 +84,18 @@ export interface StudentProgress {
   school_id: number;
   academic_year: number;
   class_in_year: number | null;
+  track: ProgressTrack;
   status: ProgressStatus;
   transfer_school: string | null;
   exit_reason: string | null;
-  previous_year_percentage: number | null;
+  marks_6: number | null;
+  marks_7: number | null;
+  marks_8: number | null;
+  marks_9: number | null;
+  marks_10: number | null;
+  marks_11: number | null;
+  marks_12: number | null;
+  enabled_mark_classes: number[];
   remarks: string | null;
   school?: SchoolMin;
   created_at: string;
@@ -96,10 +107,17 @@ export interface StudentProgressCreate {
   school_id: number;
   academic_year: number;
   class_in_year?: number | null;
+  track?: ProgressTrack;
   status?: ProgressStatus;
   transfer_school?: string | null;
   exit_reason?: string | null;
-  previous_year_percentage?: number | null;
+  marks_6?: number | null;
+  marks_7?: number | null;
+  marks_8?: number | null;
+  marks_9?: number | null;
+  marks_10?: number | null;
+  marks_11?: number | null;
+  marks_12?: number | null;
   remarks?: string | null;
 }
 

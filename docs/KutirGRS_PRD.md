@@ -154,9 +154,10 @@ Zone → District → Area → Cluster → Kutir
 
 ### 5.6 Progress
 
-- List / add / detail with year and geo filters; student search with father-aware labels.
-- Statuses: enrolled | transferred | dropped out | graduated | admitted to college (and related transfer school / exit reason fields).
-- **Bulk Progress Update** (route `new-year-setup`): choose year; filter students; bulk-create progress rows. Inclusion = **Admitted** ∪ prior-year Progress (deduped); students who already have Progress for the **target** year are omitted from the list (API still rejects duplicates on save). Class promotion = prior class + 1 (see §8.2). Transfer/dropout handling still open.
+- **One journey record per student** (6→12 or 9→12 track); per-class mark columns on that row; list / add / detail with year and geo filters; father-aware student labels.
+- **Admit → progress:** on Admitted, auto-create/update progress (`class = admission_class + 1`, `academic_year = school_start_year + 1`, status Enrolled); entry mark (6th or 9th) enabled; **Promoted** when entry mark saved.
+- Statuses (writable): enrolled | promoted | dropped out | graduated | admitted to college. Legacy **transferred** rows remain visible; not selectable on new edits.
+- **Bulk Progress Update** (`new-year-setup`): backfill missing journey records for admitted students only (not annual row creation).
 
 ### 5.7 Kutir visits
 

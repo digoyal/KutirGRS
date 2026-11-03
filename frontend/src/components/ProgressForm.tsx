@@ -1,7 +1,5 @@
 /**
  * Shared progress form used by ProgressAddPage and ProgressDetailPage.
- * Caller owns form state; this component is presentational + interactive.
- * Modes: add (empty/editable + student search), edit (editable), view (read-only).
  */
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
@@ -11,6 +9,7 @@ import {
   listExams,
   type StudentExam,
   type ProgressStatus,
+  type ProgressTrack,
 } from "../api/admissions";
 import { listSchools, type School } from "../api/schools";
 import { listKutirs } from "../api/kutirs";
@@ -26,6 +25,13 @@ import {
 import { formatAcademicYear } from "../utils/academicYear";
 import { studentLabel } from "../utils/studentLabel";
 import { progressFieldLabel } from "../constants/progressFields";
+import {
+  classesForTrack,
+  enabledMarkClasses,
+  markField,
+  type MarkFieldKey,
+  type MarkFields,
+} from "../utils/progressTrack";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -34,10 +40,17 @@ export interface ProgressFormState {
   school_id: number;
   academic_year: number;
   class_in_year: number | null;
+  track: ProgressTrack;
   status: ProgressStatus;
   transfer_school: string | null;
   exit_reason: string | null;
-  previous_year_percentage: number | null;
+  marks_6: number | null;
+  marks_7: number | null;
+  marks_8: number | null;
+  marks_9: number | null;
+  marks_10: number | null;
+  marks_11: number | null;
+  marks_12: number | null;
   remarks: string | null;
 }
 
@@ -47,12 +60,40 @@ export function emptyProgressForm(year = CURRENT_YEAR): ProgressFormState {
     school_id: 0,
     academic_year: year,
     class_in_year: null,
+    track: "six_twelve",
     status: "enrolled",
     transfer_school: null,
     exit_reason: null,
-    previous_year_percentage: null,
+    marks_6: null,
+    marks_7: null,
+    marks_8: null,
+    marks_9: null,
+    marks_10: null,
+    marks_11: null,
+    marks_12: null,
     remarks: null,
   };
+}
+
+export function progressToFormState(record: {
+  student_id: number;
+  school_id: number;
+  academic_year: number;
+  class_in_year: number | null;
+  track: ProgressTrack;
+  status: ProgressStatus;
+  transfer_school: string | null;
+  exit_reason: string | null;
+  marks_6: number | null;
+  marks_7: number | null;
+  marks_8: number | null;
+  marks_9: number | null;
+  marks_10: number | null;
+  marks_11: number | null;
+  marks_12: number | null;
+  remarks: string | null;
+}): ProgressFormState {
+  return { ...record };
 }
 
 interface StudentMin {
@@ -66,10 +107,12 @@ interface ProgressFormProps {
   form: ProgressFormState;
   setForm: React.Dispatch<React.SetStateAction<ProgressFormState>>;
   mode: "add" | "edit" | "view";
-  /** Display name for edit/view (student cannot be changed). */
   studentName?: string;
-  /** School display name for view mode. */
   schoolName?: string;
+}
+
+function trackFromAdmissionClass(admissionClass: number | null | undefined): ProgressTrack {
+  return admissionClass === 8 ? "nine_twelve" : "six_twelve";
 }
 
 export function ProgressForm({
@@ -159,12 +202,10 @@ export function ProgressForm({
     [scopedClusters, modalDistrict, areaDistrictMap, clusterAreaMap],
   );
 
-  const admittedSchoolMap = useMemo<Record<number, number>>(() => {
-    const m: Record<number, number> = {};
+  const admittedExamByStudent = useMemo(() => {
+    const m = new Map<number, StudentExam>();
     for (const e of allExams) {
-      if (e.admitted && e.admitted_school_id && !(e.student_id in m)) {
-        m[e.student_id] = e.admitted_school_id;
-      }
+      if (e.admitted && !m.has(e.student_id)) m.set(e.student_id, e);
     }
     return m;
   }, [allExams]);
@@ -217,13 +258,13 @@ export function ProgressForm({
 
   const currentStatus = (form.status || "enrolled") as ProgressStatus;
   const badge = STATUS_BADGES[currentStatus] ?? STATUS_BADGES.enrolled;
-  const yearLabel = isAdd ? "New Year" : "Academic Year";
-  const classLabel = isAdd
-    ? "New Class *"
-    : progressFieldLabel("class_in_year");
-  const marksLabel = isAdd
-    ? "Previous Year Marks %"
-    : progressFieldLabel("previous_year_percentage");
+  const markClasses = classesForTrack(form.track);
+  const marksSlice = form as MarkFields;
+  const enabled = enabledMarkClasses(form.track, marksSlice);
+  const statusLockedTransferred = currentStatus === "transferred";
+
+  const trackLabel =
+    form.track === "nine_twelve" ? "9th → 12th" : "6th → 12th";
 
   return (
     <div className={readOnly ? "grs-form-layout" : "grs-form"}>
@@ -294,8 +335,13 @@ export function ProgressForm({
                       onClick={() => {
                         set("student_id", s.id);
                         setSearch(label);
-                        const school = admittedSchoolMap[s.id];
-                        if (school) set("school_id", school);
+                        const exam = admittedExamByStudent.get(s.id);
+                        if (exam?.admitted_school_id) set("school_id", exam.admitted_school_id);
+                        if (exam?.admission_class != null) {
+                          set("track", trackFromAdmissionClass(exam.admission_class));
+                          set("class_in_year", exam.admission_class + 1);
+                          set("academic_year", exam.school_start_year + 1);
+                        }
                       }}
                       style={{
                         padding: "8px 12px",
@@ -344,32 +390,35 @@ export function ProgressForm({
       )}
 
       {readOnly ? (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <ViewField label={yearLabel} style={{ flex: 1 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <ViewField label="Academic Year" style={{ flex: 1, minWidth: 120 }}>
             {formatAcademicYear(form.academic_year)}
           </ViewField>
-          <ViewField label={progressFieldLabel("class_in_year")} style={{ flex: 1 }}>
+          <ViewField label={progressFieldLabel("class_in_year")} style={{ flex: 1, minWidth: 100 }}>
             {form.class_in_year != null ? `Class ${form.class_in_year}` : null}
+          </ViewField>
+          <ViewField label="Track" style={{ flex: 1, minWidth: 100 }}>
+            {trackLabel}
           </ViewField>
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>{yearLabel}</label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <label style={labelStyle}>Academic Year</label>
             <select
               style={inp}
               value={form.academic_year}
               onChange={(e) => set("academic_year", Number(e.target.value))}
             >
-              {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR].map((y) => (
+              {[CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1].map((y) => (
                 <option key={y} value={y}>
                   {formatAcademicYear(y)}
                 </option>
               ))}
             </select>
           </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>{classLabel}</label>
+          <div style={{ flex: 1, minWidth: 100 }}>
+            <label style={labelStyle}>{progressFieldLabel("class_in_year")}</label>
             <select
               style={inp}
               value={form.class_in_year ?? ""}
@@ -378,66 +427,97 @@ export function ProgressForm({
               }
             >
               <option value="">— select —</option>
-              {[6, 7, 8, 9, 10, 11, 12].map((c) => (
+              {markClasses.map((c) => (
                 <option key={c} value={c}>
                   Class {c}
                 </option>
               ))}
             </select>
           </div>
+          <div style={{ flex: 1, minWidth: 100 }}>
+            <label style={labelStyle}>Track</label>
+            <div style={{ ...inp, color: "var(--text-secondary)", background: "var(--bg-input)" }}>
+              {trackLabel}
+            </div>
+          </div>
         </div>
       )}
 
       {readOnly ? (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <ViewField label={progressFieldLabel("school_id", { required: true })} style={{ flex: 2 }}>
-            {schoolName}
-          </ViewField>
-          <ViewField label={progressFieldLabel("previous_year_percentage")} style={{ flex: 1 }}>
-            {form.previous_year_percentage != null
-              ? `${parseFloat(String(form.previous_year_percentage)).toFixed(1)}%`
-              : null}
-          </ViewField>
-        </div>
+        <ViewField label={progressFieldLabel("school_id", { required: true })} style={{ marginBottom: 14 }}>
+          {schoolName}
+        </ViewField>
       ) : (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <div style={{ flex: 2 }}>
-            <label style={labelStyle}>{progressFieldLabel("school_id", { required: true })}</label>
-            <select
-              style={inp}
-              value={form.school_id || ""}
-              onChange={(e) => set("school_id", Number(e.target.value))}
-            >
-              <option value="">— select —</option>
-              {schools.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.school_type})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>{marksLabel}</label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={0.1}
-              style={inp}
-              value={form.previous_year_percentage ?? ""}
-              onChange={(e) =>
-                set(
-                  "previous_year_percentage",
-                  e.target.value === "" ? null : Number(e.target.value),
-                )
-              }
-            />
-          </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>{progressFieldLabel("school_id", { required: true })}</label>
+          <select
+            style={inp}
+            value={form.school_id || ""}
+            onChange={(e) => set("school_id", Number(e.target.value))}
+          >
+            <option value="">— select —</option>
+            {schools.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.school_type})
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
       <div style={{ marginBottom: 14 }}>
-        {readOnly ? (
+        <label style={labelStyle}>Marks by class (%)</label>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+            gap: 8,
+          }}
+        >
+          {markClasses.map((classNum) => {
+            const field: MarkFieldKey = markField(classNum);
+            const val = form[field];
+            const canEdit = !readOnly && enabled.includes(classNum);
+            const disabled = readOnly || !canEdit;
+            if (readOnly) {
+              return (
+                <ViewField key={classNum} label={`Class ${classNum}`}>
+                  {val != null ? `${parseFloat(String(val)).toFixed(1)}%` : "—"}
+                </ViewField>
+              );
+            }
+            return (
+              <div key={classNum}>
+                <label style={{ ...labelStyle, opacity: disabled ? 0.55 : 1 }}>
+                  Class {classNum}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  style={{
+                    ...inp,
+                    opacity: disabled ? 0.55 : 1,
+                    background: disabled ? "var(--bg-input)" : "var(--bg-input)",
+                  }}
+                  disabled={disabled}
+                  value={val ?? ""}
+                  onChange={(e) =>
+                    set(
+                      field,
+                      e.target.value === "" ? null : Number(e.target.value),
+                    )
+                  }
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        {readOnly || statusLockedTransferred ? (
           <ViewField label={progressFieldLabel("status")}>
             <span
               style={{
@@ -481,19 +561,7 @@ export function ProgressForm({
         )}
       </div>
 
-      {!readOnly && currentStatus === "transferred" && (
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>School Name</label>
-          <input
-            style={inp}
-            placeholder="Name of school transferred to"
-            value={form.transfer_school ?? ""}
-            onChange={(e) => set("transfer_school", e.target.value || null)}
-          />
-        </div>
-      )}
-
-      {!readOnly && currentStatus === "dropped_out" && (
+      {!readOnly && !statusLockedTransferred && currentStatus === "dropped_out" && (
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Reason</label>
           <input
@@ -539,7 +607,7 @@ const inp: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 6,
   padding: "7px 10px",
-  fontSize: 16, // ≥16px — iOS Safari zooms focused controls under 16px
+  fontSize: 16,
   boxSizing: "border-box",
   background: "var(--bg-input)",
   color: "var(--text-primary)",

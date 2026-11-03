@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, computed_field
+from app.progress_logic import enabled_mark_classes as compute_enabled_marks
 from app.schemas.lookups import SubjectRef  # noqa: F401  (re-exported for ExamScoreOut)
 
 
@@ -149,22 +150,36 @@ class StudentProgressBase(BaseModel):
     school_id: int
     academic_year: int
     class_in_year: Optional[int] = None
-    status: str = "enrolled"  # enrolled | transferred | dropped_out | graduated | admitted_to_college
+    track: str  # six_twelve | nine_twelve
+    status: str = "enrolled"
     transfer_school: Optional[str] = None
     exit_reason: Optional[str] = None
-    previous_year_percentage: Optional[Decimal] = None
+    marks_6: Optional[Decimal] = None
+    marks_7: Optional[Decimal] = None
+    marks_8: Optional[Decimal] = None
+    marks_9: Optional[Decimal] = None
+    marks_10: Optional[Decimal] = None
+    marks_11: Optional[Decimal] = None
+    marks_12: Optional[Decimal] = None
     remarks: Optional[str] = None
 
 class StudentProgressCreate(StudentProgressBase):
-    pass
+    track: Optional[str] = None  # inferred from admitted exam when omitted
 
 class StudentProgressUpdate(BaseModel):
     academic_year: Optional[int] = None
     class_in_year: Optional[int] = None
+    track: Optional[str] = None
     status: Optional[str] = None
     transfer_school: Optional[str] = None
     exit_reason: Optional[str] = None
-    previous_year_percentage: Optional[Decimal] = None
+    marks_6: Optional[Decimal] = None
+    marks_7: Optional[Decimal] = None
+    marks_8: Optional[Decimal] = None
+    marks_9: Optional[Decimal] = None
+    marks_10: Optional[Decimal] = None
+    marks_11: Optional[Decimal] = None
+    marks_12: Optional[Decimal] = None
     remarks: Optional[str] = None
 
 class StudentProgressOut(StudentProgressBase):
@@ -172,3 +187,8 @@ class StudentProgressOut(StudentProgressBase):
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def enabled_mark_classes(self) -> list[int]:
+        return compute_enabled_marks(self)

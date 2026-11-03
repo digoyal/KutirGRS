@@ -1057,7 +1057,7 @@ async def _import_admissions(rows, db):
 
 
 async def _import_progress(rows, db):
-    """Import student_progress records. Unique on (student_id, school_id, academic_year)."""
+    """Import student_progress — one row per student (upsert by student + school)."""
     created = updated = skipped = 0; errors = []
     for r in rows:
         # Resolve student by natural key + hierarchical kutir
@@ -1097,13 +1097,14 @@ async def _import_progress(rows, db):
             errors.append(f"Missing academic_year for student id={sid} — row skipped"); continue
 
         exists_rows = (await db.execute(
-            text("SELECT id FROM student_progress WHERE student_id=:s AND school_id=:sc AND academic_year=:y LIMIT 1"),
-            {"s": sid, "sc": school_id, "y": academic_year}
+            text("SELECT id FROM student_progress WHERE student_id=:s LIMIT 1"),
+            {"s": sid},
         )).scalars().all()
 
         status = _str(r.get("status", "enrolled"))
         if status not in (
             "enrolled",
+            "promoted",
             "transferred",
             "dropped_out",
             "graduated",
@@ -1112,36 +1113,66 @@ async def _import_progress(rows, db):
             errors.append(f"Invalid status '{status}' for student id={sid} — defaulting to enrolled")
             status = "enrolled"
 
-        pct_raw = r.get("previous_year_percentage")
-        pct = _float(pct_raw) if pct_raw not in (None, "") else None
+        track = _str(r.get("track")) or None
+        if track not in ("six_twelve", "nine_twelve", None):
+            errors.append(f"Invalid track '{track}' for student id={sid} — defaulting to six_twelve")
+            track = "six_twelve"
+        if not track:
+            track = "nine_twelve" if (_int(r.get("class_in_year")) or 0) >= 9 else "six_twelve"
+
+        def _mark(col: str):
+            raw = r.get(col)
+            if raw in (None, ""):
+                raw = r.get(f"{col}_pct")  # optional alias
+            return _float(raw) if raw not in (None, "") else None
 
         params = {
             "si": sid, "sc": school_id, "yr": academic_year,
             "cl": _int(r.get("class_in_year")),
+            "tr": track,
             "st": status,
             "ts": _str(r.get("transfer_school")) or None,
             "er": _str(r.get("exit_reason")) or None,
-            "pct": pct,
+            "m6": _mark("marks_6"), "m7": _mark("marks_7"), "m8": _mark("marks_8"),
+            "m9": _mark("marks_9"), "m10": _mark("marks_10"), "m11": _mark("marks_11"), "m12": _mark("marks_12"),
             "rm": _str(r.get("remarks")) or None,
         }
+        # Legacy template column
+        pct_raw = r.get("previous_year_percentage")
+        if pct_raw not in (None, "") and params["cl"]:
+            legacy = _float(pct_raw)
+            key = f"m{params['cl']}" if params["cl"] <= 12 else None
+            if key == "m6": params["m6"] = legacy
+            elif key == "m7": params["m7"] = legacy
+            elif key == "m8": params["m8"] = legacy
+            elif key == "m9": params["m9"] = legacy
+            elif key == "m10": params["m10"] = legacy
+            elif key == "m11": params["m11"] = legacy
+            elif key == "m12": params["m12"] = legacy
+
         if exists_rows:
             await db.execute(text("""
                 UPDATE student_progress SET
-                    class_in_year=:cl, status=:st, transfer_school=:ts, exit_reason=:er,
-                    previous_year_percentage=:pct, remarks=:rm, updated_at=now()
+                    school_id=:sc, academic_year=:yr, class_in_year=:cl, track=:tr,
+                    status=:st, transfer_school=:ts, exit_reason=:er,
+                    marks_6=:m6, marks_7=:m7, marks_8=:m8, marks_9=:m9,
+                    marks_10=:m10, marks_11=:m11, marks_12=:m12,
+                    remarks=:rm, updated_at=now()
                 WHERE id=:id
             """), {**params, "id": exists_rows[0]})
             updated += 1; continue
 
         await db.execute(text("""
             INSERT INTO student_progress
-                (student_id, school_id, academic_year, class_in_year,
+                (student_id, school_id, academic_year, class_in_year, track,
                  status, transfer_school, exit_reason,
-                 previous_year_percentage, remarks, created_at, updated_at)
+                 marks_6, marks_7, marks_8, marks_9, marks_10, marks_11, marks_12,
+                 remarks, created_at, updated_at)
             VALUES
-                (:si, :sc, :yr, :cl,
+                (:si, :sc, :yr, :cl, :tr,
                  :st, :ts, :er,
-                 :pct, :rm, now(), now())
+                 :m6, :m7, :m8, :m9, :m10, :m11, :m12,
+                 :rm, now(), now())
         """), params)
         created += 1
     return _result(created, skipped, errors, updated)

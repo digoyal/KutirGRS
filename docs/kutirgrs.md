@@ -71,7 +71,18 @@ On a physical phone, `localhost` / `127.0.0.1` is the phone — use the Mac **LA
 
 ---
 
-## 4. Field registry (GRS entities)
+## 4. Progress (single journey record)
+
+1. **One row per student** on `student_progress` (unique `student_id`). Track **`six_twelve`** (6→12) or **`nine_twelve`** (9→12) from admission class 5 or 8.
+2. **Marks:** columns `marks_6` … `marks_12`; Add/Edit shows 7 or 4 inputs; server enables the next class when the previous mark is saved.
+3. **Admit hook:** when Admissions **`admitted`** becomes true, API upserts progress with `class_in_year = admission_class + 1`, `academic_year = school_start_year + 1`, `status = enrolled`, entry mark field enabled.
+4. **Status:** `promoted` is set on save when 6th or 9th marks are first filled. **`transferred`** is legacy/read-only in UI (removed from status dropdown). Writable: enrolled, promoted, dropped_out, graduated, admitted_to_college.
+5. **Bulk Progress Update** (`/new-year-setup`): backfill only — admitted students with no progress row yet (not per-year row creation).
+6. **Registry / form:** `progressFields.ts`, shared **`ProgressForm`**, mark helpers in **`frontend/src/utils/progressTrack.ts`**. Design note: Project store [`docs/progress-single-record-plan.md`](progress-single-record-plan.md) (coordinator copy under store `docs/`).
+
+---
+
+## 5. Field registry (GRS entities)
 
 One registry per entity: `frontend/src/constants/*Fields.ts` (e.g. `studentsFields.ts`, `kutirsFields.ts`, `admissionsFields.ts`; glob `**/*Fields.ts`). Each exports `FieldMeta[]` (`STUDENTS_FIELDS`, `KUTIRS_FIELDS`, …) and helpers (`studentField`, `kutirFieldLabel`, …). List columns, Column Config, CSV export, and form labels **from registry**.
 
@@ -82,7 +93,7 @@ One registry per entity: `frontend/src/constants/*Fields.ts` (e.g. `studentsFiel
 
 ---
 
-## 5. Mobile — KutirGRS forms & visits
+## 6. Mobile — KutirGRS forms & visits
 
 1. **Forms:** Most entities: one `*Form` for Add/Edit/View (`mode`). Users: `UserForm` Add/Edit; View on Detail. `className="grs-form"` on Add/Edit root (not View). Full-width controls; stack on narrow via `.grs-form` / avoid multi-column grids below ~640px. Shells: `max-width: 100%`, `box-sizing: border-box`, `min-width: 0`.
 2. **Reports (phone):** Collapsible filter bar as in **1.2** item 3. Full-width main; vertical page scroll; horizontal scroll **inside** wide tables/cards only — no document horizontal overflow.
@@ -90,7 +101,7 @@ One registry per entity: `frontend/src/constants/*Fields.ts` (e.g. `studentsFiel
 
 ---
 
-## 6. Testing (KutirGRS)
+## 7. Testing (KutirGRS)
 
 1. Smoke checklist: [`docs/smoke-test.md`](smoke-test.md) (see also generic **Testing** in [`AGENTS.md`](../AGENTS.md)).
 2. After schema work: smoke affected list/detail once (admissions, visits, progress as relevant).
@@ -98,7 +109,7 @@ One registry per entity: `frontend/src/constants/*Fields.ts` (e.g. `studentsFiel
 
 ---
 
-## 7. Database ledger & deploy
+## 8. Database ledger & deploy
 
 1. **Ledger bootstrap (this repo):** existing DBs without `schema_migrations` need operator-verified `--baseline-through NNN` via `python -m app.sql_migrations`. Fresh restore: apply all SQL then `--sync-ledger` (`restore_db.sh`).
 2. Button / pipeline setup: [`docs/deployment.md`](deployment.md).

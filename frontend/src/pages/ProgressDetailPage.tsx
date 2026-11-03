@@ -8,6 +8,7 @@ import { listStudents } from "../api/students";
 import {
   ProgressForm,
   emptyProgressForm,
+  progressToFormState,
   type ProgressFormState,
 } from "../components/ProgressForm";
 import { grs } from "../styles/grs";
@@ -21,7 +22,7 @@ export default function ProgressDetailPage() {
 
   const enteredViaEdit = searchParams.get("edit") === "1";
   const [editing, setEditing] = useState(enteredViaEdit);
-  const [form, setForm] = useState<ProgressFormState>(emptyProgressForm);
+  const [form, setForm] = useState<ProgressFormState>(() => emptyProgressForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,17 +45,7 @@ export default function ProgressDetailPage() {
 
   useEffect(() => {
     if (!record) return;
-    setForm({
-      student_id: record.student_id,
-      school_id: record.school_id,
-      academic_year: record.academic_year,
-      class_in_year: record.class_in_year,
-      status: record.status,
-      transfer_school: record.transfer_school,
-      exit_reason: record.exit_reason,
-      previous_year_percentage: record.previous_year_percentage,
-      remarks: record.remarks,
-    });
+    setForm(progressToFormState(record));
   }, [record]);
 
   async function handleSave() {
@@ -84,19 +75,7 @@ export default function ProgressDetailPage() {
     else {
       setEditing(false);
       setError(null);
-      if (record) {
-        setForm({
-          student_id: record.student_id,
-          school_id: record.school_id,
-          academic_year: record.academic_year,
-          class_in_year: record.class_in_year,
-          status: record.status,
-          transfer_school: record.transfer_school,
-          exit_reason: record.exit_reason,
-          previous_year_percentage: record.previous_year_percentage,
-          remarks: record.remarks,
-        });
-      }
+      if (record) setForm(progressToFormState(record));
     }
   }
 

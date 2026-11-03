@@ -25,6 +25,14 @@ from app.schemas.students import (
 import os, uuid, shutil
 from app.config import settings
 from app.admission_uniqueness import assert_admission_uniqueness, admission_duplicate_detail
+from app.progress_logic import (
+    apply_promoted_status,
+    ensure_progress_from_admitted_exam,
+    infer_track_for_student,
+    merge_progress_payload,
+    validate_status_write,
+    validate_marks_write,
+)
 
 router = APIRouter()
 
@@ -377,6 +385,9 @@ async def create_exam(
     for s in scores:
         db.add(StudentExamScore(exam_id=exam.id, subject_id=s.subject_id, score=s.score))
 
+    if exam.admitted:
+        await ensure_progress_from_admitted_exam(db, exam)
+
     try:
         await db.commit()
     except IntegrityError:
@@ -441,6 +452,8 @@ async def update_exam(
         )
         for s in scores:
             db.add(StudentExamScore(exam_id=id, subject_id=s["subject_id"], score=s.get("score")))
+    if final_admitted:
+        await ensure_progress_from_admitted_exam(db, obj)
     try:
         await db.commit()
     except IntegrityError:
@@ -539,9 +552,19 @@ async def create_progress(
     scope: Optional[set[int]] = Depends(get_scope),
 ):
     await _require_student_in_scope(db, data.student_id, scope, detail="StudentProgress not found")
-    obj = StudentProgress(**data.model_dump())
+    payload = data.model_dump()
+    if not payload.get("track"):
+        payload["track"] = await infer_track_for_student(db, data.student_id)
+    obj = StudentProgress(**payload)
+    validate_marks_write(obj, payload)
+    obj.status = validate_status_write("enrolled", obj.status)
+    apply_promoted_status(obj)
     db.add(obj)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "This student already has a progress record.")
     await db.refresh(obj)
     return obj
 
@@ -569,8 +592,10 @@ async def update_progress(
     if not obj:
         raise HTTPException(404, "StudentProgress not found")
     await _require_student_in_scope(db, obj.student_id, scope, detail="StudentProgress not found")
-    for k, v in data.model_dump(exclude_unset=True).items():
+    update = merge_progress_payload(obj, data.model_dump(exclude_unset=True))
+    for k, v in update.items():
         setattr(obj, k, v)
+    apply_promoted_status(obj)
     await db.commit()
     await db.refresh(obj)
     return obj

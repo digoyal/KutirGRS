@@ -11,7 +11,7 @@ export const PROGRESS_FIELDS: FieldMeta[] = [
   { key: "student",                  label: "Student", hideable: false, defaultVisible: true  },
   { key: "class_in_year",            label: "Class",   hideable: true,  defaultVisible: true  },
   { key: "school_id",                label: "School",  hideable: true,  defaultVisible: true  },
-  { key: "previous_year_percentage", label: "Prev %",  formLabel: "Marks %", hideable: true, defaultVisible: true },
+  { key: "current_marks_pct",        label: "Marks %", hideable: true,  defaultVisible: true, form: false },
   { key: "status",                   label: "Status",  hideable: false, defaultVisible: true  },
   { key: "remarks",                  label: "Remarks", hideable: true,  defaultVisible: false },
 ];

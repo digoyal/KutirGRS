@@ -39,6 +39,7 @@ import {
   type FilterId,
 } from "../utils/geoFilters";
 import { formatAcademicYear } from "../utils/academicYear";
+import { currentClassMarkPct } from "../utils/progressTrack";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const STORAGE_KEY = "progress_filter_state";
@@ -160,7 +161,10 @@ export default function StudentProgressPage() {
             case "student": { const s = studentMap2.get(p.student_id); return studentLabel(s as any).toLowerCase(); }
             case "class_in_year": return p.class_in_year ?? -1;
             case "school_id": return (schoolMap.get(p.school_id)?.name ?? "").toLowerCase();
-            case "previous_year_percentage": return p.previous_year_percentage ?? -1;
+            case "current_marks_pct": {
+              const m = currentClassMarkPct(p, p.class_in_year);
+              return m ?? -1;
+            }
             case "status": return p.status ?? "";
             case "remarks": return (p.remarks ?? "").toLowerCase();
             default: return "";
@@ -172,7 +176,10 @@ export default function StudentProgressPage() {
             case "class_in_year": return p.class_in_year != null ? String(p.class_in_year) : "";
             case "school_id": return (p.school ?? schoolMap.get(p.school_id))?.name ?? "";
             case "status": return STATUS_LABELS[p.status as ProgressStatus] ?? p.status;
-            case "previous_year_percentage": return p.previous_year_percentage != null ? `${parseFloat(String(p.previous_year_percentage)).toFixed(1)}%` : "";
+            case "current_marks_pct": {
+              const m = currentClassMarkPct(p, p.class_in_year);
+              return m != null ? `${parseFloat(String(m)).toFixed(1)}%` : "";
+            }
             case "remarks": return p.remarks ?? "";
             default: return "";
           }
@@ -256,12 +263,14 @@ export default function StudentProgressPage() {
                 </span>
               );
             }
-            case "previous_year_percentage":
-              return p.previous_year_percentage != null ? (
+            case "current_marks_pct": {
+              const m = currentClassMarkPct(p, p.class_in_year);
+              return m != null ? (
                 <span style={{ fontVariantNumeric: "tabular-nums", fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
-                  {parseFloat(String(p.previous_year_percentage)).toFixed(1)}%
+                  {parseFloat(String(m)).toFixed(1)}%
                 </span>
               ) : "—";
+            }
             case "remarks":
               return <span style={{ whiteSpace: "nowrap" }}>{p.remarks ?? "—"}</span>;
             default:

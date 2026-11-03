@@ -2,6 +2,7 @@ import type { ProgressStatus } from "../api/admissions";
 
 export const PROGRESS_STATUSES: ProgressStatus[] = [
   "enrolled",
+  "promoted",
   "transferred",
   "dropped_out",
   "graduated",
@@ -11,6 +12,7 @@ export const PROGRESS_STATUSES: ProgressStatus[] = [
 /** Short labels for badges, table cells, and summary tiles. */
 export const STATUS_LABELS: Record<ProgressStatus, string> = {
   enrolled: "Enrolled",
+  promoted: "Promoted",
   transferred: "Transferred",
   dropped_out: "Dropped out",
   graduated: "Graduated",
@@ -20,7 +22,7 @@ export const STATUS_LABELS: Record<ProgressStatus, string> = {
 /** Longer labels for the status `<select>` on add/edit forms. */
 export const STATUS_OPTIONS: { value: ProgressStatus; label: string }[] = [
   { value: "enrolled", label: "Enrolled" },
-  { value: "transferred", label: "Transferred to a different school" },
+  { value: "promoted", label: "Promoted" },
   { value: "dropped_out", label: "Dropped out" },
   { value: "graduated", label: "Graduated" },
   { value: "admitted_to_college", label: "Admitted to College" },
@@ -31,6 +33,7 @@ export const STATUS_BADGES: Record<
   { bg: string; fg: string; prefix: string }
 > = {
   enrolled: { bg: "var(--status-success-bg)", fg: "var(--status-success-fg)", prefix: "✓ " },
+  promoted: { bg: "var(--badge-blue-bg)", fg: "var(--badge-blue-fg)", prefix: "↑ " },
   transferred: { bg: "var(--badge-blue-bg)", fg: "var(--badge-blue-fg)", prefix: "→ " },
   dropped_out: { bg: "var(--status-danger-bg)", fg: "var(--status-danger-fg)", prefix: "" },
   graduated: {
@@ -54,6 +57,11 @@ export const STATUS_TILES: Record<
     bg: "var(--status-success-bg)",
     border: "var(--status-success-fg)",
     fg: "var(--status-success-fg)",
+  },
+  promoted: {
+    bg: "var(--badge-blue-bg)",
+    border: "var(--badge-blue-fg)",
+    fg: "var(--badge-blue-fg)",
   },
   transferred: {
     bg: "var(--badge-blue-bg)",
