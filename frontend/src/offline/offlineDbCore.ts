@@ -5,8 +5,6 @@ export const META_STORE = "meta";
 
 export const VISIT_OUTBOX_STORE = "visit-outbox";
 export const VISIT_DRAFTS_STORE = "visit-drafts";
-export const STUDENT_OUTBOX_STORE = "student-outbox";
-export const STUDENT_DRAFTS_STORE = "student-drafts";
 export const ADMISSION_OUTBOX_STORE = "admission-outbox";
 export const ADMISSION_DRAFTS_STORE = "admission-drafts";
 export const PROGRESS_OUTBOX_STORE = "progress-outbox";
@@ -16,8 +14,6 @@ const ALL_STORES = [
   VISIT_OUTBOX_STORE,
   VISIT_DRAFTS_STORE,
   META_STORE,
-  STUDENT_OUTBOX_STORE,
-  STUDENT_DRAFTS_STORE,
   ADMISSION_OUTBOX_STORE,
   ADMISSION_DRAFTS_STORE,
   PROGRESS_OUTBOX_STORE,

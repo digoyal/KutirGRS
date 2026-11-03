@@ -294,15 +294,6 @@ export function StudentForm({
 
   return (
     <div className={readOnly ? "grs-form-layout" : "grs-form"}>
-      {isAdd && !addLookups.online && (
-        <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 12px" }}>
-          {addLookups.offlineCacheMissing
-            ? "You are offline and student lookup data is not cached yet. Open this form once while online, then try again."
-            : addLookups.usingOfflineCache
-              ? "You are offline. District, cluster, kutir, and category lists use the last data saved on this device."
-              : "You are offline. Loading saved lookup data…"}
-        </p>
-      )}
       <section style={sec}>
         <div style={secTitle}>Location</div>
         {readOnly ? (

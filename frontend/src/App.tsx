@@ -8,7 +8,6 @@ import DashboardPage from "./pages/DashboardPage";
 import StudentsPage from "./pages/StudentsPage";
 import StudentDetailPage from "./pages/StudentDetailPage";
 import StudentAddPage from "./pages/StudentAddPage";
-import StudentDraftCompletePage from "./pages/StudentDraftCompletePage";
 import KutirsPage from "./pages/KutirsPage";
 import KutirDetailPage from "./pages/KutirDetailPage";
 import KutirAddPage from "./pages/KutirAddPage";
@@ -76,7 +75,6 @@ function AppRoutes() {
       <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>}>
         <Route path="students" element={<StudentsPage />} />
         <Route path="students/new" element={<StudentAddPage />} />
-        <Route path="students/draft/:draftId" element={<StudentDraftCompletePage />} />
         <Route path="students/:id" element={<StudentDetailPage />} />
         <Route path="kutirs" element={<KutirsPage />} />
         <Route path="kutirs/new" element={<KutirAddPage />} />
