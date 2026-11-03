@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { listExamsPaged, deleteExam, listExamTypes } from "../api/admissions";
 import type { StudentExam } from "../api/admissions";
 import { listStudents } from "../api/students";
@@ -38,28 +38,6 @@ import {
 } from "../utils/geoFilters";
 import { formatAcademicYear } from "../utils/academicYear";
 import { ADMISSIONS_FILTER_STORAGE_KEY } from "../constants/admissionsList";
-import { useEntityOfflineList, useEntityOfflinePendingCount } from "../hooks/useEntityOfflineList";
-import {
-  countPendingAdmissions,
-  listAdmissionDrafts,
-  listPendingAdmissions,
-  purgeExpiredAdmissionDrafts,
-  removeAdmissionDraft,
-  removePendingAdmission,
-  ADMISSION_OFFLINE_CHANGED,
-} from "../offline/admissionOfflineDb";
-import {
-  isOfflineAdmissionDraft,
-  isOfflineAdmissionPending,
-  isOfflineLocalAdmission,
-  offlineAdmissionDraftRowKey,
-  offlineAdmissionPendingRowKey,
-  pendingAdmissionToListItem,
-  type AdmissionTableRow,
-  type OfflineAdmissionDraftListItem,
-  type OfflineAdmissionPendingListItem,
-} from "../offline/admissionDraftTypes";
-import { offlineStudentNameCell, wrapColumnsForOffline } from "../offline/offlineColumnWrap";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
@@ -69,32 +47,10 @@ export default function AdmissionsPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const unscoped = hasGlobalDataScope(user?.title);
-  const pendingOfflineCount = useEntityOfflinePendingCount(countPendingAdmissions, ADMISSION_OFFLINE_CHANGED);
-  const offlinePending = useEntityOfflineList(listPendingAdmissions, ADMISSION_OFFLINE_CHANGED);
-  const offlineDrafts = useEntityOfflineList(listAdmissionDrafts, ADMISSION_OFFLINE_CHANGED);
-  const [offlineNotice, setOfflineNotice] = useState<string | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<
-    | { kind: "exam"; id: number }
-    | { kind: "draft"; localId: string; label: string }
-    | { kind: "pending"; localId: string; label: string }
-    | null
-  >(null);
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   useBfcacheReload();
-
-  useEffect(() => {
-    void purgeExpiredAdmissionDrafts();
-  }, []);
-
-  useEffect(() => {
-    const st = location.state as { offlineQueued?: boolean; offlineMessage?: string } | null;
-    if (st?.offlineQueued && st.offlineMessage) {
-      setOfflineNotice(st.offlineMessage);
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location, navigate]);
 
   const saved = usePersistedFilterRestore<{
     year?: number;
@@ -197,45 +153,6 @@ export default function AdmissionsPage() {
       search: searchQuery, page,
     });
   }
-
-  const scopedKutirIds = useMemo(() => {
-    if (unscoped) return null;
-    return new Set(scopedKutirs.map((k) => k.id));
-  }, [unscoped, scopedKutirs]);
-
-  function passesAdmissionGeo(kutirId: number | null): boolean {
-    if (kutirId == null) return filterKutir === "";
-    if (filterKutir !== "" && kutirId !== Number(filterKutir)) return false;
-    if (scopedKutirIds !== null && !scopedKutirIds.has(kutirId)) return false;
-    const kutir = kutirMap2.get(kutirId);
-    if (filterCluster !== "") {
-      if (!kutir || kutir.cluster_id !== filterCluster) return false;
-    } else if (filterDistrict !== "") {
-      if (!kutir) return false;
-      const cl = clusterMap.get(kutir.cluster_id);
-      if (!cl) return false;
-      const ar = areaMap.get((cl as { area_id: number }).area_id);
-      if (!ar || (ar as { district_id: number }).district_id !== filterDistrict) return false;
-    }
-    return true;
-  }
-
-  const draftListItems = useMemo((): OfflineAdmissionDraftListItem[] => {
-    return offlineDrafts
-      .filter((d) => d.school_start_year === year && passesAdmissionGeo(d.kutir_id))
-      .map((d) => ({ ...d, kind: "offline-draft" as const }));
-  }, [offlineDrafts, year, filterKutir, filterCluster, filterDistrict, scopedKutirIds]);
-
-  const pendingListItems = useMemo((): OfflineAdmissionPendingListItem[] => {
-    return offlinePending
-      .filter((p) => p.payload.school_start_year === year && passesAdmissionGeo(p.kutir_id ?? null))
-      .map(pendingAdmissionToListItem);
-  }, [offlinePending, year, filterKutir, filterCluster, filterDistrict, scopedKutirIds]);
-
-  const tableRows: AdmissionTableRow[] = useMemo(
-    () => [...exams, ...draftListItems, ...pendingListItems],
-    [exams, draftListItems, pendingListItems],
-  );
 
   // Labels come from ADMISSIONS_FIELDS via orderedMetas; renderers are keyed only.
   const allColumns = useMemo((): Col<StudentExam>[] => [
@@ -467,22 +384,7 @@ export default function AdmissionsPage() {
         return col ? { ...col, label: m.label } : undefined;
       })
       .filter((c): c is NonNullable<typeof c> => c != null);
-    return wrapColumnsForOffline<
-      OfflineAdmissionDraftListItem | OfflineAdmissionPendingListItem,
-      StudentExam
-    >(base, (row): row is OfflineAdmissionDraftListItem | OfflineAdmissionPendingListItem => isOfflineLocalAdmission(row), (row, key) => {
-      if (key === "student") {
-        const label = isOfflineAdmissionDraft(row)
-          ? row.student_label
-          : row.student_label ?? `Student #${row.payload.student_id}`;
-        return offlineStudentNameCell(label, isOfflineAdmissionPending(row) ? "pending" : "draft");
-      }
-      if (key === "school_start_year") {
-        const y = isOfflineAdmissionDraft(row) ? row.school_start_year : row.payload.school_start_year;
-        return formatAcademicYear(y);
-      }
-      return undefined;
-    });
+    return base;
   }, [allColumns, orderedMetas, isVisible]);
 
   const filterSelectStyle: React.CSSProperties = {
@@ -490,43 +392,15 @@ export default function AdmissionsPage() {
     background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 14, flexShrink: 0,
   };
 
-  const subtitle =
-    pendingOfflineCount > 0
-      ? `School entrance exam pipeline · ${pendingOfflineCount} admission${pendingOfflineCount === 1 ? "" : "s"} waiting to upload`
-      : "School entrance exam pipeline tracking";
-
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
-      {offlineNotice && (
-        <div
-          style={{
-            marginBottom: 12,
-            padding: "10px 14px",
-            borderRadius: 8,
-            background: "var(--status-success-bg)",
-            color: "var(--status-success-fg)",
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 8,
-          }}
-        >
-          <span>{offlineNotice}</span>
-          <button type="button" onClick={() => setOfflineNotice(null)} style={{ background: "none", border: "none", cursor: "pointer" }}>
-            ✕
-          </button>
-        </div>
-      )}
-      <GrsTable<AdmissionTableRow>
+      <GrsTable<StudentExam>
         title="Admissions"
-        subtitle={subtitle}
+        subtitle="School entrance exam pipeline tracking"
         columns={columns}
-        data={tableRows}
+        data={exams}
         pagination={{ page, pageSize: PAGE_SIZE, total: examTotal, onPageChange: setPage }}
-        rowKey={(exam) => {
-          if (isOfflineAdmissionDraft(exam)) return offlineAdmissionDraftRowKey(exam);
-          if (isOfflineAdmissionPending(exam)) return offlineAdmissionPendingRowKey(exam);
-          return String(exam.id);
-        }}
+        rowKey={(exam) => String(exam.id)}
         isLoading={isLoading}
         emptyMessage={`No admissions for ${formatAcademicYear(year)}.`}
         searchable
@@ -577,45 +451,17 @@ export default function AdmissionsPage() {
         exportFilename="admissions"
         printTitle="Admissions"
         onAdd={() => { saveFilters(); navigate(`new?year=${year}`); }}
-        actions={(exam) => {
-          if (isOfflineAdmissionDraft(exam)) {
-            const label = exam.student_label;
-            return {
-              onView: () => { saveFilters(); navigate(`draft/${exam.localId}`); },
-              onEdit: () => { saveFilters(); navigate(`draft/${exam.localId}`); },
-              onDelete: () => setPendingDelete({ kind: "draft", localId: exam.localId, label }),
-            };
-          }
-          if (isOfflineAdmissionPending(exam)) {
-            const label = exam.student_label ?? `Student #${exam.payload.student_id}`;
-            return {
-              onDelete: () => setPendingDelete({ kind: "pending", localId: exam.localId, label }),
-            };
-          }
-          return {
-            onView: () => { saveFilters(); navigate(String(exam.id)); },
-            onEdit: () => { saveFilters(); navigate(`${exam.id}?edit=1`); },
-            onDelete: () => setPendingDelete({ kind: "exam", id: exam.id }),
-          };
-        }}
+        actions={(exam) => ({
+          onView: () => { saveFilters(); navigate(String(exam.id)); },
+          onEdit: () => { saveFilters(); navigate(`${exam.id}?edit=1`); },
+          onDelete: () => setPendingDelete(exam.id),
+        })}
       />
-      {pendingDelete && (
+      {pendingDelete != null && (
         <ConfirmDialog
-          message={
-            pendingDelete.kind === "draft"
-              ? <>Remove saved offline admission for <strong>{pendingDelete.label}</strong>?</>
-              : pendingDelete.kind === "pending"
-                ? <>Remove admission waiting to sync for <strong>{pendingDelete.label}</strong>?</>
-                : "Delete this admission?"
-          }
+          message="Delete this admission?"
           onConfirm={() => {
-            if (pendingDelete.kind === "draft") {
-              void removeAdmissionDraft(pendingDelete.localId);
-            } else if (pendingDelete.kind === "pending") {
-              void removePendingAdmission(pendingDelete.localId);
-            } else {
-              deleteMut.mutate(pendingDelete.id);
-            }
+            deleteMut.mutate(pendingDelete);
             setPendingDelete(null);
           }}
           onCancel={() => setPendingDelete(null)}

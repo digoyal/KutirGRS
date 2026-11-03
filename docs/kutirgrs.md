@@ -42,19 +42,13 @@ On a physical phone, `localhost` / `127.0.0.1` is the phone — use the Mac **LA
 
 ### 1.4 Offline add (phase 1 + drafts)
 
-Same pattern for **Kutir Visits**, **Admissions**, and **Progress** (not Students): IndexedDB (`kutirgrs-offline`) with per-entity **drafts** (minimal fields) and **outbox** (full create payload). **`GrsOfflineSyncMount`** (dashboard layout) syncs those outboxes on load and on `online`. List pages merge local rows with badges **Saved for offline** / **Waiting to sync**. **Add + complete-draft only** — edit/view existing server records unchanged. Drafts expire **7 days** (purged on list load). Geo/kutir lookups cached when offline-capable Add forms open online (`geo-kutir-lookups` meta).
+**Kutir Visits only** (Students, Admissions, and Progress are online Add only): IndexedDB (`kutirgrs-offline`) with visit **drafts** (minimal fields) and **outbox** (full create payload). **`GrsOfflineSyncMount`** (dashboard layout) syncs the visit outbox on load and on `online`. Visits list merges local rows with badges **Saved for offline** / **Waiting to sync**. **Add + complete-draft only** — edit/view existing server records unchanged. Drafts expire **7 days** (purged on list load). Geo/kutir lookups cached when Visit Add opens online (`geo-kutir-lookups` meta).
 
 | Entity | Minimal draft (Save for offline) | Complete draft route | Outbox sync API |
 |--------|----------------------------------|----------------------|-----------------|
 | **Visits** | kutir + visit date | `/visits/detail/draft/:draftId` | `createVisit` (+ photo upload) |
-| **Admissions** | year + selected student | `/admissions/draft/:draftId` | `createExam` |
-| **Progress** | year + student + school | `/progress/draft/:draftId` | `createProgress` |
 
-**Gaps (vs full online Add):** Admission/Progress forms do not yet mirror Visit offline lookup banners for every dropdown; student picker on those forms still needs a prior online session (or same-tab React Query cache) for rich search.
-
-**Manual test (each offline entity):** (1) Online: open Add once (cache lookups). (2) **Save for offline** with minimal fields — badge on list. (3) Complete draft online. (4) DevTools offline: Add or complete with **Save on device** — **Waiting to sync**; go online — row syncs. (5) Confirm normal online Add still works. **Students:** online Add only (no offline draft/outbox).
-
-**Visits-only quick test:** (1) Online: Log New Visit once. (2) Save 2–3 kutirs via **Save for offline**. (3) Complete one draft **Log Visit**. (4) Offline: **Save on device** on another — sync on reconnect. (5) Online **Log Visit** unchanged.
+**Visits manual test:** (1) Online: Log New Visit once (cache lookups). (2) **Save for offline** with minimal fields — badge on list. (3) Complete one draft **Log Visit**. (4) DevTools offline: Add or complete with **Save on device** — **Waiting to sync**; go online — row syncs. (5) Confirm normal online **Log Visit** unchanged.
 
 ---
 

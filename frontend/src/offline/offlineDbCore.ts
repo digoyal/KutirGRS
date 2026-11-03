@@ -5,19 +5,11 @@ export const META_STORE = "meta";
 
 export const VISIT_OUTBOX_STORE = "visit-outbox";
 export const VISIT_DRAFTS_STORE = "visit-drafts";
-export const ADMISSION_OUTBOX_STORE = "admission-outbox";
-export const ADMISSION_DRAFTS_STORE = "admission-drafts";
-export const PROGRESS_OUTBOX_STORE = "progress-outbox";
-export const PROGRESS_DRAFTS_STORE = "progress-drafts";
 
 const ALL_STORES = [
   VISIT_OUTBOX_STORE,
   VISIT_DRAFTS_STORE,
   META_STORE,
-  ADMISSION_OUTBOX_STORE,
-  ADMISSION_DRAFTS_STORE,
-  PROGRESS_OUTBOX_STORE,
-  PROGRESS_DRAFTS_STORE,
 ];
 
 export function txDone(tx: IDBTransaction): Promise<void> {

@@ -1,14 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormPageActions, FormPageShell } from "@parivaar/ui";
+import { FormPageShell } from "@parivaar/ui";
 import {
   createExam,
   listExamTypeSubjects,
   type ExamTypeSubjectRow,
   type StudentExamCreate,
 } from "../api/admissions";
-import { getStudent } from "../api/students";
 import { subjectsForExamType } from "../components/admissions-pipeline";
 import {
   AdmissionForm,
@@ -19,14 +18,6 @@ import {
 } from "../components/AdmissionForm";
 import { ADMISSIONS_FILTER_STORAGE_KEY } from "../constants/admissionsList";
 import { consumePersistedFilters, persistFilters } from "../hooks/usePersistedFilters";
-import { grs } from "../styles/grs";
-import {
-  enqueuePendingAdmissionWithMeta,
-  saveAdmissionDraft,
-} from "../offline/admissionOfflineDb";
-import { isNetworkError } from "../offline/networkError";
-import { useOnlineStatus } from "../hooks/useOnlineStatus";
-import { studentLabel } from "../utils/studentLabel";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -53,7 +44,6 @@ export default function AdmissionAddPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const qc = useQueryClient();
-  const online = useOnlineStatus();
 
   const initYear = Number(searchParams.get("year")) || CURRENT_YEAR;
   const [form, setForm] = useState<AdmissionFormState>(() => emptyAdmissionForm(initYear));
@@ -75,62 +65,6 @@ export default function AdmissionAddPage() {
     [subjectIds],
   );
 
-  async function resolveStudentMeta() {
-    if (!form.student_id) return null;
-    const s = await getStudent(form.student_id);
-    return {
-      student_label: studentLabel(s),
-      kutir_id: s.kutir_id,
-    };
-  }
-
-  async function handleSaveForOffline() {
-    if (!form.student_id) {
-      setSaveError("Select a student to save for offline.");
-      return;
-    }
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const meta = await resolveStudentMeta();
-      if (!meta) {
-        setSaveError("Could not load student details.");
-        setSaving(false);
-        return;
-      }
-      await saveAdmissionDraft(
-        form.student_id,
-        form.school_start_year,
-        meta.student_label,
-        meta.kutir_id,
-      );
-      navigate("/admissions", {
-        state: {
-          offlineQueued: true,
-          offlineMessage: "Admission saved for offline. Open it from the list to complete the form.",
-        },
-      });
-    } catch (e: unknown) {
-      if (isNetworkError(e) && form.student_id) {
-        await saveAdmissionDraft(
-          form.student_id,
-          form.school_start_year,
-          `Student #${form.student_id}`,
-          null,
-        );
-        navigate("/admissions", {
-          state: {
-            offlineQueued: true,
-            offlineMessage: "Admission saved for offline. Open it from the list to complete the form.",
-          },
-        });
-        return;
-      }
-      setSaveError("Could not save on this device. Check browser storage and try again.");
-      setSaving(false);
-    }
-  }
-
   async function handleSave() {
     const validationError = validateAdmissionForm(form, validateOpts);
     if (validationError) {
@@ -141,39 +75,14 @@ export default function AdmissionAddPage() {
     setSaving(true);
     const payload = admissionPayloadFromForm(form) as StudentExamCreate;
 
-    if (online) {
-      try {
-        await createExam(payload);
-        qc.invalidateQueries({ queryKey: ["student-exams"] });
-        persistListYearAfterCreate(payload.school_start_year);
-        navigate("/admissions", { replace: true });
-        return;
-      } catch (e: unknown) {
-        if (!isNetworkError(e)) {
-          const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setSaveError(detail ?? "Save failed.");
-          setSaving(false);
-          return;
-        }
-      }
-    }
-
     try {
-      const meta = (await resolveStudentMeta()) ?? {
-        student_label: `Student #${form.student_id}`,
-        kutir_id: null as number | null,
-      };
-      await enqueuePendingAdmissionWithMeta(payload, meta);
+      await createExam(payload);
+      qc.invalidateQueries({ queryKey: ["student-exams"] });
       persistListYearAfterCreate(payload.school_start_year);
-      navigate("/admissions", {
-        state: {
-          offlineQueued: true,
-          offlineMessage:
-            "Admission saved on this device. It appears in the list as Waiting to sync until upload completes.",
-        },
-      });
-    } catch {
-      setSaveError("Could not save admission offline. Check browser storage and try again.");
+      navigate("/admissions", { replace: true });
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setSaveError(detail ?? "Save failed.");
       setSaving(false);
     }
   }
@@ -191,7 +100,11 @@ export default function AdmissionAddPage() {
           </h2>
         </div>
       }
-      showActions={false}
+      error={saveError}
+      saving={saving}
+      saveLabel="Add Admission"
+      onSave={handleSave}
+      onCancel={() => navigate(-1)}
     >
       <AdmissionForm
         form={form}
@@ -199,21 +112,6 @@ export default function AdmissionAddPage() {
         mode="add"
         admitBlockMsg={admitBlockMsg}
         onAdmitBlockMsg={setAdmitBlockMsg}
-      />
-      <FormPageActions
-        error={saveError}
-        saving={saving}
-        saveLabel={online ? "Add Admission" : "Save on device"}
-        onSave={handleSave}
-        onCancel={() => navigate(-1)}
-        secondaryActions={
-          online ? (
-            <button type="button" onClick={handleSaveForOffline} style={grs.btnSecondary} disabled={saving}>
-              Save for offline
-            </button>
-          ) : undefined
-        }
-        actionsStyle={{ marginTop: 16, flexWrap: "wrap", gap: 8 }}
       />
     </FormPageShell>
   );
