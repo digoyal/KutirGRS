@@ -15,6 +15,108 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/*
+ * Lookups add bars: one horizontal row on viewports ≥640px (nowrap + min-width:0 on flex children).
+ * Below 640px, __main may wrap so controls do not overflow the viewport.
+ */
+.grs-lookup-add-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  align-items: stretch;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.grs-lookup-add-row__main {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+/* Simple lookup tabs: primary field is placeholder-only; category uses label + select. */
+.grs-lookup-add-row__inline {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+/* Sub-Categories etc.: category column has a bounded flex basis so the name field keeps room. */
+.grs-lookup-add-row__inline--category {
+  flex: 0 1 220px;
+  min-width: 0;
+}
+/* Donor add: labeled columns (label above input) share one nowrap row with + Add on desktop. */
+.grs-lookup-add-row__main--donors {
+  align-items: flex-end;
+}
+.grs-lookup-add-row__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.grs-lookup-add-row__field--name {
+  flex: 1.2 1 100px;
+}
+.grs-lookup-add-row__field--notes {
+  flex: 1.35 1 100px;
+}
+.grs-lookup-add-row__field > input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.grs-lookup-add-row__grow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.grs-lookup-add-row__grow > input,
+.grs-lookup-add-row__grow > select,
+.grs-lookup-add-row__inline > input,
+.grs-lookup-add-row__inline > select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.grs-lookup-add-row__btn {
+  flex: 0 0 auto;
+  align-self: center;
+}
+.grs-lookup-add-row__main--donors .grs-lookup-add-row__btn {
+  align-self: flex-end;
+}
+
+@media (max-width: 639px) {
+  .grs-lookup-add-row__main {
+    flex-wrap: wrap;
+  }
+  .grs-lookup-add-row__inline--category {
+    flex: 1 1 100%;
+  }
+  .grs-lookup-add-row__main--donors .grs-lookup-add-row__field {
+    flex: 1 1 calc(50% - 6px);
+    min-width: min(100%, 140px);
+  }
+  .grs-lookup-add-row__main--donors .grs-lookup-add-row__field--notes {
+    flex: 1 1 100%;
+  }
+  .grs-lookup-add-row__main--donors .grs-lookup-add-row__btn {
+    flex: 1 1 100%;
+    align-self: stretch;
+  }
+}
+
 /* Filter bar toggle/fbar/badge: @parivaar/ui/table-shell.css (main.tsx) */
 
 /* Report filter bar layout: @parivaar/ui/report-shell.css (main.tsx) */
@@ -476,34 +578,6 @@
     padding-bottom: 14px !important;
     width: 100% !important;
     max-width: 100% !important;
-  }
-
-  /* Lookups: keep Add beside the name/reason field on phone; category stacks above. */
-  .grs-lookup-add-row {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 14px;
-    align-items: stretch;
-    min-width: 0;
-  }
-  .grs-lookup-add-row__main {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 8px;
-    align-items: flex-end;
-    min-width: 0;
-  }
-  .grs-lookup-add-row__grow {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    flex: 1 1 0;
-    min-width: 0;
-  }
-  .grs-lookup-add-row__btn {
-    flex: 0 0 auto;
-    align-self: flex-end;
   }
 
   /* Auth pages (login / reset) scroll when the keyboard shrinks the viewport */

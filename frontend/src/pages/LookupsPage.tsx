@@ -182,20 +182,27 @@ function LookupTable({ tab, isAdmin }: { tab: TabDef; isAdmin: boolean }) {
     <div>
       {isAdmin && (
         <div className="grs-lookup-add-row">
-          {tab.hasParent && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-              <label style={grs.fieldLabel}>Category</label>
-              <select style={{ ...grs.select, width: "100%", maxWidth: "100%" }} value={addParent} onChange={e => setAddParent(Number(e.target.value) || "")} disabled={saving}>
-                <option value="">— select —</option>
-                {safeParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-          )}
           <div className="grs-lookup-add-row__main">
-            <div className="grs-lookup-add-row__grow">
-              <label style={grs.fieldLabel}>New {tab.nameField === "reason" ? "reason" : "name"}</label>
+            {tab.hasParent && (
+              <div className="grs-lookup-add-row__inline grs-lookup-add-row__inline--category">
+                <label htmlFor={`lookup-cat-${tab.key}`} style={{ ...grs.fieldLabel, whiteSpace: "nowrap" }}>Category</label>
+                <select
+                  id={`lookup-cat-${tab.key}`}
+                  style={{ ...grs.select, flex: 1, minWidth: 0, width: "100%", maxWidth: "100%" }}
+                  value={addParent}
+                  onChange={e => setAddParent(Number(e.target.value) || "")}
+                  disabled={saving}
+                >
+                  <option value="">— select —</option>
+                  {safeParents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="grs-lookup-add-row__inline">
               <input
-                style={grs.input}
+                id={`lookup-add-${tab.key}`}
+                aria-label={tab.nameField === "reason" ? "New reason" : "New name"}
+                style={{ ...grs.input, flex: 1, minWidth: 0 }}
                 value={addValue}
                 onChange={e => setAddValue(e.target.value)}
                 onKeyDown={e => {
@@ -573,29 +580,35 @@ function ExamTypesTable({ isAdmin }: { isAdmin: boolean }) {
       {isAdmin && (
         <div style={{ marginBottom: 16, padding: 14, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }}>
           <p style={{ margin: "0 0 10px", fontWeight: 600, fontSize: "0.85rem" }}>Add Exam Type</p>
-          <div className="grs-lookup-add-row" style={{ marginBottom: 0 }}>
+          <div className="grs-lookup-add-row" style={{ marginBottom: schoolTypes.length > 0 ? 12 : 0 }}>
             <div className="grs-lookup-add-row__main">
-              <div className="grs-lookup-add-row__grow">
-                <label style={grs.fieldLabel}>Name</label>
-                <input style={grs.input} value={addName} onChange={e => setAddName(e.target.value)}
-                  placeholder="e.g. MP Tribals" onKeyDown={e => e.key === "Enter" && handleAdd()} />
+              <div className="grs-lookup-add-row__inline">
+                <input
+                  id="exam-type-add-name"
+                  style={{ ...grs.input, flex: 1, minWidth: 0 }}
+                  value={addName}
+                  onChange={e => setAddName(e.target.value)}
+                  placeholder="Exam type name (e.g. MP Tribals)"
+                  aria-label="Exam type name"
+                  onKeyDown={e => e.key === "Enter" && handleAdd()}
+                />
               </div>
               <button type="button" className="grs-lookup-add-row__btn" onClick={handleAdd} style={{ ...grs.btnPrimary, whiteSpace: "nowrap" }} disabled={!addName.trim()}>+ Add</button>
             </div>
-            {schoolTypes.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <label style={grs.fieldLabel}>School Types</label>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  {schoolTypes.map(st => (
-                    <label key={st.id} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: "0.85rem" }}>
-                      <input type="checkbox" checked={addSchoolTypeIds.includes(st.id)} onChange={() => toggleAdd(st.id)} />
-                      {st.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
+          {schoolTypes.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <label style={grs.fieldLabel}>School Types</label>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                {schoolTypes.map(st => (
+                  <label key={st.id} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: "0.85rem" }}>
+                    <input type="checkbox" checked={addSchoolTypeIds.includes(st.id)} onChange={() => toggleAdd(st.id)} />
+                    {st.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -786,57 +799,64 @@ function DonorsTable({ isAdmin }: { isAdmin: boolean }) {
       {isAdmin && (
         <div style={{ marginBottom: 16, padding: 14, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8 }}>
           <p style={{ margin: "0 0 10px", fontWeight: 600, fontSize: "0.85rem" }}>Add Donor</p>
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 160 }}>
-              <label style={grs.fieldLabel}>{donorFieldLabel("name", { required: true })}</label>
-              <input
-                style={grs.input}
-                value={addName}
-                onChange={(e) => setAddName(e.target.value)}
-                placeholder="Donor name"
-                onKeyDown={(e) => e.key === "Enter" && void handleAdd()}
-                disabled={saving}
-              />
+          <div className="grs-lookup-add-row">
+            <div className="grs-lookup-add-row__main grs-lookup-add-row__main--donors">
+              <div className="grs-lookup-add-row__field grs-lookup-add-row__field--name">
+                <label htmlFor="donor-add-name" style={grs.fieldLabel}>{donorFieldLabel("name", { required: true })}</label>
+                <input
+                  id="donor-add-name"
+                  style={grs.input}
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  placeholder="Donor name"
+                  onKeyDown={(e) => e.key === "Enter" && void handleAdd()}
+                  disabled={saving}
+                />
+              </div>
+              <div className="grs-lookup-add-row__field">
+                <label htmlFor="donor-add-email" style={grs.fieldLabel}>{donorFieldLabel("email")}</label>
+                <input
+                  id="donor-add-email"
+                  style={grs.input}
+                  type="email"
+                  value={addEmail}
+                  onChange={(e) => setAddEmail(e.target.value)}
+                  placeholder="email@example.com"
+                  disabled={saving}
+                />
+              </div>
+              <div className="grs-lookup-add-row__field">
+                <label htmlFor="donor-add-phone" style={grs.fieldLabel}>{donorFieldLabel("phone")}</label>
+                <input
+                  id="donor-add-phone"
+                  style={grs.input}
+                  value={addPhone}
+                  onChange={(e) => setAddPhone(e.target.value)}
+                  placeholder="Phone"
+                  disabled={saving}
+                />
+              </div>
+              <div className="grs-lookup-add-row__field grs-lookup-add-row__field--notes">
+                <label htmlFor="donor-add-notes" style={grs.fieldLabel}>{donorFieldLabel("notes")}</label>
+                <input
+                  id="donor-add-notes"
+                  style={grs.input}
+                  value={addNotes}
+                  onChange={(e) => setAddNotes(e.target.value)}
+                  placeholder="Optional notes"
+                  disabled={saving}
+                />
+              </div>
+              <button
+                type="button"
+                className="grs-lookup-add-row__btn"
+                onClick={() => { void handleAdd(); }}
+                style={{ ...grs.btnPrimary, whiteSpace: "nowrap", opacity: saving ? 0.7 : 1 }}
+                disabled={!addName.trim() || saving}
+              >
+                {saving ? "Adding…" : "+ Add"}
+              </button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 160 }}>
-              <label style={grs.fieldLabel}>{donorFieldLabel("email")}</label>
-              <input
-                style={grs.input}
-                type="email"
-                value={addEmail}
-                onChange={(e) => setAddEmail(e.target.value)}
-                placeholder="email@example.com"
-                disabled={saving}
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 120 }}>
-              <label style={grs.fieldLabel}>{donorFieldLabel("phone")}</label>
-              <input
-                style={grs.input}
-                value={addPhone}
-                onChange={(e) => setAddPhone(e.target.value)}
-                placeholder="Phone"
-                disabled={saving}
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 2, minWidth: 160 }}>
-              <label style={grs.fieldLabel}>{donorFieldLabel("notes")}</label>
-              <input
-                style={grs.input}
-                value={addNotes}
-                onChange={(e) => setAddNotes(e.target.value)}
-                placeholder="Optional notes"
-                disabled={saving}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => { void handleAdd(); }}
-              style={{ ...grs.btnPrimary, whiteSpace: "nowrap", opacity: saving ? 0.7 : 1 }}
-              disabled={!addName.trim() || saving}
-            >
-              {saving ? "Adding…" : "+ Add"}
-            </button>
           </div>
         </div>
       )}
