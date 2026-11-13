@@ -24,8 +24,6 @@ class Student(Base, TimestampMixin):
     photo: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     gender: Mapped[str] = mapped_column(String(10), nullable=False)   # Boy / Girl
     dob: Mapped[Optional[date_type]] = mapped_column(Date, nullable=True)
-    street: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    pincode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(254), nullable=True)
     father_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)

@@ -202,9 +202,15 @@ export async function updateProgress(id: number, payload: Partial<StudentProgres
   return data;
 }
 
+export interface SchoolTypeRef {
+  id: number;
+  name: string;
+}
+
 export interface ExamTypeMin {
   id: number;
   name: string;
+  school_types: SchoolTypeRef[];
 }
 
 export async function listExamTypes(): Promise<ExamTypeMin[]> {

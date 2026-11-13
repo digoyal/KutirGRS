@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listStates, listZones, listDistricts, listAreas, listClusters, createZone, createDistrict, createArea, createCluster, updateZone, updateDistrict, updateArea, updateCluster, deleteZone, deleteDistrict, deleteArea, deleteCluster } from "../api/geo";
@@ -157,6 +158,11 @@ export default function GeoPage() {
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <Link to="/geo/assignments" style={{ ...grs.btnSecondary, textDecoration: "none" }}>
+          Geo Assignments
+        </Link>
+      </div>
       <GrsTabs
         value={tab}
         onChange={setTab}

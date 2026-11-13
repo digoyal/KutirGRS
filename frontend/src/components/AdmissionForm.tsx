@@ -131,6 +131,20 @@ export function emptyAdmissionForm(year = CURRENT_YEAR): AdmissionFormState {
   };
 }
 
+export type AdmissionStageFlags = Pick<AdmissionFormState, StageKey>;
+
+export function admissionStageFlags(form: AdmissionStageFlags): AdmissionStageFlags {
+  return normalizePipelineStages({
+    eligible: form.eligible,
+    applied: form.applied,
+    admit_card: form.admit_card,
+    appeared: form.appeared,
+    result_declared: form.result_declared,
+    selected: form.selected,
+    admitted: form.admitted,
+  });
+}
+
 export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
   const stages = normalizePipelineStages({
     eligible: exam.eligible,
@@ -178,15 +192,7 @@ export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
 export function admissionPayloadFromForm(
   form: AdmissionFormState,
 ): Omit<StudentExamCreate, "student_id"> & { student_id: number } {
-  const stageFlags = normalizePipelineStages({
-    eligible: form.eligible,
-    applied: form.applied,
-    admit_card: form.admit_card,
-    appeared: form.appeared,
-    result_declared: form.result_declared,
-    selected: form.selected,
-    admitted: form.admitted,
-  });
+  const stageFlags = admissionStageFlags(form);
   const show = (field: Parameters<typeof pipelineFieldVisible>[1]) =>
     pipelineFieldVisible(stageFlags, field);
   const showScores = show("scores");
@@ -224,7 +230,7 @@ export function admissionFieldVisible(
   form: Pick<AdmissionFormState, StageKey>,
   field: PipelineField,
 ): boolean {
-  return pipelineFieldVisible(form, field);
+  return pipelineFieldVisible(admissionStageFlags(form), field);
 }
 
 /** Whether a pipeline-gated or always-on add/edit field is required (visible ⇒ required). */
@@ -233,7 +239,7 @@ export function admissionFieldRequired(
   field: PipelineField | "student" | "admission_class",
 ): boolean {
   if (field === "student" || field === "admission_class") return true;
-  return pipelineFieldVisible(form, field);
+  return pipelineFieldVisible(admissionStageFlags(form), field);
 }
 
 export type AdmissionFormValidateOpts = {
@@ -247,13 +253,20 @@ export function validateAdmissionForm(
   form: AdmissionFormState,
   opts: AdmissionFormValidateOpts,
 ): string | null {
-  const show = (field: PipelineField) => pipelineFieldVisible(form, field);
+  const stageFlags = admissionStageFlags(form);
+  const show = (field: PipelineField) => pipelineFieldVisible(stageFlags, field);
 
   if (opts.mode === "add" && !form.student_id) {
     return `Select a ${admissionFieldLabel("student").toLowerCase()}.`;
   }
   if (form.admission_class == null) {
     return ADMISSION_CLASS_REQUIRED_MSG;
+  }
+  if (
+    show("year") &&
+    (!Number.isFinite(form.school_start_year) || form.school_start_year <= 0)
+  ) {
+    return "Year is required.";
   }
   if (show("exam_type") && form.exam_type_id == null) {
     return "Exam type is required.";
@@ -276,7 +289,13 @@ export function validateAdmissionForm(
   if (show("reason_not_appeared") && form.no_exam_reason_id == null) {
     return "Reason not appeared is required.";
   }
-  if (show("scores") && opts.subjectIds.length > 0) {
+  if (show("scores")) {
+    if (opts.subjectIds.length === 0) {
+      if (form.exam_type_id == null) {
+        return "Exam type is required.";
+      }
+      return "This exam type has no subjects configured; add subjects before entering scores.";
+    }
     for (const subjectId of opts.subjectIds) {
       const raw = form.scoreInputs[subjectId];
       if (raw === undefined || raw.trim() === "") {
@@ -308,7 +327,7 @@ export function admissionFormCanSave(
 
 /** @deprecated Use validateAdmissionForm / admissionFormCanSave */
 export function admissionSchoolFieldsRequired(form: Pick<AdmissionFormState, StageKey>): boolean {
-  return pipelineFieldVisible(form, "school_name");
+  return pipelineFieldVisible(admissionStageFlags(form), "school_name");
 }
 
 export function admissionClassRequired(_form: Pick<AdmissionFormState, "admitted">): boolean {
@@ -440,6 +459,7 @@ export function AdmissionForm({
   useGeoFilterAutoSelect({
     scopedDistricts: scopedPresenceDistricts,
     scopedClusters,
+    areas: allAreas,
     filterDistrict,
     filterCluster,
     setFilterDistrict,
@@ -448,6 +468,7 @@ export function AdmissionForm({
     clusterMode: isAdd ? "scoped-non-admin" : "none",
     skipDistrictAuto: !isAdd,
     skipClusterAuto: !isAdd,
+    autoSelectMode: isAdd ? "picker" : "list-hub",
   });
 
   useEffect(() => {
@@ -601,9 +622,24 @@ export function AdmissionForm({
     });
   }
 
-  const schoolTypes = (
-    Array.from(new Set(schools.map((sc) => sc.school_type).filter(Boolean))) as string[]
-  ).sort();
+  const linkedSchoolTypeNames = useMemo(() => {
+    if (form.exam_type_id == null) return [] as string[];
+    const et = examTypes.find((e) => e.id === form.exam_type_id);
+    const names = (et?.school_types ?? []).map((st) => st.name);
+    return [...names].sort();
+  }, [form.exam_type_id, examTypes]);
+
+  /** Exam-type junction options; keep saved value on edit if linkage changed. */
+  const schoolTypes = useMemo(() => {
+    const names = [...linkedSchoolTypeNames];
+    const saved = form.school_type.trim();
+    if (saved && !names.includes(saved)) {
+      names.push(saved);
+      names.sort();
+    }
+    return names;
+  }, [linkedSchoolTypeNames, form.school_type]);
+
   const subjects = subjectsForExamType(examTypeSubjects, form.exam_type_id);
 
   // Server filters by kutir (+ optional search); keep list as-is for the picker.
@@ -635,8 +671,17 @@ export function AdmissionForm({
     updated_at: "",
   } as StudentExam;
 
+  const stageFlags = useMemo(() => admissionStageFlags(form), [
+    form.eligible,
+    form.applied,
+    form.admit_card,
+    form.appeared,
+    form.result_declared,
+    form.selected,
+    form.admitted,
+  ]);
   const show = (field: Parameters<typeof pipelineFieldVisible>[1]) =>
-    pipelineFieldVisible(form, field);
+    pipelineFieldVisible(stageFlags, field);
   const showExamBasics = show("exam_type");
   const showExamGeo = show("parivaar_district");
   const showApplicationNumber = show("application_number");
@@ -646,7 +691,7 @@ export function AdmissionForm({
   const showSchool = show("school_name");
   const showReasonNotAdmitted = show("reason_not_admitted");
   /** Year editable until first pipeline stage (Eligible+); lock preserves school_start_year in state. */
-  const yearEditable = !readOnly && pipelineStage(form) < 0;
+  const yearEditable = !readOnly && pipelineStage(stageFlags) < 0;
 
   const viewExamCategory = examCategories.find((c) => c.id === form.exam_category_id);
   const viewExamCenter = examCenters.find((c) => c.id === form.exam_center_id);
@@ -1135,9 +1180,25 @@ export function AdmissionForm({
               </label>
               <select
                 value={form.exam_type_id ?? ""}
-                onChange={(e) =>
-                  setField("exam_type_id", e.target.value === "" ? null : Number(e.target.value))
-                }
+                onChange={(e) => {
+                  const nextId = e.target.value === "" ? null : Number(e.target.value);
+                  const allowed =
+                    nextId == null
+                      ? []
+                      : (examTypes.find((t) => t.id === nextId)?.school_types ?? []).map(
+                          (st) => st.name,
+                        );
+                  setForm((f) => {
+                    const clearSchool =
+                      f.school_type.trim() !== "" &&
+                      (nextId == null || !allowed.includes(f.school_type));
+                    return {
+                      ...f,
+                      exam_type_id: nextId,
+                      ...(clearSchool ? { school_type: "", admitted_school_id: null } : {}),
+                    };
+                  });
+                }}
                 style={selStyles}
               >
                 <option value="">-- select --</option>
@@ -1283,31 +1344,44 @@ export function AdmissionForm({
       </section>
 
       {/* Scores */}
-      {showScores && subjects.length > 0 && (
+      {showScores && (
         <section style={sec}>
-          <div style={secTitle}>Scores</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {subjects.map((subj) => (
-              <div key={subj.id}>
-                <label style={grs.fieldLabel}>
-                  {subj.name}
-                  {admissionFieldRequired(form, "scores") && (
-                    <span style={{ color: "var(--danger)" }}> *</span>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.01}
-                  value={form.scoreInputs[subj.id] ?? ""}
-                  onChange={(e) => setScore(subj.id, e.target.value)}
-                  style={inputStyles}
-                  placeholder="—"
-                />
-              </div>
-            ))}
+          <div style={secTitle}>
+            Scores
+            {admissionFieldRequired(form, "scores") && (
+              <span style={{ color: "var(--danger)" }}> *</span>
+            )}
           </div>
+          {subjects.length === 0 ? (
+            <p style={{ margin: 0, fontSize: "0.88rem", color: "var(--text-secondary)" }}>
+              {form.exam_type_id == null
+                ? "Select an exam type to enter subject scores."
+                : "This exam type has no subjects configured; add subjects in Settings."}
+            </p>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {subjects.map((subj) => (
+                <div key={subj.id}>
+                  <label style={grs.fieldLabel}>
+                    {subj.name}
+                    {admissionFieldRequired(form, "scores") && (
+                      <span style={{ color: "var(--danger)" }}> *</span>
+                    )}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    value={form.scoreInputs[subj.id] ?? ""}
+                    onChange={(e) => setScore(subj.id, e.target.value)}
+                    style={inputStyles}
+                    placeholder="—"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -1377,7 +1451,10 @@ export function AdmissionForm({
             </div>
             <div>
               <label style={grs.fieldLabel}>
-                {admissionFieldLabel("school_type")} <span style={{ color: "var(--danger)" }}>*</span>
+                {admissionFieldLabel("school_type")}
+                {admissionFieldRequired(form, "school_type") && (
+                  <span style={{ color: "var(--danger)" }}> *</span>
+                )}
               </label>
               <select
                 value={form.school_type}
@@ -1385,9 +1462,15 @@ export function AdmissionForm({
                   setField("school_type", e.target.value);
                   setField("admitted_school_id", null);
                 }}
-                style={selStyles}
+                disabled={form.exam_type_id == null}
+                style={{
+                  ...selStyles,
+                  ...(form.exam_type_id == null ? { opacity: 0.6, cursor: "not-allowed" } : {}),
+                }}
               >
-                <option value="">-- select --</option>
+                <option value="">
+                  {form.exam_type_id == null ? "-- select exam type first --" : "-- select --"}
+                </option>
                 {schoolTypes.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -1397,7 +1480,10 @@ export function AdmissionForm({
             </div>
             <div>
               <label style={grs.fieldLabel}>
-                School Name <span style={{ color: "var(--danger)" }}>*</span>
+                School Name
+                {admissionFieldRequired(form, "school_name") && (
+                  <span style={{ color: "var(--danger)" }}> *</span>
+                )}
               </label>
               <select
                 value={form.admitted_school_id ?? ""}

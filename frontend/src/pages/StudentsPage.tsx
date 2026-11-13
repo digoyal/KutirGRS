@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import React, { useState, useMemo, useRef, type ReactNode } from "react";
+import React, { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listStudentsPaged, deleteStudent, type Student } from "../api/students";
 import { listKutirs } from "../api/kutirs";
@@ -14,6 +14,7 @@ import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { STUDENTS_FIELDS, STUDENTS_FIELD_KEYS } from "../constants/studentsFields";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { FormSubmitError } from "../components/FormSubmitError";
 import {
   defaultsFromUser,
   scopeClusters,
@@ -24,6 +25,7 @@ import {
 } from "../utils/geoFilters";
 import { hasGlobalDataScope } from "../constants/roles";
 import { displayPhone } from "../utils/displayPhone";
+import { buildRegistryExportColumns, exportFetchLimit } from "../utils/registryExport";
 
 const STORAGE_KEY = "students_filter_state";
 
@@ -138,6 +140,7 @@ export default function StudentsPage() {
   const unscoped = hasGlobalDataScope(user?.title);
   const navigate = useNavigate();
   const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
   useBfcacheReload();
 
@@ -198,12 +201,24 @@ export default function StudentsPage() {
   useGeoFilterAutoSelect({
     scopedDistricts,
     scopedClusters,
+    scopedKutirs,
+    areas: allAreas,
     filterDistrict,
     filterCluster,
+    filterKutir,
     setFilterDistrict,
     setFilterCluster,
+    setFilterKutir,
+    kutirMode: "by-cluster",
+    clusterDisable: "no-district-unless-default-cluster",
+    kutirDisable: "no-cluster-unless-default-kutir",
+    defaultCluster,
+    defaultKutir,
     unscoped,
     clusterMode: "scoped-non-admin",
+    skipDistrictAuto: saved?.district != null,
+    skipClusterAuto: saved?.cluster != null,
+    skipKutirAuto: saved?.kutir != null,
   });
 
   const enriched: EnrichedStudent[] = useMemo(() => {
@@ -216,7 +231,10 @@ export default function StudentsPage() {
 
   const deleteMut = useMutation({
     mutationFn: deleteStudent,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["students"] }),
+    onSuccess: () => {
+      setDeleteError("");
+      qc.invalidateQueries({ queryKey: ["students"] });
+    },
   });
 
   function saveFilters() {
@@ -244,6 +262,27 @@ export default function StudentsPage() {
         };
       });
   }, [orderedMetas, isVisible, kutirMap]);
+
+  const exportColumns = useMemo(
+    () => buildRegistryExportColumns(STUDENTS_FIELDS, studentColRenderers(kutirMap)),
+    [kutirMap],
+  );
+
+  const getExportRows = useCallback(async () => {
+    const { items } = await listStudentsPaged({
+      kutir_id: filterKutir !== "" ? filterKutir : undefined,
+      cluster_id: filterKutir !== "" ? undefined : (filterCluster !== "" ? filterCluster : undefined),
+      district_id: filterKutir !== "" || filterCluster !== "" ? undefined : (filterDistrict !== "" ? filterDistrict : undefined),
+      search: debouncedSearch || undefined,
+      limit: exportFetchLimit(studentTotal),
+      offset: 0,
+    });
+    return items.map((s) => ({
+      ...s,
+      docsCount: docCount(s),
+      addedDate: new Date(s.created_at).toLocaleDateString("en-IN"),
+    }));
+  }, [filterDistrict, filterCluster, filterKutir, debouncedSearch, studentTotal]);
 
   const filterSelectStyle: React.CSSProperties = {
     padding: "7px 10px",
@@ -284,6 +323,7 @@ export default function StudentsPage() {
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
+      <FormSubmitError message={deleteError} />
       <GrsTable
         title="Students"
         columns={columns}
@@ -298,11 +338,17 @@ export default function StudentsPage() {
             saveFilters();
             navigate(`/students/${s.id}?edit=1`);
           },
-          onDelete: () =>
-            setPendingDelete({
-              id: s.id,
-              name: `${s.first_name} ${s.last_name}`,
-            }),
+          ...((s.exam_count ?? 0) === 0
+            ? {
+                onDelete: () => {
+                  setDeleteError("");
+                  setPendingDelete({
+                    id: s.id,
+                    name: `${s.first_name} ${s.last_name}`,
+                  });
+                },
+              }
+            : {}),
         })}
         searchable
         searchPlaceholder="Search by name, phone…"
@@ -311,15 +357,24 @@ export default function StudentsPage() {
         filters={geoFilters}
         activeFilterCount={countActiveFilters(filterDistrict, filterCluster, filterKutir)}
         exportFilename="students"
+        exportColumns={exportColumns}
+        getExportRows={getExportRows}
         printTitle="Students"
         onAdd={() => { saveFilters(); navigate("new"); }}
       />
       {pendingDelete && (
         <ConfirmDialog
           message={<>Delete <strong>{pendingDelete.name}</strong>?</>}
+          busy={deleteMut.isPending}
           onConfirm={() => {
-            deleteMut.mutate(pendingDelete.id);
-            setPendingDelete(null);
+            deleteMut.mutate(pendingDelete.id, {
+              onSuccess: () => setPendingDelete(null),
+              onError: (e: unknown) => {
+                const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+                setDeleteError(typeof detail === "string" && detail.trim() ? detail : "Delete failed.");
+                setPendingDelete(null);
+              },
+            });
           }}
           onCancel={() => setPendingDelete(null)}
         />

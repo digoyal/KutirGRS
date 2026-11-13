@@ -14,8 +14,6 @@ class KutirBase(BaseModel):
     state: str = "Madhya Pradesh"
     pincode: Optional[str] = None
     donor_id: Optional[int] = None
-    enrollment_5th: Optional[int] = None
-    enrollment_8th: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     location_source: Optional[str] = None
@@ -47,15 +45,19 @@ class KutirUpdate(BaseModel):
     state: Optional[str] = None
     pincode: Optional[str] = None
     donor_id: Optional[int] = None
-    enrollment_5th: Optional[int] = None
-    enrollment_8th: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     location_source: Optional[str] = None
     geocoded_at: Optional[datetime] = None
 
+class TeacherMin(BaseModel):
+    id: int; username: str; title: Optional[str] = None
+    first_name: Optional[str] = None; last_name: Optional[str] = None
+    model_config = {"from_attributes": True}
+
 class KutirOut(KutirBase):
     id: int
+    teachers: List[TeacherMin] = []
     model_config = {"from_attributes": True}
 
 
@@ -80,13 +82,7 @@ class ClusterMin(BaseModel):
     area: Optional[AreaMin] = None
     model_config = {"from_attributes": True}
 
-class TeacherMin(BaseModel):
-    id: int; username: str; title: Optional[str] = None
-    first_name: Optional[str] = None; last_name: Optional[str] = None
-    model_config = {"from_attributes": True}
-
 class KutirDetail(KutirOut):
     cluster: Optional[ClusterMin] = None
-    teachers: List[TeacherMin] = []
     geocode_message: Optional[str] = None
     model_config = {"from_attributes": True}

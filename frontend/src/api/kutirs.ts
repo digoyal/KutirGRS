@@ -12,7 +12,7 @@ export interface Kutir {
   id: number; name: string; kutir_type: string; cluster_id: number;
   district_id: number | null; street: string | null;
   state: string; pincode: string | null;
-  donor_id: number | null; enrollment_5th: number | null; enrollment_8th: number | null;
+  donor_id: number | null;
   latitude: number | null;
   longitude: number | null;
   location_source: string | null;
@@ -41,7 +41,6 @@ export interface KutirCreate {
   name: string; kutir_type: string; cluster_id: number; district_id?: number | null;
   street?: string | null; state?: string; pincode?: string | null;
   donor_id?: number | null;
-  enrollment_5th?: number | null; enrollment_8th?: number | null;
   latitude?: number | null;
   longitude?: number | null;
 }

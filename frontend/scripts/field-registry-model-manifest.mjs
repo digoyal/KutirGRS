@@ -33,8 +33,6 @@ export const FIELD_REGISTRY_MODEL_ENTITIES = [
       "first_name",
       "last_name",
       "photo",
-      "street",
-      "pincode",
       "category_id",
       "sub_category_id",
       "aadhaar",

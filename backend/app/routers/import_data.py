@@ -702,13 +702,11 @@ async def _import_kutirs(rows, db):
                "sr": _str(r.get("street")) or None,
                "sa": _state(r.get("state")),
                "pi": _str(r.get("pincode")) or None,
-               "do": donor_id,
-               "e5": _int(r.get("enrollment_5th")),
-               "e8": _int(r.get("enrollment_8th"))}
+               "do": donor_id}
         if exists:
             await db.execute(text("""
                 UPDATE kutirs SET kutir_type=:kt, district_id=:di, street=:sr, state=:sa,
-                    pincode=:pi, donor_id=:do, enrollment_5th=:e5, enrollment_8th=:e8, updated_at=now()
+                    pincode=:pi, donor_id=:do, updated_at=now()
                 WHERE id=:id
             """), {**params, "id": exists})
             kutir_id = exists
@@ -716,9 +714,9 @@ async def _import_kutirs(rows, db):
         else:
             kutir_id = (await db.execute(text("""
                 INSERT INTO kutirs (name, kutir_type, cluster_id, district_id, street,
-                                    state, pincode, donor_id, enrollment_5th, enrollment_8th,
+                                    state, pincode, donor_id,
                                     created_at, updated_at)
-                VALUES (:n, :kt, :cl, :di, :sr, :sa, :pi, :do, :e5, :e8, now(), now())
+                VALUES (:n, :kt, :cl, :di, :sr, :sa, :pi, :do, now(), now())
                 RETURNING id
             """), params)).scalar_one()
             created += 1
@@ -785,8 +783,6 @@ async def _import_students(rows, db):
                "mo": _str(r.get("mother_name")) or None,
                "ph": _str(r.get("phone")) or None,
                "em": _str(r.get("email")) or None,
-               "st": _str(r.get("street")) or None,
-               "pi": _str(r.get("pincode")) or None,
                "an": _str(r.get("alt_contact_name")) or None,
                "ap": _str(r.get("alt_contact_phone")) or None,
                "aa": _yn(r.get("aadhaar")),
@@ -798,7 +794,7 @@ async def _import_students(rows, db):
             await db.execute(text("""
                 UPDATE students SET gender=:ge, dob=:db, category_id=:ca, sub_category_id=:sc,
                     father_name=:fa, mother_name=:mo, phone=:ph, email=:em,
-                    street=:st, pincode=:pi, alt_contact_name=:an, alt_contact_phone=:ap,
+                    alt_contact_name=:an, alt_contact_phone=:ap,
                     aadhaar=:aa, category_cert=:cc, birth_cert=:bc, residence_proof=:rp,
                     medical=:me, updated_at=now()
                 WHERE id=:id
@@ -808,11 +804,11 @@ async def _import_students(rows, db):
             INSERT INTO students (first_name, last_name, gender, dob, kutir_id,
                                   category_id, sub_category_id,
                                   father_name, mother_name, phone, email,
-                                  street, pincode, alt_contact_name, alt_contact_phone,
+                                  alt_contact_name, alt_contact_phone,
                                   aadhaar, category_cert, birth_cert, residence_proof, medical,
                                   created_at, updated_at)
             VALUES (:fn, :ln, :ge, :db, :ki, :ca, :sc,
-                    :fa, :mo, :ph, :em, :st, :pi, :an, :ap,
+                    :fa, :mo, :ph, :em, :an, :ap,
                     :aa, :cc, :bc, :rp, :me, now(), now())
         """), params)
         created += 1

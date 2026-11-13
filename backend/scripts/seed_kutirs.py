@@ -119,8 +119,6 @@ async def seed():
                 district_id=CLUSTER_DISTRICT.get(kd["cluster_id"]),
                 state="Madhya Pradesh",
                 street=kd.get("street"),
-                enrollment_5th=random.randint(10, 30),
-                enrollment_8th=random.randint(8, 25),
             )
             session.add(k)
             new_kutirs.append(kd["name"])

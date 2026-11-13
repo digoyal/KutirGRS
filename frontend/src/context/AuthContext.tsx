@@ -15,6 +15,7 @@ interface User {
   /** From /auth/me (API field name). */
   is_admin: boolean;
   is_active: boolean;
+  zone_ids: number[];
   district_ids: number[];
   cluster_ids: number[];
   kutir_ids: number[];

@@ -178,7 +178,7 @@ async def migrate():
         print("\n→ Migrating kutirs...")
         rows = await src.fetch("""
             SELECT id, cluster_id, kutir_type, name, district_id, state,
-                   pincode, street, donor_id, enrollment_5th, enrollment_8th,
+                   pincode, street, donor_id,
                    created_at, updated_at
             FROM grs_kutir ORDER BY id
         """)
@@ -187,14 +187,14 @@ async def migrate():
             await dst.executemany(
                 """INSERT INTO kutirs (id, cluster_id, kutir_type, name, district_id,
                      state, pincode, street, teacher_id, donor_id,
-                     enrollment_5th, enrollment_8th, created_at, updated_at)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                     created_at, updated_at)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
                    ON CONFLICT DO NOTHING""",
                 [(r["id"], r["cluster_id"], r["kutir_type"], r["name"],
                   r["district_id"],
                   r["state"] or "Madhya Pradesh", r["pincode"] or None, r["street"] or None,
                   None,  # teacher_id: users not migrated
-                  r["donor_id"], r["enrollment_5th"], r["enrollment_8th"],
+                  r["donor_id"],
                   r["created_at"], r["updated_at"]) for r in rows]
             )
             await disable_replica(dst)
@@ -205,7 +205,7 @@ async def migrate():
         print("\n→ Migrating students...")
         rows = await src.fetch("""
             SELECT id, kutir_id, first_name, last_name, photo, gender, dob,
-                   street, pincode, phone, email, father_name, mother_name,
+                   phone, email, father_name, mother_name,
                    category_id, sub_category_id, alt_contact_name, alt_contact_phone,
                    aadhaar, category_cert, birth_cert, residence_proof, medical,
                    created_at, updated_at
@@ -215,17 +215,16 @@ async def migrate():
             await enable_replica(dst)
             await dst.executemany(
                 """INSERT INTO students (id, kutir_id, first_name, last_name, photo, gender, dob,
-                     street, pincode, phone, email, father_name, mother_name,
+                     phone, email, father_name, mother_name,
                      category_id, sub_category_id, alt_contact_name, alt_contact_phone,
                      aadhaar, category_cert, birth_cert, residence_proof, medical,
                      created_at, updated_at)
                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-                           $18,$19,$20,$21,$22,$23,$24)
+                           $18,$19,$20,$21,$22)
                    ON CONFLICT DO NOTHING""",
                 [(r["id"], r["kutir_id"], r["first_name"], r["last_name"],
                   r["photo"] or None, r["gender"], r["dob"],
-                  r["street"] or None, r["pincode"] or None, r["phone"] or None,
-                  r["email"] or None, r["father_name"] or None, r["mother_name"] or None,
+                  r["phone"] or None, r["email"] or None, r["father_name"] or None, r["mother_name"] or None,
                   r["category_id"], r["sub_category_id"],
                   r["alt_contact_name"] or None, r["alt_contact_phone"] or None,
                   r["aadhaar"], r["category_cert"], r["birth_cert"],

@@ -39,8 +39,6 @@ export function kutirFormFromDetail(kutir: KutirDetail): KutirFormState {
     state: kutir.state,
     pincode: kutir.pincode,
     donor_id: kutir.donor_id,
-    enrollment_5th: kutir.enrollment_5th,
-    enrollment_8th: kutir.enrollment_8th,
     latitude: kutir.latitude,
     longitude: kutir.longitude,
   };
@@ -181,13 +179,6 @@ export function KutirForm({
             <ViewField label={kutirFieldLabel("donor_id")}>
               {donors.find((d) => d.id === form.donor_id)?.name ?? null}
             </ViewField>
-          </div>
-        </ViewSection>
-
-        <ViewSection title="Enrollment">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <ViewField label={kutirFieldLabel("enrollment_5th")}>{form.enrollment_5th}</ViewField>
-            <ViewField label={kutirFieldLabel("enrollment_8th")}>{form.enrollment_8th}</ViewField>
           </div>
         </ViewSection>
 
@@ -363,36 +354,6 @@ export function KutirForm({
                 </option>
               ))}
             </select>
-          </div>
-        </div>
-      </section>
-
-      <section style={sec}>
-        <div style={secTitle}>Enrollment</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <div>
-            <label style={grs.fieldLabel}>{kutirFieldLabel("enrollment_5th")}</label>
-            <input
-              style={grs.input}
-              type="number"
-              value={form.enrollment_5th ?? ""}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, enrollment_5th: Number(e.target.value) || null }))
-              }
-              placeholder="0"
-            />
-          </div>
-          <div>
-            <label style={grs.fieldLabel}>{kutirFieldLabel("enrollment_8th")}</label>
-            <input
-              style={grs.input}
-              type="number"
-              value={form.enrollment_8th ?? ""}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, enrollment_8th: Number(e.target.value) || null }))
-              }
-              placeholder="0"
-            />
           </div>
         </div>
       </section>

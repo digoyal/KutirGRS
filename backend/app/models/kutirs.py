@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from sqlalchemy import String, Integer, SmallInteger, ForeignKey, Text, Float, DateTime
+from sqlalchemy import String, Integer, ForeignKey, Text, Float, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -37,8 +37,6 @@ class Kutir(Base, TimestampMixin):
     donor_id: Mapped[Optional[int]] = mapped_column(ForeignKey("donors.id"), nullable=True)
 
     # Stats
-    enrollment_5th: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
-    enrollment_8th: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
 
     # Relationships
     cluster: Mapped["Cluster"] = relationship("Cluster", foreign_keys=[cluster_id])  # type: ignore[name-defined]

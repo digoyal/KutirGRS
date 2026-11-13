@@ -13,8 +13,6 @@ class StudentBase(BaseModel):
     last_name: str = Field(..., max_length=100)
     gender: str                           # Boy / Girl
     dob: Optional[date] = None
-    street: Optional[str] = None
-    pincode: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     father_name: Optional[str] = None
@@ -38,8 +36,6 @@ class StudentUpdate(BaseModel):
     last_name: Optional[str] = None
     gender: Optional[str] = None
     dob: Optional[date] = None
-    street: Optional[str] = None
-    pincode: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     father_name: Optional[str] = None
@@ -57,6 +53,7 @@ class StudentUpdate(BaseModel):
 class StudentOut(StudentBase):
     id: int
     photo: Optional[str] = None
+    exam_count: int = 0
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

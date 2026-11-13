@@ -10,6 +10,7 @@ import { SCHOOLS_FIELDS, SCHOOLS_FIELD_KEYS } from "../constants/schoolsFields";
 import { canManageSchools } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { grs } from "../styles/grs";
+import { buildRegistryExportColumns } from "../utils/registryExport";
 
 const SCHOOL_TYPES = ["EMRS", "JNV", "KSP", "MRS", "GNV", "KGBV", "SportsBoys", "SportsGirls", "Other"];
 
@@ -141,6 +142,11 @@ export default function SchoolsPage() {
       });
   }, [orderedMetas, isVisible]);
 
+  const exportColumns = useMemo(
+    () => buildRegistryExportColumns(SCHOOLS_FIELDS, schoolColRenderers()),
+    [],
+  );
+
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
       <GrsTable
@@ -174,6 +180,7 @@ export default function SchoolsPage() {
             || (s.district?.name ?? "").toLowerCase().includes(lower);
         }}
         exportFilename="schools"
+        exportColumns={exportColumns}
         printTitle="Schools"
         onAdd={canManage ? () => navigate("/schools/new") : undefined}
       />

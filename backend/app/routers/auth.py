@@ -22,7 +22,7 @@ from app.config import settings
 from app.database import get_db
 from app.mail import send_password_reset_email
 from app.models.password_reset import PasswordResetToken
-from app.models.users import User, user_districts, user_areas, user_clusters, user_kutirs
+from app.models.users import User, user_zones, user_districts, user_areas, user_clusters, user_kutirs
 
 log = logging.getLogger("kutirgrs.auth")
 
@@ -63,6 +63,7 @@ class UserOut(BaseModel):
     title: Optional[str]
     is_active: bool
     is_admin: bool
+    zone_ids: list[int] = []
     district_ids: list[int] = []
     cluster_ids: list[int] = []
     kutir_ids: list[int] = []
@@ -109,18 +110,21 @@ async def _me_out(user: User, db: AsyncSession) -> UserOut:
     Role assignment mapping and how we derive district_ids / cluster_ids:
 
       Admin                → no restrictions (all IDs stay empty = show everything)
-      Regional Head        → user_zones (zone_id) — broad scope, no filtering needed
+      Regional Head        → user_zones (zone_id) → derive district_ids for FE filters
       District Anchor      → user_districts (district_id) — direct
       Education Coord      → user_areas (area_id) → derive district + clusters
       Cluster Coordinator  → user_clusters (cluster_id) → derive district
       Teacher              → user_kutirs (kutir_id) → derive cluster + district
     """
-    from app.models.geo import Cluster, Area
+    from app.models.geo import Cluster, Area, District
     from app.models.kutirs import Kutir as KutirModel
 
     out = UserOut.model_validate(user)
 
     # ── Direct assignments ────────────────────────────────────────────────────
+    r = await db.execute(select(user_zones.c.zone_id).where(user_zones.c.user_id == user.id))
+    out.zone_ids = [row[0] for row in r.all()]
+
     r = await db.execute(select(user_districts.c.district_id).where(user_districts.c.user_id == user.id))
     out.district_ids = [row[0] for row in r.all()]
 
@@ -129,6 +133,15 @@ async def _me_out(user: User, db: AsyncSession) -> UserOut:
 
     r = await db.execute(select(user_kutirs.c.kutir_id).where(user_kutirs.c.user_id == user.id))
     out.kutir_ids = [row[0] for row in r.all()]
+
+    # ── Regional Head: user_zones → derive district_ids ───────────────────────
+    if out.zone_ids and not out.district_ids:
+        r = await db.execute(
+            select(District.id)
+            .where(District.zone_id.in_(out.zone_ids))
+            .distinct()
+        )
+        out.district_ids = [row[0] for row in r.all()]
 
     # ── Education Coordinator: user_areas → derive district_ids + cluster_ids ─
     r = await db.execute(select(user_areas.c.area_id).where(user_areas.c.user_id == user.id))

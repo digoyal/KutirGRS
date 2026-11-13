@@ -148,6 +148,77 @@ export function kutirsForFilter(
   }
 }
 
+export type FilterAutoPickOpts = {
+  /** Dropdown includes an explicit All choice (empty value). Default true. */
+  hasAll?: boolean;
+  /** Session restore / user intent — do not auto-adjust. */
+  skip?: boolean;
+  /**
+   * Child level after parent change: multiple visible options → All; one → pick.
+   * Top level uses false so a valid non-empty choice is kept.
+   */
+  cascade?: boolean;
+};
+
+function optionIdsInclude(options: NamedId[], id: FilterId): boolean {
+  return id !== "" && options.some((o) => o.id === id);
+}
+
+/**
+ * Resolve auto-picked filter value for geo dropdowns (empty = All).
+ * Returns null when the current value should be left unchanged.
+ */
+export function autoPickFilterId(
+  options: NamedId[],
+  current: FilterId,
+  enabled: boolean,
+  opts?: FilterAutoPickOpts,
+): FilterId | null {
+  const hasAll = opts?.hasAll !== false;
+  const skip = opts?.skip === true;
+  const cascade = opts?.cascade === true;
+  if (!enabled || skip) return null;
+
+  if (options.length === 0) {
+    if (hasAll && current !== "") return "";
+    return null;
+  }
+
+  if (options.length === 1) {
+    const only = options[0].id;
+    if (current === only) return null;
+    if (current === "" || !optionIdsInclude(options, current)) return only;
+    return null;
+  }
+
+  if (!hasAll) return null;
+  if (current === "") return null;
+  if (cascade || !optionIdsInclude(options, current)) return "";
+  return null;
+}
+
+/** @deprecated Use {@link autoPickFilterId}; kept for call sites that only need the singleton case. */
+export function autoPickSingleFilterId(
+  options: NamedId[],
+  current: FilterId,
+  enabled: boolean,
+): FilterId | null {
+  return autoPickFilterId(options, current, enabled);
+}
+
+/** Year / enum list filters where `""` means All. */
+export function autoPickScalarFilter<T extends string | number>(
+  options: readonly T[],
+  current: T | "",
+  enabled: boolean,
+  opts?: FilterAutoPickOpts,
+): T | "" | null {
+  const named = options.map((id) => ({ id: id as number, name: "" }));
+  const picked = autoPickFilterId(named, current as FilterId, enabled, opts);
+  if (picked === null) return null;
+  return picked === "" ? "" : (picked as T);
+}
+
 /** Count non-empty filter values for the mobile Filters badge (excludes search). */
 export function countActiveFilters(
   ...values: Array<string | number | null | undefined | boolean>

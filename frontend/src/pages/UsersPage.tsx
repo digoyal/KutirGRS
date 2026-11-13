@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, useCallback, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listUsersPaged, deleteUser, type User } from "../api/users";
@@ -11,6 +11,7 @@ import { canManageUsers, TITLES } from "../constants/roles";
 import { GrsTable, type Col } from "../components/GrsTable";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { grs } from "../styles/grs";
+import { buildRegistryExportColumns, exportFetchLimit } from "../utils/registryExport";
 
 const STORAGE_KEY = "users_filter_state";
 
@@ -155,6 +156,18 @@ export default function UsersPage() {
       });
   }, [orderedMetas, isVisible]);
 
+  const exportColumns = useMemo(() => buildRegistryExportColumns(USERS_FIELDS, userColRenderers()), []);
+
+  const getExportRows = useCallback(async () => {
+    const { items } = await listUsersPaged({
+      search: debouncedSearch || undefined,
+      role: roleFilter || undefined,
+      limit: exportFetchLimit(userTotal),
+      offset: 0,
+    });
+    return items;
+  }, [debouncedSearch, roleFilter, userTotal]);
+
   return (
     <div style={{ padding: "24px 28px" }}>
       <GrsTable
@@ -191,6 +204,8 @@ export default function UsersPage() {
           </select>
         }
         exportFilename="users"
+        exportColumns={exportColumns}
+        getExportRows={getExportRows}
         printTitle="Users"
         onAdd={canManage ? () => { saveFilters(); navigate("/users/new"); } : undefined}
       />

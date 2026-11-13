@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { listExamsPaged, deleteExam, listExamTypes } from "../api/admissions";
@@ -13,7 +13,7 @@ import type { Col } from "../components/GrsTable";
 import { GeoFilterBar } from "../components/GeoFilterBar";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
-import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
+import { useGeoFilterAutoSelect, useSingleOptionAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { ADMISSIONS_FIELDS, ADMISSIONS_FIELD_KEYS } from "../constants/admissionsFields";
 import {
@@ -38,6 +38,7 @@ import {
 } from "../utils/geoFilters";
 import { formatAcademicYear } from "../utils/academicYear";
 import { ADMISSIONS_FILTER_STORAGE_KEY } from "../constants/admissionsList";
+import { buildRegistryExportColumnsFromCols, exportFetchLimit } from "../utils/registryExport";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
@@ -134,12 +135,30 @@ export default function AdmissionsPage() {
   useGeoFilterAutoSelect({
     scopedDistricts,
     scopedClusters,
+    scopedKutirs,
+    areas: allAreas,
     filterDistrict,
     filterCluster,
+    filterKutir,
     setFilterDistrict,
     setFilterCluster,
+    setFilterKutir,
+    kutirMode: "by-cluster-or-selected",
+    clusterDisable: "no-district-unless-kutir",
+    kutirDisable: "never",
+    kutirVisibility: "when-cluster",
     unscoped,
     clusterMode: "scoped-non-admin",
+    skipDistrictAuto: saved?.district != null,
+    skipClusterAuto: saved?.cluster != null,
+    skipKutirAuto: saved?.kutir != null,
+  });
+
+  useSingleOptionAutoSelect({
+    options: YEARS,
+    value: year,
+    setValue: setYear,
+    skip: saved?.year != null,
   });
 
   const deleteMut = useMutation({
@@ -387,6 +406,24 @@ export default function AdmissionsPage() {
     return base;
   }, [allColumns, orderedMetas, isVisible]);
 
+  const exportColumns = useMemo(
+    () => buildRegistryExportColumnsFromCols(ADMISSIONS_FIELDS, allColumns),
+    [allColumns],
+  );
+
+  const getExportRows = useCallback(async () => {
+    const { items } = await listExamsPaged({
+      school_start_year: year,
+      district_id: filterDistrict !== "" ? filterDistrict : undefined,
+      cluster_id: filterCluster !== "" ? filterCluster : undefined,
+      kutir_id: filterKutir !== "" ? filterKutir : undefined,
+      search: debouncedSearch || undefined,
+      limit: exportFetchLimit(examTotal),
+      offset: 0,
+    });
+    return items;
+  }, [year, filterDistrict, filterCluster, filterKutir, debouncedSearch, examTotal]);
+
   const filterSelectStyle: React.CSSProperties = {
     padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)",
     background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 14, flexShrink: 0,
@@ -449,6 +486,8 @@ export default function AdmissionsPage() {
           />
         }
         exportFilename="admissions"
+        exportColumns={exportColumns}
+        getExportRows={getExportRows}
         printTitle="Admissions"
         onAdd={() => { saveFilters(); navigate(`new?year=${year}`); }}
         actions={(exam) => ({

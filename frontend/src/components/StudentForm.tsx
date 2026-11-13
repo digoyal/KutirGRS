@@ -3,7 +3,7 @@
  * Caller owns form state; this component is presentational + interactive.
  * Modes: add (empty/editable), edit (editable), view (read-only).
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ViewField, viewStyles } from "@parivaar/ui";
 import { type StudentCreate } from "../api/students";
@@ -20,6 +20,7 @@ import { hasGlobalDataScope } from "../constants/roles";
 import { studentFieldLabel } from "../constants/studentsFields";
 import { grs } from "../styles/grs";
 import { useStudentFormLookups } from "../hooks/useStudentFormLookups";
+import { validateStudentForm } from "../utils/studentFormValidation";
 
 const DOCS: { key: keyof StudentFormState; label: string }[] = [
   { key: "aadhaar", label: "Aadhaar Card" },
@@ -42,8 +43,6 @@ export function emptyStudentForm(): StudentFormState {
     email: null,
     father_name: null,
     mother_name: null,
-    street: null,
-    pincode: null,
     category_id: null,
     sub_category_id: null,
     alt_contact_name: null,
@@ -66,8 +65,6 @@ export function studentFormFromDetail(s: {
   email: string | null;
   father_name: string | null;
   mother_name: string | null;
-  street: string | null;
-  pincode: string | null;
   category_id: number | null;
   sub_category_id: number | null;
   alt_contact_name: string | null;
@@ -88,8 +85,6 @@ export function studentFormFromDetail(s: {
     email: s.email,
     father_name: s.father_name,
     mother_name: s.mother_name,
-    street: s.street,
-    pincode: s.pincode,
     category_id: s.category_id,
     sub_category_id: s.sub_category_id,
     alt_contact_name: s.alt_contact_name,
@@ -116,6 +111,10 @@ function tag(bg: string, color: string): React.CSSProperties {
   };
 }
 
+export type StudentFormHandle = {
+  validate(): string | null;
+};
+
 interface StudentFormProps {
   form: StudentFormState;
   setForm: React.Dispatch<React.SetStateAction<StudentFormState>>;
@@ -132,14 +131,17 @@ interface StudentFormProps {
   subCategoryName?: string | null;
 }
 
-export function StudentForm({
-  form,
-  setForm,
-  mode,
-  locationLabels,
-  categoryName,
-  subCategoryName,
-}: StudentFormProps) {
+export const StudentForm = forwardRef<StudentFormHandle, StudentFormProps>(function StudentForm(
+  {
+    form,
+    setForm,
+    mode,
+    locationLabels,
+    categoryName,
+    subCategoryName,
+  },
+  ref,
+) {
   const readOnly = mode === "view";
   const isAdd = mode === "add";
   const { user } = useAuth();
@@ -259,6 +261,31 @@ export function StudentForm({
     ? kutirSource.filter((k) => k.cluster_id === selCluster)
     : kutirSource;
 
+  const clusterChoiceCount = selDistrict
+    ? clusterSource.filter((c) => areaMap.get(c.area_id)?.district_id === selDistrict).length
+    : clusterSource.length;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      validate: () =>
+        validateStudentForm(form, {
+          isAdd,
+          selDistrict,
+          selCluster,
+          districtChoiceCount: districtSource.length,
+          clusterChoiceCount,
+        }),
+    }),
+    [form, isAdd, selDistrict, selCluster, districtSource.length, clusterChoiceCount],
+  );
+
+  const districtLabel =
+    isAdd && districtSource.length > 1 ? "District *" : "District";
+  const clusterLabel =
+    isAdd && clusterChoiceCount > 1 ? "Cluster *" : "Cluster";
+  const kutirLabel = studentFieldLabel("kutir_id", { required: !readOnly });
+
   /**
    * Pass `label` for form-only fields (not in STUDENTS_FIELDS).
    * Otherwise label comes from studentFieldLabel(key).
@@ -300,12 +327,14 @@ export function StudentForm({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
             <ViewField label="District">{locationLabels?.district}</ViewField>
             <ViewField label="Cluster">{locationLabels?.cluster}</ViewField>
-            <ViewField label={studentFieldLabel("kutir_id")}>{locationLabels?.kutir}</ViewField>
+            <ViewField label={studentFieldLabel("kutir_id")}>
+              {locationLabels?.kutir}
+            </ViewField>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
             <div>
-              <label style={grs.fieldLabel}>District</label>
+              <label style={grs.fieldLabel}>{districtLabel}</label>
               <select
                 style={grs.select}
                 value={selDistrict ?? ""}
@@ -327,7 +356,7 @@ export function StudentForm({
               </select>
             </div>
             <div>
-              <label style={grs.fieldLabel}>Cluster</label>
+              <label style={grs.fieldLabel}>{clusterLabel}</label>
               <select
                 style={grs.select}
                 value={selCluster ?? ""}
@@ -347,7 +376,7 @@ export function StudentForm({
               </select>
             </div>
             <div>
-              <label style={grs.fieldLabel}>{studentFieldLabel("kutir_id")}</label>
+              <label style={grs.fieldLabel}>{kutirLabel}</label>
               <select
                 style={grs.select}
                 value={form.kutir_id ?? ""}
@@ -379,7 +408,7 @@ export function StudentForm({
             <ViewField label={studentFieldLabel("gender")}>{form.gender || null}</ViewField>
           ) : (
             <div>
-              <label style={grs.fieldLabel}>{studentFieldLabel("gender")}</label>
+              <label style={grs.fieldLabel}>{studentFieldLabel("gender", { required: true })}</label>
               <select
                 style={grs.select}
                 value={form.gender}
@@ -390,14 +419,14 @@ export function StudentForm({
               </select>
             </div>
           )}
-          {textField("dob", { type: "date" })}
+          {textField("dob", { type: "date", required: true })}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           {readOnly ? (
             <ViewField label="Category">{categoryName}</ViewField>
           ) : (
             <div>
-              <label style={grs.fieldLabel}>Category</label>
+              <label style={grs.fieldLabel}>Category *</label>
               <select
                 style={grs.select}
                 value={form.category_id ?? ""}
@@ -406,7 +435,7 @@ export function StudentForm({
                   setForm((f) => ({ ...f, category_id: id, sub_category_id: null }));
                 }}
               >
-                <option value="">— none —</option>
+                <option value="">— select —</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -442,7 +471,7 @@ export function StudentForm({
           )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {textField("phone")}
+          {textField("phone", { required: true })}
           {textField("email", { type: "email" })}
         </div>
       </section>
@@ -450,20 +479,12 @@ export function StudentForm({
       <section style={sec}>
         <div style={secTitle}>Family</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-          {textField("father_name")}
-          {textField("mother_name")}
+          {textField("father_name", { required: true })}
+          {textField("mother_name", { required: true })}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {textField("alt_contact_name")}
           {textField("alt_contact_phone")}
-        </div>
-      </section>
-
-      <section style={sec}>
-        <div style={secTitle}>Address</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {textField("street", { label: "Street" })}
-          {textField("pincode", { label: "Pincode" })}
         </div>
       </section>
 
@@ -513,4 +534,4 @@ export function StudentForm({
       </section>
     </div>
   );
-}
+});

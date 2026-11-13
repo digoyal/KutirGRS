@@ -9,6 +9,7 @@ import { listKutirs, type Kutir } from "../api/kutirs";
 import { grs } from "../styles/grs";
 import { TITLES as ROLE_TITLES } from "../constants/roles";
 import { userFieldLabel } from "../constants/usersFields";
+import { useUserFormGeoFilterAutoSelect } from "../hooks/useUserFormGeoFilterAutoSelect";
 
 export const TITLES = [...ROLE_TITLES];
 
@@ -195,29 +196,21 @@ export function UserForm({
 
   const filteredKutirs: Kutir[] = useMemo(() => filterCluster ? allKutirs.filter(k => k.cluster_id === filterCluster) : [], [allKutirs, filterCluster]);
 
-  // Auto-select when only one option available (add mode only)
-  useEffect(() => {
-    if (isEdit) return;
-    if (allZones.length === 1 && filterZone === null) setFilterZone(allZones[0].id);
-  }, [isEdit, allZones.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (isEdit || filterZone === null) return;
-    if (filteredDistricts.length === 1 && filterDistrict === null) setFilterDistrict(filteredDistricts[0].id);
-  }, [isEdit, filterZone, filteredDistricts.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (isEdit || filterDistrict === null) return;
-    // CC: do not auto-pick area — district lock is the constraint; area is optional refine.
-    if (leaf === "cluster") return;
-    if (filteredAreas.length === 1 && filterArea === null) setFilterArea(filteredAreas[0].id);
-  }, [isEdit, filterDistrict, filteredAreas.length, leaf]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (isEdit || filterArea === null) return;
-    if (leaf === "cluster") return;
-    if (filteredClusters.length === 1 && filterCluster === null) setFilterCluster(filteredClusters[0].id);
-  }, [isEdit, filterArea, filteredClusters.length, leaf]); // eslint-disable-line react-hooks/exhaustive-deps
+  useUserFormGeoFilterAutoSelect({
+    leaf,
+    allZones,
+    filteredDistricts,
+    filteredAreas,
+    filteredClusters,
+    filterZone,
+    setFilterZone,
+    filterDistrict,
+    setFilterDistrict,
+    filterArea,
+    setFilterArea,
+    filterCluster,
+    setFilterCluster,
+  });
 
   // Edit / existing CC: derive district (and zone) from the first assigned cluster.
   useEffect(() => {

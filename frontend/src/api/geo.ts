@@ -27,6 +27,27 @@ export const listDistricts = async (
 export const listAreas = async (district_id?: number): Promise<Area[]> => (await api.get("/geo/areas", { params: district_id ? { district_id } : {} })).data;
 export const listClusters = async (area_id?: number): Promise<Cluster[]> => (await api.get("/geo/clusters", { params: area_id ? { area_id } : {} })).data;
 
+export interface GeoAssignment {
+  entity_level: string;
+  entity_id: number;
+  entity_name: string;
+  parent_chain: string;
+  role: string;
+  user_id?: number | null;
+  user_display_name?: string | null;
+  username?: string | null;
+  user_active?: boolean | null;
+}
+
+export const listGeoAssignments = async (
+  entity_level?: string,
+): Promise<GeoAssignment[]> =>
+  (
+    await api.get("/geo/assignments", {
+      params: entity_level ? { entity_level } : {},
+    })
+  ).data;
+
 export const createZone    = async (data: { name: string }): Promise<Zone>     => (await api.post("/geo/zones", data)).data;
 export const updateZone    = async (id: number, data: Partial<Zone>): Promise<Zone>     => (await api.put(`/geo/zones/${id}`, data)).data;
 export const deleteZone    = async (id: number): Promise<void>                           => { await api.delete(`/geo/zones/${id}`); };

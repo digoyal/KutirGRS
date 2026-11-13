@@ -11,8 +11,6 @@ export interface Student {
   email: string | null;
   father_name: string | null;
   mother_name: string | null;
-  street: string | null;
-  pincode: string | null;
   category_id: number | null;
   sub_category_id: number | null;
   aadhaar: boolean;
@@ -23,6 +21,7 @@ export interface Student {
   alt_contact_name: string | null;
   alt_contact_phone: string | null;
   photo: string | null;
+  exam_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -37,8 +36,6 @@ export interface StudentCreate {
   email?: string | null;
   father_name?: string | null;
   mother_name?: string | null;
-  street?: string | null;
-  pincode?: string | null;
   category_id?: number | null;
   sub_category_id?: number | null;
   alt_contact_name?: string | null;

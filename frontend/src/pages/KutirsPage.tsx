@@ -15,8 +15,8 @@ import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersisted
 import { KUTIRS_FIELDS, KUTIRS_FIELD_KEYS } from "../constants/kutirsFields";
 import { canManageKutirs as roleCanManageKutirs, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { buildRegistryExportColumns } from "../utils/registryExport";
 import {
-  clustersForDistrict,
   countActiveFilters,
   scopeClusters,
   scopeDistricts,
@@ -107,22 +107,6 @@ function kutirColRenderers(
       ),
       csvValue: (r) => (r.donor_id != null ? donorMap.get(r.donor_id)?.name ?? "" : ""),
     },
-    enrollment_5th: {
-      sortable: true,
-      nowrap: true,
-      minWidth: 72,
-      tdStyle: { ...KUTIR_LIST_CELL, fontVariantNumeric: "tabular-nums" },
-      render: (r) => r.enrollment_5th ?? "—",
-      csvValue: (r) => String(r.enrollment_5th ?? ""),
-    },
-    enrollment_8th: {
-      sortable: true,
-      nowrap: true,
-      minWidth: 72,
-      tdStyle: { ...KUTIR_LIST_CELL, fontVariantNumeric: "tabular-nums" },
-      render: (r) => r.enrollment_8th ?? "—",
-      csvValue: (r) => String(r.enrollment_8th ?? ""),
-    },
     latitude: {
       sortable: true,
       nowrap: true,
@@ -193,17 +177,20 @@ export default function KutirsPage() {
 
   const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
-  const filterClusters = clustersForDistrict(scopedClusters, areaMap, filterDistrict);
 
   useGeoFilterAutoSelect({
     scopedDistricts,
-    filterClusters,
+    scopedClusters,
+    areas: allAreas,
     filterDistrict,
     filterCluster,
     setFilterDistrict,
     setFilterCluster,
+    clusterDisable: "no-district",
     unscoped,
     clusterMode: "filtered",
+    skipDistrictAuto: saved?.district != null,
+    skipClusterAuto: saved?.cluster != null,
   });
 
   const displayed = kutirs.filter(k => {
@@ -250,6 +237,11 @@ export default function KutirsPage() {
       });
   }, [orderedMetas, isVisible, clusterMap, donorMap]);
 
+  const exportColumns = useMemo(
+    () => buildRegistryExportColumns(KUTIRS_FIELDS, kutirColRenderers(clusterMap, donorMap)),
+    [clusterMap, donorMap],
+  );
+
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
       <GrsTable
@@ -281,6 +273,7 @@ export default function KutirsPage() {
           />
         }
         exportFilename="kutirs"
+        exportColumns={exportColumns}
         printTitle="Kutirs"
         onAdd={canManageKutirs ? () => navigate("/kutirs/new") : undefined}
         actions={r => ({

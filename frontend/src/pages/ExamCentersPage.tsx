@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode, type CSSProperties } from "react";
+import { useState, useMemo, useCallback, type ReactNode, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listExamCenters, listDistricts, deleteExamCenter } from "../api/geo";
@@ -8,11 +8,13 @@ import type { Col } from "../components/GrsTable";
 import { GeoFilterBar } from "../components/GeoFilterBar";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
+import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import { EXAM_CENTERS_FIELDS, EXAM_CENTERS_FIELD_KEYS } from "../constants/examCentersFields";
-import { canManageExamCenters } from "../constants/roles";
+import { canManageExamCenters, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { countActiveFilters, type FilterId } from "../utils/geoFilters";
+import { countActiveFilters, scopeDistricts, type FilterId } from "../utils/geoFilters";
+import { buildRegistryExportColumns } from "../utils/registryExport";
 
 const STORAGE_KEY = "exam_centers_filter_state";
 
@@ -70,6 +72,7 @@ export default function ExamCentersPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const unscoped = hasGlobalDataScope(user?.title);
   const canManage = canManageExamCenters(user?.title);
 
   useBfcacheReload();
@@ -79,13 +82,26 @@ export default function ExamCentersPage() {
   const [pendingDelete, setPendingDelete] = useState<{ id: number } | null>(null);
 
   const { data: centers = [], isLoading } = useQuery({ queryKey: ["exam-centers"], queryFn: () => listExamCenters() });
-  const { data: districts = [] } = useQuery({
+  const { data: allDistricts = [] } = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
 
-  const districtMap = Object.fromEntries(districts.map(d => [d.id, d.name]));
-  // Data sheet: Exam Centers are global — filter dropdown shows all districts
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const setFilterClusterNoop = useCallback(() => {}, []);
+
+  useGeoFilterAutoSelect({
+    scopedDistricts,
+    filterDistrict,
+    filterCluster: "",
+    setFilterDistrict,
+    setFilterCluster: setFilterClusterNoop,
+    clusterMode: "none",
+    unscoped,
+    skipDistrictAuto: saved?.district != null,
+  });
+
+  const districtMap = Object.fromEntries(allDistricts.map((d) => [d.id, d.name]));
 
   const deleteMut = useMutation({
     mutationFn: deleteExamCenter,
@@ -120,6 +136,8 @@ export default function ExamCentersPage() {
       });
   }, [orderedMetas, isVisible]);
 
+  const exportColumns = useMemo(() => buildRegistryExportColumns(EXAM_CENTERS_FIELDS, examCenterColRenderers()), []);
+
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
       <GrsTable
@@ -144,12 +162,13 @@ export default function ExamCentersPage() {
           <GeoFilterBar
             district={filterDistrict}
             onChange={({ district }) => setFilterDistrict(district)}
-            districts={districts}
+            districts={scopedDistricts}
             showCluster={false}
             showKutir={false}
           />
         }
         exportFilename="exam-centers"
+        exportColumns={exportColumns}
         printTitle="Exam Centers"
         onAdd={canManage ? () => navigate("/exam-centers/new") : undefined}
       />

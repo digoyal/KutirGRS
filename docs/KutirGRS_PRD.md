@@ -91,7 +91,7 @@ Zone → District → Area → Cluster → Kutir
 
 - **User:** username, password hash, names, phone, email, title (role), active flag, geo assignments.
 - **Donor:** name, email, phone, notes; optional link from Kutir.
-- **Student:** names, gender (Boy/Girl), DOB, photo, Kutir, address, phone, email, father/mother names, alt contact, category / sub-category, document flags (Aadhaar, category cert, birth cert, residence, medical).
+- **Student:** names, gender (Boy/Girl), DOB, photo, Kutir, phone, email (optional), father/mother names (required on write), alt contact (optional), category (required on write) / sub-category (optional), document flags (Aadhaar, category cert, birth cert, residence, medical).
 - Deleting a student shall **hard-delete** the row and cascade-remove related exams and progress (with confirmation). No soft-delete / hide.
 
 ### 4.3 Schools and exams

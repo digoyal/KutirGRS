@@ -1,5 +1,5 @@
 import React from "react";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,7 +19,7 @@ import type { Col } from "../components/GrsTable";
 import { GeoFilterBar } from "../components/GeoFilterBar";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
-import { useGeoFilterAutoSelect } from "../hooks/useGeoFilterAutoSelect";
+import { useGeoFilterAutoSelect, useSingleOptionAutoSelect } from "../hooks/useGeoFilterAutoSelect";
 import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersistedFilters";
 import {
   PROGRESS_FIELDS,
@@ -43,6 +43,7 @@ import {
   scopeKutirs,
   type FilterId,
 } from "../utils/geoFilters";
+import { buildRegistryExportColumnsFromCols, exportFetchLimit } from "../utils/registryExport";
 import {
   defaultProgressListYearFilter,
   formatAcademicYear,
@@ -184,15 +185,39 @@ export default function StudentProgressPage() {
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
   const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 
+  const progressYearOptions = useMemo(
+    () => progressFilterYearOptions(CURRENT_YEAR),
+    [],
+  );
+
   useGeoFilterAutoSelect({
     scopedDistricts,
     scopedClusters,
+    scopedKutirs,
+    areas: allAreas,
     filterDistrict,
     filterCluster,
+    filterKutir,
     setFilterDistrict,
     setFilterCluster,
+    setFilterKutir,
+    kutirMode: "by-cluster-or-selected",
+    clusterDisable: "no-district-unless-kutir",
+    kutirDisable: "never",
+    kutirVisibility: "when-cluster",
     unscoped,
     clusterMode: "scoped-non-admin",
+    skipDistrictAuto: saved?.district != null,
+    skipClusterAuto: saved?.cluster != null,
+    skipKutirAuto: saved?.kutir != null,
+  });
+
+  useSingleOptionAutoSelect({
+    options: progressYearOptions,
+    value: filterYear,
+    setValue: (y) => setFilterYear(y),
+    skip: saved?.year != null,
+    hasAll: true,
   });
 
   const deleteMut = useMutation({
@@ -200,18 +225,16 @@ export default function StudentProgressPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["progress"] }),
   });
 
-  // List columns, labels, visibility, order, and CSV headers all come from PROGRESS_FIELDS.
-  const baseColumns = useMemo<Col<StudentProgress>[]>(() => {
+  // List columns, labels, visibility, order from PROGRESS_FIELDS; export uses full registry.
+  const allRegistryColumns = useMemo<Col<StudentProgress>[]>(() => {
     if (import.meta.env.DEV) {
       for (const key of PROGRESS_FIELD_KEYS) {
-        if (!orderedMetas.some((m) => m.key === key)) {
-          throw new Error(`StudentProgressPage missing PROGRESS_FIELDS key in orderedMetas: ${key}`);
+        if (!PROGRESS_FIELDS.some((m) => m.key === key)) {
+          throw new Error(`StudentProgressPage missing PROGRESS_FIELDS key: ${key}`);
         }
       }
     }
-    return orderedMetas
-      .filter(m => isVisible(m.key))
-      .map((meta): Col<StudentProgress> => {
+    return PROGRESS_FIELDS.map((meta): Col<StudentProgress> => {
         const sortValue = (p: StudentProgress): string | number => {
           switch (meta.key) {
             case "student": { const s = studentMap2.get(p.student_id); return studentLabel(s as any).toLowerCase(); }
@@ -433,9 +456,33 @@ export default function StudentProgressPage() {
           ...(minWidth != null ? { minWidth, nowrap: true } : {}),
         };
       });
-  }, [orderedMetas, isVisible, studentMap2, schoolMap]);
+  }, [studentMap2, schoolMap]);
 
-  const columns = baseColumns;
+  const columns = useMemo(() => {
+    const byKey = new Map(allRegistryColumns.map((c) => [c.key, c]));
+    return orderedMetas
+      .filter((m) => isVisible(m.key))
+      .map((m) => byKey.get(m.key))
+      .filter((c): c is Col<StudentProgress> => c != null);
+  }, [allRegistryColumns, orderedMetas, isVisible]);
+
+  const exportColumns = useMemo(
+    () => buildRegistryExportColumnsFromCols(PROGRESS_FIELDS, allRegistryColumns),
+    [allRegistryColumns],
+  );
+
+  const getExportRows = useCallback(async () => {
+    const { items } = await listProgressPaged({
+      academic_year: filterYear !== "" ? filterYear : undefined,
+      district_id: filterDistrict !== "" ? filterDistrict : undefined,
+      cluster_id: filterCluster !== "" ? filterCluster : undefined,
+      kutir_id: filterKutir !== "" ? filterKutir : undefined,
+      search: debouncedSearch || undefined,
+      limit: exportFetchLimit(progressTotal),
+      offset: 0,
+    });
+    return items;
+  }, [filterYear, filterDistrict, filterCluster, filterKutir, debouncedSearch, progressTotal]);
 
   const filterSelectStyle: React.CSSProperties = {
     padding: "7px 10px",
@@ -530,6 +577,8 @@ export default function StudentProgressPage() {
           />
         }
         exportFilename="progress"
+        exportColumns={exportColumns}
+        getExportRows={getExportRows}
         printTitle="Student Progress"
         actions={(p) => ({
           onView: () => { saveFilters(); navigate(`/progress/${p.id}`); },

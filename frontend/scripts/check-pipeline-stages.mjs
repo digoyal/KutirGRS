@@ -25,9 +25,9 @@ const MATRIX = {
   roll_number: ["admit_card", "appeared", "result_declared", "selected", "admitted"],
   reason_not_appeared: ["admit_card"],
   scores: ["result_declared", "selected", "admitted"],
-  school_district: ["result_declared", "selected", "admitted"],
-  school_type: ["result_declared", "selected", "admitted"],
-  school_name: ["result_declared", "selected", "admitted"],
+  school_district: ["selected", "admitted"],
+  school_type: ["selected", "admitted"],
+  school_name: ["selected", "admitted"],
   reason_not_admitted: ["selected"],
 };
 

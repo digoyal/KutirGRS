@@ -24,7 +24,7 @@ Product and repo rules for **KutirGRS** only. Generic engineering practices for 
 Layout/CSS changes — agent requirements (also generic **Mobile** in [`AGENTS.md`](../AGENTS.md)):
 
 1. **Full width on phones:** Main content full viewport on ~375px (≤768px). No narrow centered column with large side gutters — span usable width after hamburger clearance only.
-2. **Geography & Lookups:** **Geography** (`GeoPage` — Zones/Districts/Areas/Clusters tabs + `GrsTable` card) and **Lookups** (tabs + table card) match Kutirs/Students on phone: full-width main + table card. `className="grs-page"` on route shell; hamburger inset on `.grs-main` only (`frontend/src/mobile.css` — no extra left padding on `.grs-page`). ≤768px: `#root` must not stay at desktop max-width column. After layout/CSS: hard-refresh **http://localhost:5173/geo** (Zones) and Lookups at ~375–390px.
+2. **Geography & Lookups:** **Geography** (`GeoPage` — Zones/Districts/Areas/Clusters tabs + `GrsTable` card; **Geo Assignments** at `/geo/assignments` — M2M user↔geo report with CSV, link from Geography) and **Lookups** (tabs + table card) match Kutirs/Students on phone: full-width main + table card. `className="grs-page"` on route shell; hamburger inset on `.grs-main` only (`frontend/src/mobile.css` — no extra left padding on `.grs-page`). ≤768px: `#root` must not stay at desktop max-width column. After layout/CSS: hard-refresh **http://localhost:5173/geo** (Zones) and Lookups at ~375–390px.
 3. **Reports:** Match list pages on phone — full-width shell; **collapsible filter bar** (≤640px, collapsed by default, **▼/▲** on Filters toggle, active-count badge when filters differ from defaults — **`ReportFiltersBar`** / **`ReportPageShell`**); vertical page scroll; horizontal scroll inside wide tables only. Smoke one report route ~375px after filter/table layout changes.
 4. **Scrollable mobile nav:** Hamburger drawer scrolls vertically so **Sign out** and all nav items are reachable.
 5. **Full mobile access:** All pages/forms (Add, Edit, View, lists, modals) usable at phone width — no desktop-only CRUD, clipped fields, or unreachable actions.
@@ -88,7 +88,7 @@ On a physical phone, `localhost` / `127.0.0.1` is the phone — use the Mac **LA
 One registry per entity: `frontend/src/constants/*Fields.ts` (e.g. `studentsFields.ts`, `kutirsFields.ts`, `admissionsFields.ts`; glob `**/*Fields.ts`). Each exports `FieldMeta[]` (`STUDENTS_FIELDS`, `KUTIRS_FIELDS`, …) and helpers (`studentField`, `kutirFieldLabel`, …). List columns, Column Config, CSV export, and form labels **from registry**.
 
 1. Do **not** hardcode parallel label/key lists in pages, Column Config, or export.
-2. `label` for list / Column Config / export. Optional `formLabel` when Add/Edit needs a different label (e.g. Kutir `enrollment_5th`: list `"5th Enrollment"`, form `"5th Class"`).
+2. `label` for list / Column Config / export. Optional `formLabel` when Add/Edit needs a shorter or different label than the list column.
 3. Add/rename field visible in list/config/export/forms: update registry **first**, then wire UI.
 4. **CI guards:** `npm run build` runs:
    - `check-field-registry.mjs` — list page column keys ↔ `*Fields.ts` ( **`actions`** excluded).

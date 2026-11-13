@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { FormPageShell } from "@parivaar/ui";
@@ -6,6 +6,7 @@ import { createStudent } from "../api/students";
 import {
   StudentForm,
   emptyStudentForm,
+  type StudentFormHandle,
   type StudentFormState,
 } from "../components/StudentForm";
 
@@ -13,12 +14,14 @@ export default function StudentAddPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [form, setForm] = useState<StudentFormState>(emptyStudentForm);
+  const formRef = useRef<StudentFormHandle>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSave() {
-    if (!form.first_name.trim() || !form.last_name.trim()) {
-      setError("First and last name are required");
+    const validationError = formRef.current?.validate() ?? null;
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setSaving(true);
@@ -52,7 +55,7 @@ export default function StudentAddPage() {
       onSave={handleSave}
       onCancel={() => navigate(-1)}
     >
-      <StudentForm form={form} setForm={setForm} mode="add" />
+      <StudentForm ref={formRef} form={form} setForm={setForm} mode="add" />
     </FormPageShell>
   );
 }

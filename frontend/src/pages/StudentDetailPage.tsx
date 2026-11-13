@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FormPageShell } from "@parivaar/ui";
@@ -9,6 +9,7 @@ import {
   StudentForm,
   emptyStudentForm,
   studentFormFromDetail,
+  type StudentFormHandle,
   type StudentFormState,
 } from "../components/StudentForm";
 import { grs } from "../styles/grs";
@@ -21,6 +22,7 @@ export default function StudentDetailPage() {
   const enteredViaEdit = searchParams.get("edit") === "1";
   const [editing, setEditing] = useState(enteredViaEdit);
   const [form, setForm] = useState<StudentFormState>(emptyStudentForm);
+  const formRef = useRef<StudentFormHandle>(null);
   const [saveError, setSaveError] = useState("");
 
   const { data: student, isLoading } = useQuery({
@@ -124,10 +126,19 @@ export default function StudentDetailPage() {
       error={saveError}
       saving={updateMut.isPending}
       saveLabel="Save Changes"
-      onSave={() => updateMut.mutate(form)}
+      onSave={() => {
+        const validationError = formRef.current?.validate() ?? null;
+        if (validationError) {
+          setSaveError(validationError);
+          return;
+        }
+        setSaveError("");
+        updateMut.mutate(form);
+      }}
       onCancel={handleCancel}
     >
       <StudentForm
+        ref={formRef}
         form={form}
         setForm={setForm}
         mode={editing ? "edit" : "view"}

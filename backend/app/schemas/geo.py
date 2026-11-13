@@ -116,3 +116,17 @@ class ExamCenterUpdate(BaseModel):
 class ExamCenterOut(ExamCenterBase):
     id: int
     model_config = {"from_attributes": True}
+
+
+# ── Geo assignments report ─────────────────────────────────────────────────────
+
+class GeoAssignmentOut(BaseModel):
+    entity_level: str
+    entity_id: int
+    entity_name: str
+    parent_chain: str
+    role: str
+    user_id: Optional[int] = None
+    user_display_name: Optional[str] = None
+    username: Optional[str] = None
+    user_active: Optional[bool] = None

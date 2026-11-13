@@ -23,6 +23,7 @@ import UsersPage from "./pages/UsersPage";
 import UserDetailPage from "./pages/UserDetailPage";
 import UserAddPage from "./pages/UserAddPage";
 import GeoPage from "./pages/GeoPage";
+import GeoAssignmentsPage from "./pages/GeoAssignmentsPage";
 import AdmissionsPage from "./pages/AdmissionsPage";
 import AdmissionAddPage from "./pages/AdmissionAddPage";
 import AdmissionDetailPage from "./pages/AdmissionDetailPage";
@@ -87,6 +88,7 @@ function AppRoutes() {
         <Route path="users/new" element={<UserAddPage />} />
         <Route path="users/:id" element={<UserDetailPage />} />
         <Route path="geo" element={<GeoPage />} />
+        <Route path="geo/assignments" element={<GeoAssignmentsPage />} />
         <Route path="admissions" element={<AdmissionsPage />} />
         <Route path="admissions/new" element={<AdmissionAddPage />} />
         <Route path="admissions/:id" element={<AdmissionDetailPage />} />

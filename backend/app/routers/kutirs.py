@@ -24,6 +24,23 @@ from app.schemas.kutirs import KutirCreate, KutirUpdate, KutirOut, KutirDetail, 
 router = APIRouter(prefix="/kutirs", tags=["Kutirs"])
 
 
+async def _teachers_by_kutir_ids(
+    db: AsyncSession, kutir_ids: list[int]
+) -> dict[int, list[TeacherMin]]:
+    if not kutir_ids:
+        return {}
+    t_result = await db.execute(
+        select(User, user_kutirs.c.kutir_id)
+        .join(user_kutirs, User.id == user_kutirs.c.user_id)
+        .where(user_kutirs.c.kutir_id.in_(kutir_ids))
+        .order_by(user_kutirs.c.kutir_id, User.first_name, User.last_name)
+    )
+    out: dict[int, list[TeacherMin]] = {}
+    for user, kutir_id in t_result.all():
+        out.setdefault(kutir_id, []).append(TeacherMin.model_validate(user))
+    return out
+
+
 async def _get_kutir_detail(db: AsyncSession, kutir_id: int) -> KutirDetail:
     """Fetch a kutir with geo chain and teachers list."""
     q = (
@@ -39,17 +56,9 @@ async def _get_kutir_detail(db: AsyncSession, kutir_id: int) -> KutirDetail:
     if not obj:
         raise HTTPException(404, "Kutir not found")
 
-    # Fetch assigned teachers via user_kutirs (managed from Users form)
-    t_result = await db.execute(
-        select(User)
-        .join(user_kutirs, User.id == user_kutirs.c.user_id)
-        .where(user_kutirs.c.kutir_id == kutir_id)
-        .order_by(User.first_name, User.last_name)
-    )
-    teachers = t_result.scalars().all()
-
+    teachers_map = await _teachers_by_kutir_ids(db, [kutir_id])
     detail = KutirDetail.model_validate(obj)
-    detail.teachers = [TeacherMin.model_validate(t) for t in teachers]
+    detail.teachers = teachers_map.get(kutir_id, [])
     return detail
 
 
@@ -84,7 +93,14 @@ async def list_kutirs(
     if limit is not None:
         data_q = data_q.limit(limit).offset(offset)
     result = await db.execute(data_q)
-    return result.scalars().all()
+    objs = result.scalars().all()
+    teachers_map = await _teachers_by_kutir_ids(db, [o.id for o in objs])
+    return [
+        KutirOut.model_validate(o).model_copy(
+            update={"teachers": teachers_map.get(o.id, [])}
+        )
+        for o in objs
+    ]
 
 
 @router.post("", response_model=KutirDetail, status_code=201)

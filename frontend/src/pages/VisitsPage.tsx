@@ -34,6 +34,7 @@ import {
 } from "../offline/visitDraftTypes";
 
 import { mediaBase } from "../api/apiBase";
+import { buildRegistryExportColumnsFromCols } from "../utils/registryExport";
 
 const MEDIA_BASE = mediaBase();
 const STORAGE_KEY = "visits_filter_state";
@@ -125,10 +126,12 @@ export default function VisitsPage() {
   useGeoFilterAutoSelect({
     scopedDistricts,
     scopedClusters,
+    areas: allAreas,
     filterDistrict,
     filterCluster,
     setFilterDistrict,
     setFilterCluster,
+    clusterDisable: "no-district",
     unscoped,
     clusterMode: "scoped-non-admin",
     skipDistrictAuto: saved?.district != null,
@@ -460,6 +463,11 @@ export default function VisitsPage() {
       .filter((c): c is NonNullable<typeof c> => c != null);
   }, [allColumns, orderedMetas, isVisible]);
 
+  const exportColumns = useMemo(
+    () => buildRegistryExportColumnsFromCols(VISITS_FIELDS, allColumns),
+    [allColumns],
+  );
+
   const subtitle =
     pendingOfflineCount > 0
       ? `Field visit records and observations · ${pendingOfflineCount} visit${pendingOfflineCount === 1 ? "" : "s"} waiting to upload`
@@ -542,6 +550,7 @@ export default function VisitsPage() {
           />
         }
         exportFilename="visits"
+        exportColumns={exportColumns}
         printTitle="Kutir Visits"
         onAdd={canManageVisits ? () => { saveFilters(); navigate("new"); } : undefined}
         actions={canManageVisits

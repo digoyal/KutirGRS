@@ -89,9 +89,9 @@ const PIPELINE_FIELD_RULES: Record<PipelineField, FieldRule> = {
   roll_number: { kind: "min", stage: "admit_card" },
   reason_not_appeared: { kind: "only", stage: "admit_card" },
   scores: { kind: "min", stage: "result_declared" },
-  school_district: { kind: "min", stage: "result_declared" },
-  school_type: { kind: "min", stage: "result_declared" },
-  school_name: { kind: "min", stage: "result_declared" },
+  school_district: { kind: "min", stage: "selected" },
+  school_type: { kind: "min", stage: "selected" },
+  school_name: { kind: "min", stage: "selected" },
   reason_not_admitted: { kind: "only", stage: "selected" },
 };
 

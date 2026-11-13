@@ -3,7 +3,7 @@ Students, StudentExams, StudentExamScores, StudentProgress
 """
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
-from sqlalchemy import select, delete, func, Integer, cast
+from sqlalchemy import select, delete, func, Integer, cast, text
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,12 @@ import os, uuid, shutil
 from app.config import settings
 from app.admission_uniqueness import assert_admission_uniqueness, admission_duplicate_detail
 from app.db_integrity import raise_http_for_integrity
+from app.student_validation import validate_student_write, student_merged_for_update
+from app.admission_pipeline_validation import (
+    validate_student_exam_write,
+    validate_school_type_for_exam_type,
+    student_exam_merged_for_update,
+)
 from app.progress_logic import (
     apply_graduated_status,
     apply_promoted_status,
@@ -62,6 +68,37 @@ async def _require_student_in_scope(
         raise HTTPException(404, detail)
     require_kutir_in_scope(student.kutir_id, scope, detail=detail)
     return student
+
+
+async def _student_exam_count(db: AsyncSession, student_id: int) -> int:
+    return (
+        await db.execute(
+            select(func.count())
+            .select_from(StudentExam)
+            .where(StudentExam.student_id == student_id)
+        )
+    ).scalar_one()
+
+
+async def _exam_count_by_student_ids(db: AsyncSession, student_ids: list[int]) -> dict[int, int]:
+    if not student_ids:
+        return {}
+    rows = await db.execute(
+        select(StudentExam.student_id, func.count())
+        .where(StudentExam.student_id.in_(student_ids))
+        .group_by(StudentExam.student_id)
+    )
+    return dict(rows.all())
+
+
+def _student_out(student: Student, *, exam_count: int) -> StudentOut:
+    return StudentOut.model_validate(student).model_copy(update={"exam_count": exam_count})
+
+
+_STUDENT_DELETE_BLOCKED_MSG = (
+    "Cannot delete this student while an admission record exists. "
+    "Delete or change admissions first."
+)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -127,7 +164,9 @@ async def list_students(
     if not name_only:
         data_q = data_q.limit(limit).offset(offset)
     result = await db.execute(data_q)
-    return result.scalars().all()
+    students = result.scalars().all()
+    counts = await _exam_count_by_student_ids(db, [s.id for s in students])
+    return [_student_out(s, exam_count=counts.get(s.id, 0)) for s in students]
 
 
 @router.post("/students", response_model=StudentOut, status_code=201, tags=["Students"])
@@ -137,11 +176,12 @@ async def create_student(
     scope: Optional[set[int]] = Depends(get_scope),
 ):
     require_kutir_in_scope(data.kutir_id, scope, detail="Student not found")
+    validate_student_write(data.model_dump())
     student = Student(**data.model_dump())
     db.add(student)
     await db.commit()
     await db.refresh(student)
-    return student
+    return _student_out(student, exam_count=0)
 
 
 @router.get("/students/{id}", response_model=StudentOut, tags=["Students"])
@@ -154,7 +194,8 @@ async def get_student(
     if not obj:
         raise HTTPException(404, "Student not found")
     require_kutir_in_scope(obj.kutir_id, scope, detail="Student not found")
-    return obj
+    exam_count = await _student_exam_count(db, id)
+    return _student_out(obj, exam_count=exam_count)
 
 
 @router.patch("/students/{id}", response_model=StudentOut, tags=["Students"])
@@ -170,11 +211,13 @@ async def update_student(
     update = data.model_dump(exclude_unset=True)
     if "kutir_id" in update:
         require_kutir_in_scope(update["kutir_id"], scope, detail="Student not found")
+    validate_student_write(student_merged_for_update(obj, update))
     for k, v in update.items():
         setattr(obj, k, v)
     await db.commit()
     await db.refresh(obj)
-    return obj
+    exam_count = await _student_exam_count(db, id)
+    return _student_out(obj, exam_count=exam_count)
 
 
 @router.delete("/students/{id}", status_code=204, tags=["Students"])
@@ -187,6 +230,8 @@ async def delete_student(
     if not obj:
         raise HTTPException(404, "Student not found")
     require_kutir_in_scope(obj.kutir_id, scope, detail="Student not found")
+    if await _student_exam_count(db, id) > 0:
+        raise HTTPException(409, _STUDENT_DELETE_BLOCKED_MSG)
     await db.delete(obj)
     await db.commit()
 
@@ -359,6 +404,52 @@ def _require_admission_class_when_admitted(admitted: bool, admission_class) -> N
         )
 
 
+async def _subject_ids_for_exam_type(db: AsyncSession, exam_type_id: int | None) -> list[int]:
+    if not exam_type_id:
+        return []
+    rows = await db.execute(
+        text("SELECT subject_id FROM exam_type_subjects WHERE exam_type_id = :eid ORDER BY subject_id"),
+        {"eid": exam_type_id},
+    )
+    return [int(r[0]) for r in rows]
+
+
+async def _school_type_names_for_exam_type(db: AsyncSession, exam_type_id: int | None) -> frozenset[str]:
+    if not exam_type_id:
+        return frozenset()
+    rows = await db.execute(
+        text(
+            "SELECT st.name FROM school_types st "
+            "JOIN exam_type_school_types j ON j.school_type_id = st.id "
+            "WHERE j.exam_type_id = :eid"
+        ),
+        {"eid": exam_type_id},
+    )
+    return frozenset(r[0] for r in rows)
+
+
+def _scores_by_subject_from_payload(scores: list) -> dict[int, float | None]:
+    out: dict[int, float | None] = {}
+    for s in scores:
+        if isinstance(s, dict):
+            sid = s.get("subject_id")
+            out[int(sid)] = s.get("score")
+        else:
+            out[int(s.subject_id)] = s.score
+    return out
+
+
+async def _scores_by_subject_for_exam(db: AsyncSession, exam_id: int) -> dict[int, float | None]:
+    rows = (
+        await db.execute(
+            select(StudentExamScore.subject_id, StudentExamScore.score).where(
+                StudentExamScore.exam_id == exam_id
+            )
+        )
+    ).all()
+    return {int(sid): score for sid, score in rows}
+
+
 @router.post("/student-exams", response_model=StudentExamOut, status_code=201, tags=["Student Exams"])
 async def create_exam(
     data: StudentExamCreate,
@@ -370,6 +461,16 @@ async def create_exam(
     exam_data = data.model_dump(exclude={"scores"})
     if exam_data.get("admitted"):
         _require_admission_class_when_admitted(True, exam_data.get("admission_class"))
+
+    subject_ids = await _subject_ids_for_exam_type(db, exam_data.get("exam_type_id"))
+    validate_student_exam_write(
+        exam_data,
+        is_create=True,
+        subject_ids=subject_ids,
+        scores_by_subject=_scores_by_subject_from_payload(scores),
+    )
+    allowed_school_types = await _school_type_names_for_exam_type(db, exam_data.get("exam_type_id"))
+    validate_school_type_for_exam_type(exam_data, allowed_school_type_names=allowed_school_types)
 
     await assert_admission_uniqueness(
         db,
@@ -430,14 +531,29 @@ async def update_exam(
     update = data.model_dump(exclude_unset=True)
     scores = update.pop("scores", None)
 
+    merged = student_exam_merged_for_update(obj, update)
+
     final_admitted = update["admitted"] if "admitted" in update else obj.admitted
     final_class = update["admission_class"] if "admission_class" in update else obj.admission_class
     _require_admission_class_when_admitted(bool(final_admitted), final_class)
 
-    final_exam_type = update["exam_type_id"] if "exam_type_id" in update else obj.exam_type_id
-    final_admitted_school = (
-        update["admitted_school_id"] if "admitted_school_id" in update else obj.admitted_school_id
+    final_exam_type = merged.get("exam_type_id")
+    if scores is not None:
+        scores_map = _scores_by_subject_from_payload(scores)
+    else:
+        scores_map = await _scores_by_subject_for_exam(db, id)
+    subject_ids = await _subject_ids_for_exam_type(db, final_exam_type)
+    validate_student_exam_write(
+        merged,
+        is_create=False,
+        subject_ids=subject_ids,
+        scores_by_subject=scores_map,
     )
+    allowed_school_types = await _school_type_names_for_exam_type(db, final_exam_type)
+    validate_school_type_for_exam_type(merged, allowed_school_type_names=allowed_school_types)
+
+    final_exam_type = merged.get("exam_type_id")
+    final_admitted_school = merged.get("admitted_school_id")
 
     await assert_admission_uniqueness(
         db,
