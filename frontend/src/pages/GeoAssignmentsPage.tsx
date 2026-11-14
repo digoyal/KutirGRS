@@ -1,88 +1,383 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { listGeoAssignments, type GeoAssignment } from "../api/geo";
+import {
+  listAreas,
+  listClusters,
+  listDistricts,
+  listGeoAssignments,
+  listZones,
+  type Area,
+  type Cluster,
+  type District,
+  type GeoAssignment,
+  type Zone,
+} from "../api/geo";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { grs } from "../styles/grs";
+import { countActiveFilters, type FilterId } from "../utils/geoFilters";
 
-const LEVELS = ["", "Zone", "District", "Area", "Cluster", "Kutir"] as const;
-const ROLES = [
-  "",
-  "Regional Head",
-  "District Anchor",
-  "Education Coordinator",
-  "Cluster Coordinator",
-  "Teacher",
-] as const;
+const ENTITY_LEVELS = ["Zone", "District", "Area", "Cluster"] as const;
+type EntityLevel = (typeof ENTITY_LEVELS)[number];
+type EntityLevelSelection = EntityLevel | "";
 
 type Row = GeoAssignment & { id: string };
 
-export default function GeoAssignmentsPage() {
-  const [levelFilter, setLevelFilter] = useState<(typeof LEVELS)[number]>("");
-  const [roleFilter, setRoleFilter] = useState<(typeof ROLES)[number]>("");
+const COLUMN_LABELS: Record<
+  EntityLevel,
+  { parentName: string; parentHead: string; entityName: string; entityHead: string }
+> = {
+  Zone: {
+    parentName: "State",
+    parentHead: "",
+    entityName: "Zone",
+    entityHead: "Regional Head",
+  },
+  District: {
+    parentName: "Zone",
+    parentHead: "Regional Head",
+    entityName: "District",
+    entityHead: "District Anchor",
+  },
+  Area: {
+    parentName: "District",
+    parentHead: "District Anchor",
+    entityName: "Area",
+    entityHead: "Education Coordinator",
+  },
+  Cluster: {
+    parentName: "Area",
+    parentHead: "Education Coordinator",
+    entityName: "Cluster",
+    entityHead: "Cluster Coordinator",
+  },
+};
 
-  const { data: rows = [], isLoading, isError } = useQuery({
-    queryKey: ["geo-assignments", levelFilter || null],
-    queryFn: () => listGeoAssignments(levelFilter || undefined),
+const geoFilterSelect: React.CSSProperties = {
+  ...grs.filterSelect,
+  width: 136,
+  flex: "1 1 104px",
+  minWidth: 0,
+  maxWidth: 168,
+};
+
+const entityLevelSelect: React.CSSProperties = {
+  ...geoFilterSelect,
+  flex: "0 0 108px",
+  width: 108,
+  maxWidth: 108,
+};
+
+function dashIfEmpty(value: string): string {
+  return value.trim() ? value : "—";
+}
+
+/** Geo entity name columns — content width; th/td padding adds ~16px (8px each side). */
+const GEO_ENTITY_NAME_W = 64;
+const GEO_HEAD_NAME_W = 72;
+
+const geoNameThEllipsis: CSSProperties = {
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+function geoEntityNameCol(
+  col: Omit<
+    Col<Row>,
+    "nowrap" | "minWidth" | "maxWidth" | "width" | "thStyle" | "tdStyle"
+  > &
+    Partial<Pick<Col<Row>, "tdStyle" | "maxWidth" | "width">>,
+): Col<Row> {
+  const extra =
+    col.tdStyle && typeof col.tdStyle !== "function" ? col.tdStyle : undefined;
+  const w = col.width ?? col.maxWidth ?? GEO_ENTITY_NAME_W;
+  return {
+    ...col,
+    nowrap: true,
+    width: w,
+    maxWidth: col.maxWidth ?? w,
+    minWidth: 0,
+    thStyle: { ...geoNameThEllipsis, maxWidth: w, width: w },
+    tdStyle: { maxWidth: w, ...extra },
+  };
+}
+
+function geoHeadNameCol(
+  col: Omit<
+    Col<Row>,
+    "nowrap" | "minWidth" | "maxWidth" | "width" | "thStyle" | "tdStyle"
+  > &
+    Partial<Pick<Col<Row>, "tdStyle" | "maxWidth" | "width">>,
+): Col<Row> {
+  const extra =
+    col.tdStyle && typeof col.tdStyle !== "function" ? col.tdStyle : undefined;
+  const w = col.width ?? col.maxWidth ?? GEO_HEAD_NAME_W;
+  return {
+    ...col,
+    nowrap: true,
+    width: w,
+    maxWidth: col.maxWidth ?? w,
+    minWidth: 0,
+    thStyle: { ...geoNameThEllipsis, maxWidth: w, width: w },
+    tdStyle: { maxWidth: w, ...extra },
+  };
+}
+
+const chainThroughDistrictHeadCols: Col<Row>[] = [
+  geoEntityNameCol({
+    key: "zone_name",
+    label: "Zone",
+    sortable: true,
+    render: (r) => dashIfEmpty(r.zone_name),
+  }),
+  geoHeadNameCol({
+    key: "zone_head",
+    label: "Regional Head",
+    sortable: true,
+    render: (r) => dashIfEmpty(r.zone_head),
+  }),
+  geoEntityNameCol({
+    key: "district_name",
+    label: "District",
+    sortable: true,
+    render: (r) => dashIfEmpty(r.district_name),
+  }),
+  geoHeadNameCol({
+    key: "district_head",
+    label: "District Anchor",
+    sortable: true,
+    render: (r) => dashIfEmpty(r.district_head),
+  }),
+];
+
+export default function GeoAssignmentsPage() {
+  const [entityLevel, setEntityLevel] = useState<EntityLevelSelection>("");
+  const [zoneId, setZoneId] = useState<FilterId>("");
+  const [districtId, setDistrictId] = useState<FilterId>("");
+  const [areaId, setAreaId] = useState<FilterId>("");
+  const [clusterId, setClusterId] = useState<FilterId>("");
+
+  const geoFiltersEnabled = entityLevel !== "";
+
+  const { data: zones = [] } = useQuery<Zone[]>({
+    queryKey: ["zones"],
+    queryFn: listZones,
+    enabled: geoFiltersEnabled,
+  });
+  const { data: districts = [] } = useQuery<District[]>({
+    queryKey: ["districts"],
+    queryFn: () => listDistricts(),
+    enabled: geoFiltersEnabled,
+  });
+  const { data: areas = [] } = useQuery<Area[]>({
+    queryKey: ["areas"],
+    queryFn: () => listAreas(),
+    enabled: geoFiltersEnabled,
+  });
+  const { data: clusters = [] } = useQuery<Cluster[]>({
+    queryKey: ["clusters"],
+    queryFn: () => listClusters(),
+    enabled: geoFiltersEnabled,
   });
 
-  const tableRows = useMemo<Row[]>(() => {
-    let list = rows.map((r) => ({
-      ...r,
-      id: `${r.entity_level}-${r.entity_id}-${r.user_id ?? "unassigned"}`,
-    }));
-    if (roleFilter) {
-      list = list.filter((r) => r.role === roleFilter);
-    }
-    return list;
-  }, [rows, roleFilter]);
-
-  const columns = useMemo<Col<Row>[]>(
-    () => [
-      { key: "entity_level", label: "Entity Level", sortable: true },
-      {
-        key: "entity_name",
-        label: "Entity Name",
-        sortable: true,
-        render: (r) => <strong>{r.entity_name}</strong>,
-      },
-      {
-        key: "parent_chain",
-        label: "Parent chain",
-        sortable: true,
-        wrap: true,
-        render: (r) => r.parent_chain || "—",
-      },
-      { key: "role", label: "Role", sortable: true },
-      {
-        key: "user_display_name",
-        label: "User",
-        sortable: true,
-        render: (r) => r.user_display_name ?? "—",
-      },
-      {
-        key: "username",
-        label: "Username",
-        sortable: true,
-        render: (r) => r.username ?? "—",
-      },
-      {
-        key: "user_active",
-        label: "Active",
-        sortable: true,
-        render: (r) =>
-          r.user_active == null ? "—" : r.user_active ? "Yes" : "No",
-      },
-    ],
-    [],
+  const districtsInZone = useMemo(
+    () => (zoneId === "" ? districts : districts.filter((d) => d.zone_id === zoneId)),
+    [districts, zoneId],
   );
 
-  const activeFilterCount =
-    (levelFilter ? 1 : 0) + (roleFilter ? 1 : 0);
+  const areasInDistrict = useMemo(
+    () =>
+      districtId === ""
+        ? areas
+        : areas.filter((a) => a.district_id === districtId),
+    [areas, districtId],
+  );
+
+  const clustersInArea = useMemo(() => {
+    if (areaId !== "") {
+      return clusters.filter((c) => c.area_id === areaId);
+    }
+    if (districtId === "") return clusters;
+    const areaIds = new Set(areasInDistrict.map((a) => a.id));
+    return clusters.filter((c) => areaIds.has(c.area_id));
+  }, [areasInDistrict, areaId, clusters, districtId]);
+
+  const geoParams = useMemo(() => {
+    if (entityLevel === "") return null;
+    return {
+      entity_level: entityLevel,
+      zone_id: zoneId === "" ? undefined : zoneId,
+      district_id:
+        entityLevel === "Zone" || districtId === "" ? undefined : districtId,
+      area_id:
+        (entityLevel !== "Cluster" && entityLevel !== "Area") ||
+        areaId === ""
+          ? undefined
+          : areaId,
+      cluster_id:
+        entityLevel !== "Cluster" || clusterId === "" ? undefined : clusterId,
+    };
+  }, [entityLevel, zoneId, districtId, areaId, clusterId]);
+
+  const { data: rows = [], isLoading, isError } = useQuery({
+    queryKey: ["geo-assignments", geoParams],
+    queryFn: () => listGeoAssignments(geoParams!),
+    enabled: geoParams !== null,
+  });
+
+  const tableRows = useMemo<Row[]>(
+    () => rows.map((r) => ({ ...r, id: `${r.entity_level}-${r.entity_id}` })),
+    [rows],
+  );
+
+  const labels =
+    entityLevel === "" ? COLUMN_LABELS.District : COLUMN_LABELS[entityLevel];
+
+  const columns = useMemo<Col<Row>[]>(() => {
+    if (entityLevel === "") {
+      return [];
+    }
+    if (entityLevel === "Area") {
+      return [
+        ...chainThroughDistrictHeadCols,
+        geoEntityNameCol({
+          key: "area_name",
+          label: "Area",
+          sortable: true,
+          render: (r) => <strong>{r.area_name}</strong>,
+        }),
+        geoHeadNameCol({
+          key: "area_head",
+          label: "Education Coordinator",
+          sortable: true,
+          render: (r) => dashIfEmpty(r.area_head),
+        }),
+      ];
+    }
+    if (entityLevel === "Cluster") {
+      return [
+        ...chainThroughDistrictHeadCols,
+        geoEntityNameCol({
+          key: "area_name",
+          label: "Area",
+          sortable: true,
+          render: (r) => dashIfEmpty(r.area_name),
+        }),
+        geoHeadNameCol({
+          key: "area_head",
+          label: "Education Coordinator",
+          sortable: true,
+          render: (r) => dashIfEmpty(r.area_head),
+        }),
+        geoEntityNameCol({
+          key: "entity_name",
+          label: "Cluster",
+          sortable: true,
+          render: (r) => <strong>{r.entity_name}</strong>,
+        }),
+        geoHeadNameCol({
+          key: "entity_head",
+          label: "Cluster Coordinator",
+          sortable: true,
+          render: (r) => dashIfEmpty(r.entity_head),
+        }),
+      ];
+    }
+    if (entityLevel === "Zone") {
+      return [
+        geoEntityNameCol({
+          key: "parent_entity_name",
+          label: labels.parentName,
+          sortable: true,
+          render: (r) => dashIfEmpty(r.parent_entity_name),
+        }),
+        geoEntityNameCol({
+          key: "entity_name",
+          label: labels.entityName,
+          sortable: true,
+          render: (r) => <strong>{r.entity_name}</strong>,
+        }),
+        geoHeadNameCol({
+          key: "entity_head",
+          label: labels.entityHead,
+          sortable: true,
+          render: (r) => dashIfEmpty(r.entity_head),
+        }),
+      ];
+    }
+    return [
+      geoEntityNameCol({
+        key: "parent_entity_name",
+        label: labels.parentName,
+        sortable: true,
+        render: (r) => dashIfEmpty(r.parent_entity_name),
+      }),
+      geoHeadNameCol({
+        key: "parent_entity_head",
+        label: labels.parentHead,
+        sortable: true,
+        render: (r) => dashIfEmpty(r.parent_entity_head),
+      }),
+      geoEntityNameCol({
+        key: "entity_name",
+        label: labels.entityName,
+        sortable: true,
+        render: (r) => <strong>{r.entity_name}</strong>,
+      }),
+      geoHeadNameCol({
+        key: "entity_head",
+        label: labels.entityHead,
+        sortable: true,
+        render: (r) => dashIfEmpty(r.entity_head),
+      }),
+    ];
+  }, [entityLevel, labels]);
+
+  function onEntityLevelChange(next: EntityLevelSelection) {
+    setEntityLevel(next);
+    setZoneId("");
+    setDistrictId("");
+    setAreaId("");
+    setClusterId("");
+  }
+
+  function onZoneChange(next: FilterId) {
+    setZoneId(next);
+    setDistrictId("");
+    setAreaId("");
+    setClusterId("");
+  }
+
+  function onDistrictChange(next: FilterId) {
+    setDistrictId(next);
+    setAreaId("");
+    setClusterId("");
+  }
+
+  function onAreaChange(next: FilterId) {
+    setAreaId(next);
+    setClusterId("");
+  }
+
+  const showZone = geoFiltersEnabled;
+  const showDistrict =
+    entityLevel === "District" ||
+    entityLevel === "Area" ||
+    entityLevel === "Cluster";
+  const showArea = entityLevel === "Area" || entityLevel === "Cluster";
+  const showCluster = entityLevel === "Cluster";
+
+  const activeFilterCount = countActiveFilters(
+    zoneId,
+    showDistrict ? districtId : "",
+    showArea ? areaId : "",
+    showCluster ? clusterId : "",
+  );
 
   return (
-    <div className="grs-page" style={{ padding: "24px 28px" }}>
+    <div className="grs-page" style={{ padding: "24px 28px", minWidth: 0 }}>
       <div
         style={{
           display: "flex",
@@ -104,58 +399,111 @@ export default function GeoAssignmentsPage() {
         title="Geo Assignments"
         columns={columns}
         data={tableRows}
+        tableLayout={entityLevel === "Cluster" ? "fixed" : "auto"}
+        shellFullWidth
         rowKey={(r) => r.id}
-        isLoading={isLoading}
+        isLoading={geoFiltersEnabled && isLoading}
         emptyMessage={
-          isError
-            ? "Could not load assignments."
-            : "No geography entities in your scope."
+          entityLevel === ""
+            ? "Select an entity level."
+            : isError
+              ? "Could not load assignments."
+              : "No geography entities in your scope."
         }
-        searchable
-        searchPlaceholder="Search assignments…"
         exportFilename="geo-assignments"
         printTitle="Geo Assignments"
         filters={
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 12,
-              alignItems: "flex-end",
-            }}
-          >
-            <div style={{ flex: "1 1 140px", minWidth: 0 }}>
-              <label style={grs.fieldLabel}>Entity level</label>
+          <div className="grs-filter-controls">
+            <select
+              style={entityLevelSelect}
+              aria-label="Entity level"
+              value={entityLevel}
+              onChange={(e) => {
+                const v = e.target.value;
+                onEntityLevelChange(
+                  v === "" ? "" : (v as EntityLevel),
+                );
+              }}
+            >
+              <option value="">-Select Entity-</option>
+              {ENTITY_LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            {showZone && (
               <select
-                style={grs.select}
-                value={levelFilter}
+                style={geoFilterSelect}
+                aria-label="Zone"
+                value={zoneId === "" ? "" : String(zoneId)}
                 onChange={(e) =>
-                  setLevelFilter(e.target.value as (typeof LEVELS)[number])
+                  onZoneChange(e.target.value ? Number(e.target.value) : "")
                 }
               >
-                {LEVELS.map((l) => (
-                  <option key={l || "all"} value={l}>
-                    {l || "All levels"}
+                <option value="">All zones</option>
+                {zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.name}
                   </option>
                 ))}
               </select>
-            </div>
-            <div style={{ flex: "1 1 160px", minWidth: 0 }}>
-              <label style={grs.fieldLabel}>Role</label>
+            )}
+            {showDistrict && (
               <select
-                style={grs.select}
-                value={roleFilter}
+                style={geoFilterSelect}
+                aria-label="District"
+                value={districtId === "" ? "" : String(districtId)}
+                disabled={zoneId !== "" && districtsInZone.length === 0}
                 onChange={(e) =>
-                  setRoleFilter(e.target.value as (typeof ROLES)[number])
+                  onDistrictChange(
+                    e.target.value ? Number(e.target.value) : "",
+                  )
                 }
               >
-                {ROLES.map((r) => (
-                  <option key={r || "all"} value={r}>
-                    {r || "All roles"}
+                <option value="">All districts</option>
+                {(zoneId === "" ? districts : districtsInZone).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
                   </option>
                 ))}
               </select>
-            </div>
+            )}
+            {showArea && (
+              <select
+                style={geoFilterSelect}
+                aria-label="Area"
+                value={areaId === "" ? "" : String(areaId)}
+                disabled={districtId !== "" && areasInDistrict.length === 0}
+                onChange={(e) =>
+                  onAreaChange(e.target.value ? Number(e.target.value) : "")
+                }
+              >
+                <option value="">All areas</option>
+                {(districtId === "" ? areas : areasInDistrict).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {showCluster && (
+              <select
+                style={geoFilterSelect}
+                aria-label="Cluster"
+                value={clusterId === "" ? "" : String(clusterId)}
+                onChange={(e) =>
+                  setClusterId(e.target.value ? Number(e.target.value) : "")
+                }
+              >
+                <option value="">All clusters</option>
+                {clustersInArea.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         }
         activeFilterCount={activeFilterCount}

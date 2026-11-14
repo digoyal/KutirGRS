@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.auth import (
     get_current_user,
-    get_scope,
     require_roles,
     get_geo_scope,
     GeoScope,
@@ -38,25 +37,28 @@ router = APIRouter(prefix="/geo", tags=["Geo"])
 
 @router.get("/assignments", response_model=list[GeoAssignmentOut])
 async def list_geo_assignments(
-    entity_level: Optional[str] = Query(
-        None,
-        description="Filter: Zone | District | Area | Cluster | Kutir",
+    entity_level: str = Query(
+        ...,
+        description="Zone | District | Area | Cluster — one row per entity at this level",
     ),
+    zone_id: Optional[int] = Query(None),
+    district_id: Optional[int] = Query(None),
+    area_id: Optional[int] = Query(None),
+    cluster_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
     gs: GeoScope = Depends(get_geo_scope),
-    kutir_scope: Optional[set[int]] = Depends(get_scope),
     _=Depends(get_current_user),
 ):
-    if entity_level is not None and entity_level not in (
-        "Zone",
-        "District",
-        "Area",
-        "Cluster",
-        "Kutir",
-    ):
+    if entity_level not in ("Zone", "District", "Area", "Cluster"):
         raise HTTPException(400, "Invalid entity_level")
     raw = await list_geo_assignment_rows(
-        db, gs, kutir_scope, entity_level=entity_level
+        db,
+        gs,
+        entity_level=entity_level,
+        zone_id=zone_id,
+        district_id=district_id,
+        area_id=area_id,
+        cluster_id=cluster_id,
     )
     return [GeoAssignmentOut(**r) for r in raw]
 

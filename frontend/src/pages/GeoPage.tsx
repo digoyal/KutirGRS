@@ -158,20 +158,43 @@ export default function GeoPage() {
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <Link to="/geo/assignments" style={{ ...grs.btnSecondary, textDecoration: "none" }}>
-          Geo Assignments
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "flex-end",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <GrsTabs
+          value={tab}
+          onChange={setTab}
+          style={{ flex: "1 1 auto", minWidth: 0, marginBottom: 0 }}
+          tabs={(["zones", "districts", "areas", "clusters"] as Tab[]).map(t => ({
+            key: t,
+            label: t.charAt(0).toUpperCase() + t.slice(1),
+            badge: tabCount[t],
+          }))}
+        />
+        <Link
+          to="/geo/assignments"
+          style={{
+            ...grs.btnPrimary,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: 22,
+            padding: "4px 12px",
+            fontSize: "0.8125rem",
+            flexShrink: 0,
+            marginBottom: 4,
+          }}
+        >
+          Show Geo Assignments
         </Link>
       </div>
-      <GrsTabs
-        value={tab}
-        onChange={setTab}
-        tabs={(["zones", "districts", "areas", "clusters"] as Tab[]).map(t => ({
-          key: t,
-          label: t.charAt(0).toUpperCase() + t.slice(1),
-          badge: tabCount[t],
-        }))}
-      />
 
       <GrsTable<GeoRow>
         key={tab}

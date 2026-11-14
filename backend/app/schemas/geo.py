@@ -123,10 +123,14 @@ class ExamCenterOut(ExamCenterBase):
 class GeoAssignmentOut(BaseModel):
     entity_level: str
     entity_id: int
+    parent_entity_name: str
+    parent_entity_head: str
     entity_name: str
-    parent_chain: str
-    role: str
-    user_id: Optional[int] = None
-    user_display_name: Optional[str] = None
-    username: Optional[str] = None
-    user_active: Optional[bool] = None
+    entity_head: str
+    # Full parent chain (Area/Cluster levels; empty for Zone/District rows)
+    zone_name: str = ""
+    zone_head: str = ""
+    district_name: str = ""
+    district_head: str = ""
+    area_name: str = ""
+    area_head: str = ""

@@ -30,23 +30,30 @@ export const listClusters = async (area_id?: number): Promise<Cluster[]> => (awa
 export interface GeoAssignment {
   entity_level: string;
   entity_id: number;
+  parent_entity_name: string;
+  parent_entity_head: string;
   entity_name: string;
-  parent_chain: string;
-  role: string;
-  user_id?: number | null;
-  user_display_name?: string | null;
-  username?: string | null;
-  user_active?: boolean | null;
+  entity_head: string;
+  zone_name: string;
+  zone_head: string;
+  district_name: string;
+  district_head: string;
+  area_name: string;
+  area_head: string;
 }
 
+export type GeoAssignmentListParams = {
+  entity_level: "Zone" | "District" | "Area" | "Cluster";
+  zone_id?: number;
+  district_id?: number;
+  area_id?: number;
+  cluster_id?: number;
+};
+
 export const listGeoAssignments = async (
-  entity_level?: string,
+  params: GeoAssignmentListParams,
 ): Promise<GeoAssignment[]> =>
-  (
-    await api.get("/geo/assignments", {
-      params: entity_level ? { entity_level } : {},
-    })
-  ).data;
+  (await api.get("/geo/assignments", { params })).data;
 
 export const createZone    = async (data: { name: string }): Promise<Zone>     => (await api.post("/geo/zones", data)).data;
 export const updateZone    = async (id: number, data: Partial<Zone>): Promise<Zone>     => (await api.put(`/geo/zones/${id}`, data)).data;

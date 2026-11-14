@@ -9,26 +9,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import GeoScope
-from app.models.geo import Zone, District, Area, Cluster
-from app.models.kutirs import Kutir
+from app.models.geo import Zone, District, Area, Cluster, State
 from app.models.users import (
     User,
     user_zones,
     user_districts,
     user_areas,
     user_clusters,
-    user_kutirs,
 )
 
-LEVEL_ORDER = ("Zone", "District", "Area", "Cluster", "Kutir")
-
-ROLE_BY_LEVEL = {
-    "Zone": "Regional Head",
-    "District": "District Anchor",
-    "Area": "Education Coordinator",
-    "Cluster": "Cluster Coordinator",
-    "Kutir": "Teacher",
-}
+VIEW_LEVELS = ("Zone", "District", "Area", "Cluster")
 
 
 def _display_name(user: User) -> str:
@@ -36,45 +26,10 @@ def _display_name(user: User) -> str:
     return " ".join(p for p in parts if p) or user.username
 
 
-def _append_entity_rows(
-    rows: list[dict],
-    *,
-    level: str,
-    entity_id: int,
-    entity_name: str,
-    parent_chain: str,
-    assignees: list[User],
-) -> None:
-    expected_role = ROLE_BY_LEVEL[level]
-    if assignees:
-        for user in assignees:
-            rows.append(
-                {
-                    "entity_level": level,
-                    "entity_id": entity_id,
-                    "entity_name": entity_name,
-                    "parent_chain": parent_chain,
-                    "role": user.title or expected_role,
-                    "user_id": user.id,
-                    "user_display_name": _display_name(user),
-                    "username": user.username,
-                    "user_active": user.is_active,
-                }
-            )
-    else:
-        rows.append(
-            {
-                "entity_level": level,
-                "entity_id": entity_id,
-                "entity_name": entity_name,
-                "parent_chain": parent_chain,
-                "role": expected_role,
-                "user_id": None,
-                "user_display_name": None,
-                "username": None,
-                "user_active": None,
-            }
-        )
+def _head_names(users: list[User]) -> str:
+    if not users:
+        return ""
+    return ", ".join(_display_name(u) for u in users)
 
 
 async def _users_by_entity(
@@ -101,18 +56,23 @@ async def _users_by_entity(
 async def list_geo_assignment_rows(
     db: AsyncSession,
     gs: GeoScope,
-    kutir_scope: Optional[set[int]],
     *,
-    entity_level: Optional[str] = None,
+    entity_level: str,
+    zone_id: Optional[int] = None,
+    district_id: Optional[int] = None,
+    area_id: Optional[int] = None,
+    cluster_id: Optional[int] = None,
 ) -> list[dict]:
-    """One row per assignment link; unassigned entities get a single blank-user row."""
+    """One row per entity at the chosen level with parent + head columns.
 
-    def level_ok(level: str) -> bool:
-        return entity_level is None or entity_level == level
+    Cluster rows include the full zone → district → area → cluster chain (8 name/head
+    columns on the client). Area rows include zone → district → area (6 columns).
+    Zone rows use State (via districts) as parent; no parent head column on the client (3 columns).
+    District rows use the immediate parent only (4 columns).
+    """
 
     rows: list[dict] = []
 
-    # ── Load geo entities (scoped) ─────────────────────────────────────────────
     zq = select(Zone).order_by(Zone.name)
     if gs.zone_ids is not None:
         zq = zq.where(Zone.id.in_(gs.zone_ids))
@@ -125,6 +85,20 @@ async def list_geo_assignment_rows(
     districts = (await db.execute(dq)).scalars().all()
     district_by_id = {d.id: d for d in districts}
 
+    state_by_id = {
+        s.id: s.name
+        for s in (await db.execute(select(State))).scalars().all()
+    }
+    zone_state_names: dict[int, list[str]] = defaultdict(list)
+    seen: dict[int, set[str]] = defaultdict(set)
+    for d in districts:
+        sname = state_by_id.get(d.state_id)
+        if sname and sname not in seen[d.zone_id]:
+            seen[d.zone_id].add(sname)
+            zone_state_names[d.zone_id].append(sname)
+    for zid in zone_state_names:
+        zone_state_names[zid].sort()
+
     aq = select(Area).order_by(Area.name)
     if gs.area_ids is not None:
         aq = aq.where(Area.id.in_(gs.area_ids))
@@ -135,23 +109,11 @@ async def list_geo_assignment_rows(
     if gs.cluster_ids is not None:
         cq = cq.where(Cluster.id.in_(gs.cluster_ids))
     clusters = (await db.execute(cq)).scalars().all()
-    cluster_by_id = {c.id: c for c in clusters}
-
-    kq = select(Kutir).order_by(Kutir.name)
-    if kutir_scope is not None:
-        if not kutir_scope:
-            kutirs: list[Kutir] = []
-        else:
-            kq = kq.where(Kutir.id.in_(kutir_scope))
-            kutirs = (await db.execute(kq)).scalars().all()
-    else:
-        kutirs = (await db.execute(kq)).scalars().all()
 
     zone_ids = {z.id for z in zones}
     district_ids = {d.id for d in districts}
     area_ids = {a.id for a in areas}
     cluster_ids = {c.id for c in clusters}
-    kutir_ids = {k.id for k in kutirs}
 
     zone_users = await _users_by_entity(db, user_zones, user_zones.c.zone_id, zone_ids)
     district_users = await _users_by_entity(
@@ -161,90 +123,120 @@ async def list_geo_assignment_rows(
     cluster_users = await _users_by_entity(
         db, user_clusters, user_clusters.c.cluster_id, cluster_ids
     )
-    kutir_users = await _users_by_entity(db, user_kutirs, user_kutirs.c.kutir_id, kutir_ids)
 
-    if level_ok("Zone"):
+    if entity_level == "Zone":
         for z in zones:
-            _append_entity_rows(
-                rows,
-                level="Zone",
-                entity_id=z.id,
-                entity_name=z.name,
-                parent_chain="",
-                assignees=zone_users.get(z.id, []),
+            if zone_id is not None and z.id != zone_id:
+                continue
+            state_label = ", ".join(zone_state_names.get(z.id, []))
+            rows.append(
+                {
+                    "entity_level": "Zone",
+                    "entity_id": z.id,
+                    "parent_entity_name": state_label,
+                    "parent_entity_head": "",
+                    "entity_name": z.name,
+                    "entity_head": _head_names(zone_users.get(z.id, [])),
+                    "zone_name": "",
+                    "zone_head": "",
+                    "district_name": "",
+                    "district_head": "",
+                    "area_name": "",
+                    "area_head": "",
+                }
             )
 
-    if level_ok("District"):
+    elif entity_level == "District":
         for d in districts:
-            zname = zone_by_id.get(d.zone_id).name if d.zone_id in zone_by_id else ""
-            parent = f"Zone: {zname}" if zname else ""
-            _append_entity_rows(
-                rows,
-                level="District",
-                entity_id=d.id,
-                entity_name=d.name,
-                parent_chain=parent,
-                assignees=district_users.get(d.id, []),
+            if zone_id is not None and d.zone_id != zone_id:
+                continue
+            if district_id is not None and d.id != district_id:
+                continue
+            z = zone_by_id.get(d.zone_id)
+            rows.append(
+                {
+                    "entity_level": "District",
+                    "entity_id": d.id,
+                    "parent_entity_name": z.name if z else "",
+                    "parent_entity_head": _head_names(zone_users.get(d.zone_id, []))
+                    if d.zone_id
+                    else "",
+                    "entity_name": d.name,
+                    "entity_head": _head_names(district_users.get(d.id, [])),
+                    "zone_name": "",
+                    "zone_head": "",
+                    "district_name": "",
+                    "district_head": "",
+                    "area_name": "",
+                    "area_head": "",
+                }
             )
 
-    if level_ok("Area"):
+    elif entity_level == "Area":
         for a in areas:
             d = district_by_id.get(a.district_id)
-            parts = []
-            if d:
-                parts.append(f"District: {d.name}")
-                z = zone_by_id.get(d.zone_id)
-                if z:
-                    parts.append(f"Zone: {z.name}")
-            _append_entity_rows(
-                rows,
-                level="Area",
-                entity_id=a.id,
-                entity_name=a.name,
-                parent_chain=" · ".join(parts),
-                assignees=area_users.get(a.id, []),
+            if zone_id is not None and (d is None or d.zone_id != zone_id):
+                continue
+            if district_id is not None and a.district_id != district_id:
+                continue
+            if area_id is not None and a.id != area_id:
+                continue
+            z = zone_by_id.get(d.zone_id) if d else None
+            zid = d.zone_id if d else None
+            rows.append(
+                {
+                    "entity_level": "Area",
+                    "entity_id": a.id,
+                    "parent_entity_name": d.name if d else "",
+                    "parent_entity_head": _head_names(district_users.get(d.id, []))
+                    if d
+                    else "",
+                    "entity_name": a.name,
+                    "entity_head": _head_names(area_users.get(a.id, [])),
+                    "zone_name": z.name if z else "",
+                    "zone_head": _head_names(zone_users.get(zid, [])) if zid else "",
+                    "district_name": d.name if d else "",
+                    "district_head": _head_names(district_users.get(d.id, []))
+                    if d
+                    else "",
+                    "area_name": a.name,
+                    "area_head": _head_names(area_users.get(a.id, [])),
+                }
             )
 
-    if level_ok("Cluster"):
+    elif entity_level == "Cluster":
         for c in clusters:
             a = area_by_id.get(c.area_id)
-            parts = []
-            if a:
-                parts.append(f"Area: {a.name}")
-                d = district_by_id.get(a.district_id)
-                if d:
-                    parts.append(f"District: {d.name}")
-                    z = zone_by_id.get(d.zone_id)
-                    if z:
-                        parts.append(f"Zone: {z.name}")
-            _append_entity_rows(
-                rows,
-                level="Cluster",
-                entity_id=c.id,
-                entity_name=c.name,
-                parent_chain=" · ".join(parts),
-                assignees=cluster_users.get(c.id, []),
-            )
-
-    if level_ok("Kutir"):
-        for k in kutirs:
-            cl = cluster_by_id.get(k.cluster_id)
-            parts = []
-            if cl:
-                parts.append(f"Cluster: {cl.name}")
-                a = area_by_id.get(cl.area_id)
-                if a:
-                    parts.append(f"Area: {a.name}")
-                    d = district_by_id.get(a.district_id)
-                    if d:
-                        parts.append(f"District: {d.name}")
-            _append_entity_rows(
-                rows,
-                level="Kutir",
-                entity_id=k.id,
-                entity_name=k.name,
-                parent_chain=" · ".join(parts),
-                assignees=kutir_users.get(k.id, []),
+            if a is None:
+                continue
+            d = district_by_id.get(a.district_id)
+            if zone_id is not None and (d is None or d.zone_id != zone_id):
+                continue
+            if district_id is not None and a.district_id != district_id:
+                continue
+            if area_id is not None and a.id != area_id:
+                continue
+            if cluster_id is not None and c.id != cluster_id:
+                continue
+            z = zone_by_id.get(d.zone_id) if d else None
+            zid = d.zone_id if d else None
+            rows.append(
+                {
+                    "entity_level": "Cluster",
+                    "entity_id": c.id,
+                    "parent_entity_name": a.name,
+                    "parent_entity_head": _head_names(area_users.get(a.id, [])),
+                    "entity_name": c.name,
+                    "entity_head": _head_names(cluster_users.get(c.id, [])),
+                    "zone_name": z.name if z else "",
+                    "zone_head": _head_names(zone_users.get(zid, [])) if zid else "",
+                    "district_name": d.name if d else "",
+                    "district_head": _head_names(district_users.get(d.id, []))
+                    if d
+                    else "",
+                    "area_name": a.name,
+                    "area_head": _head_names(area_users.get(a.id, [])),
+                }
             )
 
     return rows
