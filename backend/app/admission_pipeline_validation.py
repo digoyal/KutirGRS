@@ -17,6 +17,21 @@ STAGE_KEYS = (
 
 STAGE_INDEX: dict[str, int] = {k: i for i, k in enumerate(STAGE_KEYS)}
 
+PIPELINE_STAGE_FILTERS = STAGE_KEYS
+
+
+def parse_pipeline_stage_filter(value: str) -> str:
+    key = value.strip().lower()
+    if key not in PIPELINE_STAGE_FILTERS:
+        allowed = ", ".join(PIPELINE_STAGE_FILTERS)
+        raise HTTPException(422, detail=f"Invalid pipeline_stage {value!r}; use one of: {allowed}")
+    return key
+
+
+def pipeline_stage_matches(flags: Mapping[str, bool], filter_stage: str) -> bool:
+    """Same semantics as list filter: current furthest-true stage must equal filter."""
+    return pipeline_stage(flags) == STAGE_INDEX[filter_stage]
+
 PipelineField = Literal[
     "year",
     "exam_type",
@@ -126,6 +141,11 @@ def validate_student_exam_write(
     show = lambda field: pipeline_field_visible(flags, field)  # noqa: E731
     # Bulk Apply and similar sparse creates: Eligible stage only, details before Applied.
     stage_idx = pipeline_stage(flags)
+    if stage_idx < 0:
+        raise HTTPException(
+            422,
+            "Pipeline stage is required (select at least Eligible).",
+        )
     sparse_eligible_create = is_create and stage_idx == 0 and not flags.get("applied")
 
     if is_create and not data.get("student_id"):

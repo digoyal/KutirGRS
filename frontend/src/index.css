@@ -360,6 +360,44 @@ input.top-kutirs-date[type="date"]::-webkit-calendar-picker-indicator {
   }
 }
 
+/* Admission Add/Edit — Year + Student + Class (labels/controls top-aligned) */
+.grs-form-field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.grs-admission-student-fields-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 120px;
+  gap: 8px;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.grs-admission-student-fields-row__student-search {
+  position: relative;
+  min-width: 0;
+}
+
+.grs-admission-student-fields-row__hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  .grs-admission-student-fields-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Bulk Apply — compact list-hub-adjacent layout */
 .grs-bulk-apply-page {
   padding: 16px 20px;

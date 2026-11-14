@@ -29,6 +29,8 @@ from app.admission_uniqueness import assert_admission_uniqueness, admission_dupl
 from app.db_integrity import raise_http_for_integrity
 from app.student_validation import validate_student_write, student_merged_for_update
 from app.admission_pipeline_validation import (
+    STAGE_KEYS,
+    parse_pipeline_stage_filter,
     validate_student_exam_write,
     validate_school_type_for_exam_type,
     student_exam_merged_for_update,
@@ -276,12 +278,20 @@ async def list_exams(
     cluster_id: Optional[int] = Query(None),
     district_id: Optional[int] = Query(None),
     admitted: Optional[bool] = Query(None),
+    pipeline_stage: Optional[str] = Query(
+        None,
+        description="Current pipeline stage: eligible, applied, admit_card, appeared, result_declared, selected, admitted",
+    ),
     search: Optional[str] = Query(None),
     limit: Optional[int] = Query(25),
     offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
+    stage_filter: Optional[str] = None
+    if pipeline_stage is not None and pipeline_stage.strip():
+        stage_filter = parse_pipeline_stage_filter(pipeline_stage)
+
     def _apply_filters(q):
         needs_student = (
             scope is not None or kutir_id is not None or
@@ -310,6 +320,11 @@ async def list_exams(
             q = q.where(StudentExam.school_start_year == school_start_year)
         if admitted is not None:
             q = q.where(StudentExam.admitted == admitted)
+        if stage_filter is not None:
+            idx = STAGE_KEYS.index(stage_filter)
+            q = q.where(getattr(StudentExam, STAGE_KEYS[idx]).is_(True))
+            for key in STAGE_KEYS[idx + 1 :]:
+                q = q.where(getattr(StudentExam, key).is_(False))
         if search and search.strip():
             term = f"%{search.strip()}%"
             q = q.where(

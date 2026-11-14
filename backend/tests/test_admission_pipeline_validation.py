@@ -5,6 +5,8 @@ from fastapi import HTTPException
 from app.admission_pipeline_validation import (
     normalize_pipeline_stages,
     pipeline_field_visible,
+    pipeline_stage_matches,
+    parse_pipeline_stage_filter,
     validate_school_type_for_exam_type,
     validate_student_exam_write,
 )
@@ -27,6 +29,27 @@ def _base(**overrides):
     }
     data.update(overrides)
     return data
+
+
+def test_parse_pipeline_stage_filter():
+    assert parse_pipeline_stage_filter("Eligible") == "eligible"
+    with pytest.raises(HTTPException):
+        parse_pipeline_stage_filter("invalid")
+    with pytest.raises(HTTPException):
+        parse_pipeline_stage_filter("registered")
+
+
+@pytest.mark.parametrize(
+    "flags,stage,expected",
+    [
+        ({"eligible": True}, "eligible", True),
+        ({"eligible": True, "applied": True}, "eligible", False),
+        ({"eligible": True, "applied": True}, "applied", True),
+        ({"eligible": True, "applied": False, "admit_card": True}, "admit_card", True),
+    ],
+)
+def test_pipeline_stage_matches(flags, stage, expected):
+    assert pipeline_stage_matches(flags, stage) is expected
 
 
 def test_pipeline_field_visible_applied_application_number():
@@ -64,6 +87,18 @@ def test_pipeline_field_visible_selected_school_block():
     )
     assert pipeline_field_visible(flags, "school_type") is True
     assert pipeline_field_visible(flags, "school_name") is True
+
+
+def test_create_requires_pipeline_stage():
+    with pytest.raises(HTTPException) as exc:
+        validate_student_exam_write(
+            _base(),
+            is_create=True,
+            subject_ids=[],
+            scores_by_subject={},
+        )
+    assert exc.value.status_code == 422
+    assert exc.value.detail == "Pipeline stage is required (select at least Eligible)."
 
 
 def test_sparse_eligible_create_allows_missing_exam_type():

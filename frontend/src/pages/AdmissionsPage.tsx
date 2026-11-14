@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
-import { listExamsPaged, deleteExam, listExamTypes } from "../api/admissions";
+import { listExamsPaged, deleteExam, listExamTypes, type PipelineStageFilter } from "../api/admissions";
 import type { StudentExam } from "../api/admissions";
 import { listStudents } from "../api/students";
 import { listSchools } from "../api/schools";
@@ -59,6 +59,7 @@ export default function AdmissionsPage() {
     cluster?: FilterId;
     kutir?: FilterId;
     search?: string;
+    pipeline_stage?: PipelineStageFilter;
     page?: number;
   }>(STORAGE_KEY);
 
@@ -69,6 +70,9 @@ export default function AdmissionsPage() {
   const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? defaults.district);
   const [filterCluster, setFilterCluster]   = useState<FilterId>(saved?.cluster  ?? defaults.cluster);
   const [filterKutir, setFilterKutir]       = useState<FilterId>(saved?.kutir    ?? defaults.kutir);
+  const [filterPipelineStage, setFilterPipelineStage] = useState<PipelineStageFilter>(
+    saved?.pipeline_stage ?? "",
+  );
   const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,12 +84,22 @@ export default function AdmissionsPage() {
     debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
   };
   const { data: examPage = { items: [], total: 0 }, isLoading } = useQuery({
-    queryKey: ["student-exams", year, filterDistrict, filterCluster, filterKutir, debouncedSearch, page],
+    queryKey: [
+      "student-exams",
+      year,
+      filterDistrict,
+      filterCluster,
+      filterKutir,
+      filterPipelineStage,
+      debouncedSearch,
+      page,
+    ],
     queryFn: () => listExamsPaged({
       school_start_year: year,
       district_id: filterDistrict !== "" ? filterDistrict : undefined,
       cluster_id:  filterCluster  !== "" ? filterCluster  : undefined,
       kutir_id:    filterKutir    !== "" ? filterKutir    : undefined,
+      pipeline_stage: filterPipelineStage || undefined,
       search: debouncedSearch || undefined,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
@@ -168,8 +182,13 @@ export default function AdmissionsPage() {
 
   function saveFilters() {
     persistFilters(STORAGE_KEY, {
-      year, district: filterDistrict, cluster: filterCluster, kutir: filterKutir,
-      search: searchQuery, page,
+      year,
+      district: filterDistrict,
+      cluster: filterCluster,
+      kutir: filterKutir,
+      pipeline_stage: filterPipelineStage,
+      search: searchQuery,
+      page,
     });
   }
 
@@ -417,12 +436,13 @@ export default function AdmissionsPage() {
       district_id: filterDistrict !== "" ? filterDistrict : undefined,
       cluster_id: filterCluster !== "" ? filterCluster : undefined,
       kutir_id: filterKutir !== "" ? filterKutir : undefined,
+      pipeline_stage: filterPipelineStage || undefined,
       search: debouncedSearch || undefined,
       limit: exportFetchLimit(examTotal),
       offset: 0,
     });
     return items;
-  }, [year, filterDistrict, filterCluster, filterKutir, debouncedSearch, examTotal]);
+  }, [year, filterDistrict, filterCluster, filterKutir, filterPipelineStage, debouncedSearch, examTotal]);
 
   const filterSelectStyle: React.CSSProperties = {
     padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)",
@@ -449,17 +469,34 @@ export default function AdmissionsPage() {
           filterDistrict,
           filterCluster,
           filterKutir,
+          filterPipelineStage,
         )}
         filters={
           <GeoFilterBar
             leading={
-              <select
-                value={year}
-                onChange={e => { setYear(Number(e.target.value)); setPage(1); }}
-                style={{ ...filterSelectStyle, width: 110 }}
-              >
-                {YEARS.map(y => <option key={y} value={y}>{formatAcademicYear(y)}</option>)}
-              </select>
+              <>
+                <select
+                  value={year}
+                  onChange={e => { setYear(Number(e.target.value)); setPage(1); }}
+                  style={{ ...filterSelectStyle, width: 110 }}
+                >
+                  {YEARS.map(y => <option key={y} value={y}>{formatAcademicYear(y)}</option>)}
+                </select>
+                <select
+                  value={filterPipelineStage}
+                  onChange={e => {
+                    setFilterPipelineStage(e.target.value as PipelineStageFilter);
+                    setPage(1);
+                  }}
+                  aria-label="Pipeline stage"
+                  style={{ ...filterSelectStyle, width: 168, maxWidth: "min(168px, 42vw)" }}
+                >
+                  <option value="">All</option>
+                  {STAGES.map(s => (
+                    <option key={s.key} value={s.key}>{s.label}</option>
+                  ))}
+                </select>
+              </>
             }
             district={filterDistrict}
             cluster={filterCluster}

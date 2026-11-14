@@ -275,6 +275,16 @@ export async function listExamTypeSubjects(): Promise<ExamTypeSubjectRow[]> {
 }
 
 // ── Paged list helpers ────────────────────────────────────────────────────────
+export type PipelineStageFilter =
+  | ""
+  | "eligible"
+  | "applied"
+  | "admit_card"
+  | "appeared"
+  | "result_declared"
+  | "selected"
+  | "admitted";
+
 export interface ExamsListParams {
   student_id?: number;
   school_id?: number;
@@ -282,6 +292,7 @@ export interface ExamsListParams {
   kutir_id?: number;
   cluster_id?: number;
   district_id?: number;
+  pipeline_stage?: Exclude<PipelineStageFilter, "">;
   search?: string;
   limit?: number;
   offset?: number;

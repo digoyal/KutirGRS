@@ -267,6 +267,10 @@ export function validateAdmissionForm(
   const stageFlags = admissionStageFlags(form);
   const show = (field: PipelineField) => pipelineFieldVisible(stageFlags, field);
 
+  if (pipelineStage(stageFlags) < 0) {
+    return PIPELINE_STAGE_REQUIRED_MSG;
+  }
+
   if (opts.mode === "add" && !form.student_id) {
     return `Select a ${admissionFieldLabel("student").toLowerCase()}.`;
   }
@@ -350,6 +354,9 @@ export function admissionClassMissing(form: Pick<AdmissionFormState, "admission_
 }
 
 export const ADMISSION_CLASS_REQUIRED_MSG = "Class is required (select 5 or 8).";
+
+export const PIPELINE_STAGE_REQUIRED_MSG =
+  "Pipeline stage is required (select at least Eligible).";
 
 interface AdmissionFormProps {
   form: AdmissionFormState;
@@ -937,7 +944,7 @@ export function AdmissionForm({
   }
 
   const yearField = (
-    <div>
+    <div className="grs-form-field-stack">
       <label style={grs.fieldLabel}>
         Year
         {admissionFieldRequired(form, "year") && (
@@ -1001,168 +1008,150 @@ export function AdmissionForm({
               clusterLabel="Cluster"
               kutirLabel={admissionFieldLabel("kutir")}
             />
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "90px minmax(0, 1fr) 120px",
-                gap: 8,
-                alignItems: "end",
-              }}
-            >
-            {yearField}
-            <div style={{ position: "relative", minWidth: 0 }}>
-              <label style={grs.fieldLabel}>
-                {admissionFieldLabel("student")} <span style={{ color: "var(--danger)" }}>*</span>
-              </label>
-              <input
-                placeholder={
-                  filterKutir === ""
-                    ? "Select district, cluster, and kutir first…"
-                    : "Search or pick a student below…"
-                }
-                value={search}
-                disabled={filterKutir === ""}
-                onFocus={() => {
-                  if (filterKutir !== "") setStudentPickerOpen(true);
-                }}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setField("student_id", 0);
-                  setStudentPickerOpen(true);
-                }}
-                style={{
-                  ...inputStyles,
-                  ...(filterKutir === "" ? { opacity: 0.6, cursor: "not-allowed" } : {}),
-                  borderRadius:
-                    showStudentPicker && filteredStudents.length > 0
-                      ? "6px 6px 0 0"
-                      : undefined,
-                }}
-              />
-              {showStudentPicker && filteredStudents.length > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    zIndex: 20,
-                    border: "1px solid var(--border)",
-                    borderTop: "none",
-                    borderRadius: "0 0 6px 6px",
-                    maxHeight: 160,
-                    overflowY: "auto",
-                    background: "var(--bg-card)",
-                  }}
-                >
-                  {filteredStudents.map((s) => {
-                    const label = admissionStudentPickerLabel(
-                      s,
-                      form.school_start_year,
-                      form.admission_class,
-                    );
-                    return (
-                      <div
-                        key={s.id}
-                        onClick={() => {
-                          setField("student_id", s.id);
-                          setSearch(label);
-                          setStudentPickerOpen(false);
-                          const did = districtIdForKutir(
-                            s.kutir_id,
-                            allKutirsData,
-                            allClusters,
-                            allAreas,
-                          );
-                          applyParivaarDistrict(did);
-                          applySchoolDistrict(did);
-                          // Drop center from another district when student (district) changes
-                          if (did != null && form.exam_center_id != null) {
-                            const cur = examCenters.find((c) => c.id === form.exam_center_id);
-                            if (cur?.district_id != null && cur.district_id !== did) {
-                              setField("exam_center_id", null);
+            <div className="grs-admission-student-fields-row">
+              {yearField}
+              <div className="grs-form-field-stack">
+                <label style={grs.fieldLabel}>
+                  {admissionFieldLabel("student")}{" "}
+                  <span style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                <div className="grs-admission-student-fields-row__student-search">
+                  <input
+                    placeholder={
+                      filterKutir === ""
+                        ? "Select district, cluster, and kutir first…"
+                        : "Search or pick a student below…"
+                    }
+                    value={search}
+                    disabled={filterKutir === ""}
+                    onFocus={() => {
+                      if (filterKutir !== "") setStudentPickerOpen(true);
+                    }}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setField("student_id", 0);
+                      setStudentPickerOpen(true);
+                    }}
+                    style={{
+                      ...inputStyles,
+                      ...(filterKutir === "" ? { opacity: 0.6, cursor: "not-allowed" } : {}),
+                      borderRadius:
+                        showStudentPicker && filteredStudents.length > 0
+                          ? "6px 6px 0 0"
+                          : undefined,
+                    }}
+                  />
+                  {showStudentPicker && filteredStudents.length > 0 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        zIndex: 20,
+                        border: "1px solid var(--border)",
+                        borderTop: "none",
+                        borderRadius: "0 0 6px 6px",
+                        maxHeight: 160,
+                        overflowY: "auto",
+                        background: "var(--bg-card)",
+                      }}
+                    >
+                      {filteredStudents.map((s) => {
+                        const label = admissionStudentPickerLabel(
+                          s,
+                          form.school_start_year,
+                          form.admission_class,
+                        );
+                        return (
+                          <div
+                            key={s.id}
+                            onClick={() => {
+                              setField("student_id", s.id);
+                              setSearch(label);
+                              setStudentPickerOpen(false);
+                              const did = districtIdForKutir(
+                                s.kutir_id,
+                                allKutirsData,
+                                allClusters,
+                                allAreas,
+                              );
+                              applyParivaarDistrict(did);
+                              applySchoolDistrict(did);
+                              // Drop center from another district when student (district) changes
+                              if (did != null && form.exam_center_id != null) {
+                                const cur = examCenters.find((c) => c.id === form.exam_center_id);
+                                if (cur?.district_id != null && cur.district_id !== did) {
+                                  setField("exam_center_id", null);
+                                }
+                              }
+                              if (did != null && form.admitted_school_id != null) {
+                                const sch = schools.find((x) => x.id === form.admitted_school_id) as
+                                  | { district_id?: number | null }
+                                  | undefined;
+                                if (sch?.district_id != null && sch.district_id !== did) {
+                                  setField("admitted_school_id", null);
+                                }
+                              }
+                            }}
+                            style={{
+                              padding: "10px 12px",
+                              cursor: "pointer",
+                              fontSize: "max(16px, 0.875rem)",
+                              lineHeight: 1.35,
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "var(--badge-blue-bg)")
                             }
-                          }
-                          if (did != null && form.admitted_school_id != null) {
-                            const sch = schools.find((x) => x.id === form.admitted_school_id) as
-                              | { district_id?: number | null }
-                              | undefined;
-                            if (sch?.district_id != null && sch.district_id !== did) {
-                              setField("admitted_school_id", null);
-                            }
-                          }
-                        }}
-                        style={{
-                          padding: "10px 12px",
-                          cursor: "pointer",
-                          fontSize: "max(16px, 0.875rem)",
-                          lineHeight: 1.35,
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = "var(--badge-blue-bg)")
-                        }
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                      >
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>
-                          {formatAcademicYear(form.school_start_year)}
-                          {" · "}
-                          {form.admission_class != null
-                            ? `Class ${form.admission_class}`
-                            : "Class —"}
-                        </span>{" "}
-                        <span style={{ color: "var(--text-primary)" }}>
-                          {studentLabel(s)}
-                        </span>
-                      </div>
-                    );
-                  })}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                          >
+                            <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>
+                              {formatAcademicYear(form.school_start_year)}
+                              {" · "}
+                              {form.admission_class != null
+                                ? `Class ${form.admission_class}`
+                                : "Class —"}
+                            </span>{" "}
+                            <span style={{ color: "var(--text-primary)" }}>{studentLabel(s)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-              {showStudentPicker && !studentsFetching && filteredStudents.length === 0 && (
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: "0.82rem",
-                    color: "var(--text-secondary)",
-                  }}
+              </div>
+              <div className="grs-form-field-stack">
+                <label style={grs.fieldLabel}>
+                  {admissionFieldLabel("admission_class")}{" "}
+                  <span style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                <select
+                  value={form.admission_class ?? ""}
+                  onChange={(e) =>
+                    setField(
+                      "admission_class",
+                      e.target.value === "" ? null : Number(e.target.value),
+                    )
+                  }
+                  style={selStyles}
                 >
+                  <option value="">-- select --</option>
+                  <option value={5}>Class 5</option>
+                  <option value={8}>Class 8</option>
+                </select>
+              </div>
+              {showStudentPicker && !studentsFetching && filteredStudents.length === 0 && (
+                <p className="grs-admission-student-fields-row__hint">
                   {searchTrim
                     ? `No students match your search in this kutir for ${formatAcademicYear(form.school_start_year)}.`
                     : `No students in this kutir for ${formatAcademicYear(form.school_start_year)}.`}
-                </div>
+                </p>
               )}
-            </div>
-            <div>
-              <label style={grs.fieldLabel}>
-                {admissionFieldLabel("admission_class")} <span style={{ color: "var(--danger)" }}>*</span>
-              </label>
-              <select
-                value={form.admission_class ?? ""}
-                onChange={(e) =>
-                  setField(
-                    "admission_class",
-                    e.target.value === "" ? null : Number(e.target.value),
-                  )
-                }
-                style={selStyles}
-              >
-                <option value="">-- select --</option>
-                <option value={5}>Class 5</option>
-                <option value={8}>Class 8</option>
-              </select>
-            </div>
             </div>
           </div>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "90px 1fr 120px",
-              gap: 8,
-              alignItems: "end",
-            }}
-          >
+          <div className="grs-admission-student-fields-row">
             {yearField}
-            <div>
+            <div className="grs-form-field-stack">
               <label style={grs.fieldLabel}>{admissionFieldLabel("student")}</label>
               <input
                 readOnly
@@ -1170,7 +1159,7 @@ export function AdmissionForm({
                 style={{ ...inputStyles, opacity: 0.6, cursor: "not-allowed" }}
               />
             </div>
-            <div>
+            <div className="grs-form-field-stack">
               <label style={grs.fieldLabel}>
                 {admissionFieldLabel("admission_class")}
                 <span style={{ color: "var(--danger)" }}> *</span>
