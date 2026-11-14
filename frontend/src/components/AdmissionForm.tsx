@@ -13,7 +13,7 @@ import {
   type ExamTypeMin,
   type ExamTypeSubjectRow,
 } from "../api/admissions";
-import { listStudents } from "../api/students";
+import { listStudents, type Student } from "../api/students";
 import { listSchools } from "../api/schools";
 import { listKutirs } from "../api/kutirs";
 import {
@@ -70,6 +70,17 @@ import {
   normalizePipelineStages,
 } from "./admissions-pipeline";
 import { formatAcademicYear } from "../utils/academicYear";
+
+/** Add-mode student picker: year + admission class prefix before name. */
+function admissionStudentPickerLabel(
+  s: Student,
+  schoolStartYear: number,
+  admissionClass: number | null,
+): string {
+  const yearPart = formatAcademicYear(schoolStartYear);
+  const classPart = admissionClass != null ? `Class ${admissionClass}` : "Class —";
+  return `${yearPart} · ${classPart} · ${studentLabel(s)}`;
+}
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
@@ -521,10 +532,17 @@ export function AdmissionForm({
 
   const searchTrim = search.trim();
   const { data: students = [], isFetching: studentsFetching } = useQuery({
-    queryKey: ["students-search", "admissions", searchTrim, filterKutir],
+    queryKey: [
+      "students-search",
+      "admissions",
+      searchTrim,
+      filterKutir,
+      form.school_start_year,
+    ],
     queryFn: () =>
       listStudents({
         name_only: true,
+        exam_year: form.school_start_year,
         ...(searchTrim ? { search: searchTrim } : {}),
         limit: 100,
         kutir_id: Number(filterKutir),
@@ -642,8 +660,10 @@ export function AdmissionForm({
 
   const subjects = subjectsForExamType(examTypeSubjects, form.exam_type_id);
 
-  // Server filters by kutir (+ optional search); keep list as-is for the picker.
-  const filteredStudents = students;
+  // Server filters by kutir, exam_year (+ optional search).
+  const filteredStudents = students.filter(
+    (s) => s.exam_year === form.school_start_year,
+  );
   const showStudentPicker =
     isAdd && filterKutir !== "" && !form.student_id && studentPickerOpen;
 
@@ -927,7 +947,11 @@ export function AdmissionForm({
       {yearEditable ? (
         <select
           value={form.school_start_year}
-          onChange={(e) => setField("school_start_year", Number(e.target.value))}
+          onChange={(e) => {
+            setField("school_start_year", Number(e.target.value));
+            setField("student_id", 0);
+            setSearch("");
+          }}
           style={selStyles}
         >
           {YEARS.map((y) => (
@@ -980,11 +1004,12 @@ export function AdmissionForm({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "minmax(0, 1fr) 90px 120px",
+                gridTemplateColumns: "90px minmax(0, 1fr) 120px",
                 gap: 8,
                 alignItems: "end",
               }}
             >
+            {yearField}
             <div style={{ position: "relative", minWidth: 0 }}>
               <label style={grs.fieldLabel}>
                 {admissionFieldLabel("student")} <span style={{ color: "var(--danger)" }}>*</span>
@@ -1030,7 +1055,11 @@ export function AdmissionForm({
                   }}
                 >
                   {filteredStudents.map((s) => {
-                    const label = studentLabel(s);
+                    const label = admissionStudentPickerLabel(
+                      s,
+                      form.school_start_year,
+                      form.admission_class,
+                    );
                     return (
                       <div
                         key={s.id}
@@ -1062,13 +1091,27 @@ export function AdmissionForm({
                             }
                           }
                         }}
-                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
+                        style={{
+                          padding: "10px 12px",
+                          cursor: "pointer",
+                          fontSize: "max(16px, 0.875rem)",
+                          lineHeight: 1.35,
+                        }}
                         onMouseEnter={(e) =>
                           (e.currentTarget.style.background = "var(--badge-blue-bg)")
                         }
                         onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                       >
-                        {label}
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>
+                          {formatAcademicYear(form.school_start_year)}
+                          {" · "}
+                          {form.admission_class != null
+                            ? `Class ${form.admission_class}`
+                            : "Class —"}
+                        </span>{" "}
+                        <span style={{ color: "var(--text-primary)" }}>
+                          {studentLabel(s)}
+                        </span>
                       </div>
                     );
                   })}
@@ -1083,12 +1126,11 @@ export function AdmissionForm({
                   }}
                 >
                   {searchTrim
-                    ? "No students match your search in this kutir."
-                    : "No students in this kutir."}
+                    ? `No students match your search in this kutir for ${formatAcademicYear(form.school_start_year)}.`
+                    : `No students in this kutir for ${formatAcademicYear(form.school_start_year)}.`}
                 </div>
               )}
             </div>
-            {yearField}
             <div>
               <label style={grs.fieldLabel}>
                 {admissionFieldLabel("admission_class")} <span style={{ color: "var(--danger)" }}>*</span>
@@ -1114,11 +1156,12 @@ export function AdmissionForm({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 90px 120px",
+              gridTemplateColumns: "90px 1fr 120px",
               gap: 8,
               alignItems: "end",
             }}
           >
+            {yearField}
             <div>
               <label style={grs.fieldLabel}>{admissionFieldLabel("student")}</label>
               <input
@@ -1127,7 +1170,6 @@ export function AdmissionForm({
                 style={{ ...inputStyles, opacity: 0.6, cursor: "not-allowed" }}
               />
             </div>
-            {yearField}
             <div>
               <label style={grs.fieldLabel}>
                 {admissionFieldLabel("admission_class")}

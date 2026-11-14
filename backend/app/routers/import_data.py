@@ -777,8 +777,13 @@ async def _import_students(rows, db):
         dob = _date(dob_raw)
         if dob_raw and not dob:
             errors.append(f"Bad date '{dob_raw}' for '{first} {last}' — imported without DOB")
+        exam_year_raw = r.get("exam_year")
+        exam_year = _int(exam_year_raw) if exam_year_raw not in (None, "") else None
+        if exam_year_raw not in (None, "") and exam_year is None:
+            errors.append(f"Bad exam_year '{exam_year_raw}' for '{first} {last}' — imported without exam_year")
         params = {"fn": first, "ln": last, "ge": gender, "db": dob, "ki": kutir_id,
                "ca": cat_id, "sc": subcat_id,
+               "ey": exam_year,
                "fa": _str(r.get("father_name")) or None,
                "mo": _str(r.get("mother_name")) or None,
                "ph": _str(r.get("phone")) or None,
@@ -793,6 +798,7 @@ async def _import_students(rows, db):
         if exists_rows:
             await db.execute(text("""
                 UPDATE students SET gender=:ge, dob=:db, category_id=:ca, sub_category_id=:sc,
+                    exam_year=COALESCE(:ey, exam_year),
                     father_name=:fa, mother_name=:mo, phone=:ph, email=:em,
                     alt_contact_name=:an, alt_contact_phone=:ap,
                     aadhaar=:aa, category_cert=:cc, birth_cert=:bc, residence_proof=:rp,
@@ -802,12 +808,12 @@ async def _import_students(rows, db):
             updated += 1; continue
         await db.execute(text("""
             INSERT INTO students (first_name, last_name, gender, dob, kutir_id,
-                                  category_id, sub_category_id,
+                                  category_id, sub_category_id, exam_year,
                                   father_name, mother_name, phone, email,
                                   alt_contact_name, alt_contact_phone,
                                   aadhaar, category_cert, birth_cert, residence_proof, medical,
                                   created_at, updated_at)
-            VALUES (:fn, :ln, :ge, :db, :ki, :ca, :sc,
+            VALUES (:fn, :ln, :ge, :db, :ki, :ca, :sc, :ey,
                     :fa, :mo, :ph, :em, :an, :ap,
                     :aa, :cc, :bc, :rp, :me, now(), now())
         """), params)

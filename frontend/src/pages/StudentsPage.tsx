@@ -26,8 +26,12 @@ import {
 import { hasGlobalDataScope } from "../constants/roles";
 import { displayPhone } from "../utils/displayPhone";
 import { buildRegistryExportColumns, exportFetchLimit } from "../utils/registryExport";
+import { formatAcademicYear } from "../utils/academicYear";
 
 const STORAGE_KEY = "students_filter_state";
+const CURRENT_YEAR = new Date().getFullYear();
+/** Same start as Admissions (CURRENT_YEAR − 2), but no future calendar years. */
+const EXAM_YEAR_OPTIONS = Array.from({ length: 3 }, (_, i) => CURRENT_YEAR - 2 + i);
 
 type EnrichedStudent = Student & { docsCount: number; addedDate: string };
 
@@ -54,6 +58,14 @@ function studentColRenderers(kutirMap: Map<number, KutirLike>): Record<string, S
       ),
       csvValue: (s) => `${s.first_name} ${s.last_name}`,
       sortValue: (s) => `${s.first_name} ${s.last_name}`.toLowerCase(),
+    },
+    exam_year: {
+      render: (s) =>
+        s.exam_year != null
+          ? formatAcademicYear(s.exam_year)
+          : <span style={{ color: "var(--text-secondary)" }}>—</span>,
+      csvValue: (s) => (s.exam_year != null ? formatAcademicYear(s.exam_year) : ""),
+      sortValue: (s) => s.exam_year ?? -1,
     },
     gender: {},
     phone: {
@@ -150,6 +162,7 @@ export default function StudentsPage() {
     kutir?: FilterId;
     search?: string;
     page?: number;
+    exam_year?: number | "";
   }>(STORAGE_KEY);
 
   const defaults = defaultsFromUser(user);
@@ -160,6 +173,9 @@ export default function StudentsPage() {
   const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? defaultDistrict);
   const [filterCluster, setFilterCluster] = useState<FilterId>(saved?.cluster ?? defaultCluster);
   const [filterKutir, setFilterKutir] = useState<FilterId>(saved?.kutir ?? defaultKutir);
+  const [filterExamYear, setFilterExamYear] = useState<number | "">(
+    saved?.exam_year != null && saved.exam_year !== "" ? saved.exam_year : "",
+  );
   const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -172,11 +188,12 @@ export default function StudentsPage() {
   };
 
   const { data: studentsPage, isLoading } = useQuery({
-    queryKey: ["students", filterDistrict, filterCluster, filterKutir, debouncedSearch, page],
+    queryKey: ["students", filterDistrict, filterCluster, filterKutir, filterExamYear, debouncedSearch, page],
     queryFn: () => listStudentsPaged({
       kutir_id: filterKutir !== "" ? filterKutir : undefined,
       cluster_id: filterKutir !== "" ? undefined : (filterCluster !== "" ? filterCluster : undefined),
       district_id: filterKutir !== "" || filterCluster !== "" ? undefined : (filterDistrict !== "" ? filterDistrict : undefined),
+      exam_year: filterExamYear !== "" ? filterExamYear : undefined,
       search: debouncedSearch || undefined,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
@@ -240,7 +257,7 @@ export default function StudentsPage() {
   function saveFilters() {
     persistFilters(STORAGE_KEY, {
       district: filterDistrict, cluster: filterCluster,
-      kutir: filterKutir, search: searchQuery, page,
+      kutir: filterKutir, exam_year: filterExamYear, search: searchQuery, page,
     });
   }
 
@@ -273,6 +290,7 @@ export default function StudentsPage() {
       kutir_id: filterKutir !== "" ? filterKutir : undefined,
       cluster_id: filterKutir !== "" ? undefined : (filterCluster !== "" ? filterCluster : undefined),
       district_id: filterKutir !== "" || filterCluster !== "" ? undefined : (filterDistrict !== "" ? filterDistrict : undefined),
+      exam_year: filterExamYear !== "" ? filterExamYear : undefined,
       search: debouncedSearch || undefined,
       limit: exportFetchLimit(studentTotal),
       offset: 0,
@@ -282,7 +300,7 @@ export default function StudentsPage() {
       docsCount: docCount(s),
       addedDate: new Date(s.created_at).toLocaleDateString("en-IN"),
     }));
-  }, [filterDistrict, filterCluster, filterKutir, debouncedSearch, studentTotal]);
+  }, [filterDistrict, filterCluster, filterKutir, filterExamYear, debouncedSearch, studentTotal]);
 
   const filterSelectStyle: React.CSSProperties = {
     padding: "7px 10px",
@@ -294,8 +312,31 @@ export default function StudentsPage() {
     flexShrink: 0,
   };
 
+  const examYearSelectStyle: React.CSSProperties = {
+    ...filterSelectStyle,
+    width: 120,
+    fontSize: 16,
+  };
+
   const geoFilters = (
     <GeoFilterBar
+      leading={
+        <select
+          value={filterExamYear}
+          onChange={(e) => {
+            const v = e.target.value;
+            setFilterExamYear(v === "" ? "" : Number(v));
+            setPage(1);
+          }}
+          aria-label="Exam year"
+          style={examYearSelectStyle}
+        >
+          <option value="">All years</option>
+          {EXAM_YEAR_OPTIONS.map((y) => (
+            <option key={y} value={y}>{formatAcademicYear(y)}</option>
+          ))}
+        </select>
+      }
       district={filterDistrict}
       cluster={filterCluster}
       kutir={filterKutir}
@@ -355,7 +396,12 @@ export default function StudentsPage() {
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
         filters={geoFilters}
-        activeFilterCount={countActiveFilters(filterDistrict, filterCluster, filterKutir)}
+        activeFilterCount={countActiveFilters(
+          filterExamYear !== "" ? filterExamYear : "",
+          filterDistrict,
+          filterCluster,
+          filterKutir,
+        )}
         exportFilename="students"
         exportColumns={exportColumns}
         getExportRows={getExportRows}

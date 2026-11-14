@@ -21,6 +21,10 @@ import { studentFieldLabel } from "../constants/studentsFields";
 import { grs } from "../styles/grs";
 import { useStudentFormLookups } from "../hooks/useStudentFormLookups";
 import { validateStudentForm } from "../utils/studentFormValidation";
+import { formatAcademicYear } from "../utils/academicYear";
+
+const CURRENT_YEAR = new Date().getFullYear();
+const EXAM_YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 2 + i);
 
 const DOCS: { key: keyof StudentFormState; label: string }[] = [
   { key: "aadhaar", label: "Aadhaar Card" },
@@ -52,6 +56,7 @@ export function emptyStudentForm(): StudentFormState {
     birth_cert: false,
     residence_proof: false,
     medical: false,
+    exam_year: CURRENT_YEAR,
   };
 }
 
@@ -74,6 +79,7 @@ export function studentFormFromDetail(s: {
   birth_cert: boolean;
   residence_proof: boolean;
   medical: boolean;
+  exam_year: number | null;
 }): StudentFormState {
   return {
     first_name: s.first_name,
@@ -94,6 +100,7 @@ export function studentFormFromDetail(s: {
     birth_cert: s.birth_cert,
     residence_proof: s.residence_proof,
     medical: s.medical,
+    exam_year: s.exam_year,
   };
 }
 
@@ -399,7 +406,35 @@ export const StudentForm = forwardRef<StudentFormHandle, StudentFormProps>(funct
 
       <section style={sec}>
         <div style={secTitle}>Personal Info</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+        <div className="grs-student-form-identity-row">
+          <div className="grs-student-form-identity-row__exam-year">
+            {readOnly ? (
+              <ViewField label={studentFieldLabel("exam_year")}>
+                {form.exam_year != null ? formatAcademicYear(form.exam_year) : null}
+              </ViewField>
+            ) : (
+              <div>
+                <label style={grs.fieldLabel}>{studentFieldLabel("exam_year")}</label>
+                <select
+                  style={grs.select}
+                  value={form.exam_year ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      exam_year: e.target.value ? Number(e.target.value) : null,
+                    }))
+                  }
+                >
+                  <option value="">— select —</option>
+                  {EXAM_YEARS.map((y) => (
+                    <option key={y} value={y}>
+                      {formatAcademicYear(y)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           {textField("first_name", { required: true, label: "First Name" })}
           {textField("last_name", { required: true, label: "Last Name" })}
         </div>

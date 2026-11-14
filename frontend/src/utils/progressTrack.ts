@@ -74,3 +74,39 @@ export function currentClassMarkPct(
   if (classInYear == null) return null;
   return getMark(marks, classInYear);
 }
+
+export type ProgressJourneyRow = {
+  academicYearStart: number;
+  classNum: number;
+  marksPct: number | null;
+  /** Row matches `class_in_year` (current journey position). */
+  isCurrentClass: boolean;
+};
+
+/** Journey table rows from initial academic year through current class (and any later class with marks). */
+export function progressJourneyRows(
+  progress: {
+    track: ProgressTrack;
+    academic_year: number;
+    class_in_year: number | null;
+  } & MarkFields,
+): ProgressJourneyRow[] {
+  const classes = classesForTrack(progress.track);
+  const currentClass = progress.class_in_year ?? classes[0];
+  let maxClass = currentClass;
+  for (const c of classes) {
+    if (getMark(progress, c) != null && c > maxClass) maxClass = c;
+  }
+  const rows: ProgressJourneyRow[] = [];
+  for (let i = 0; i < classes.length; i++) {
+    const classNum = classes[i];
+    if (classNum > maxClass) break;
+    rows.push({
+      academicYearStart: progress.academic_year + i,
+      classNum,
+      marksPct: getMark(progress, classNum),
+      isCurrentClass: classNum === currentClass,
+    });
+  }
+  return rows;
+}

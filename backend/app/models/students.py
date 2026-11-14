@@ -36,6 +36,7 @@ class Student(Base, TimestampMixin):
     )
     alt_contact_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     alt_contact_phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    exam_year: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
 
     # Document flags
     aadhaar: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@parivaar/ui/table-shell.css";
 import "@parivaar/ui/report-shell.css";
+import "@parivaar/ui/multi-select-list.css";
 import "./index.css";
 import "./mobile.css";
 import App from "./App";

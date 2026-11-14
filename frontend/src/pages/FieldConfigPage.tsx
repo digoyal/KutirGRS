@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useFieldConfig, type FieldMeta, type FieldConfigEntry } from "../hooks/useFieldConfig";
 import { PROGRESS_FIELDS, coalesceProgressMarksOrder } from "../constants/progressFields";
 import { ADMISSIONS_FIELDS } from "../constants/admissionsFields";
@@ -10,7 +10,7 @@ import { STUDENTS_FIELDS } from "../constants/studentsFields";
 import { VISITS_FIELDS } from "../constants/visitsFields";
 import { USERS_FIELDS } from "../constants/usersFields";
 
-const TABLE_REGISTRY: Record<string, { label: string; fields: FieldMeta[]; backPath: string }> = {
+export const TABLE_REGISTRY: Record<string, { label: string; fields: FieldMeta[]; backPath: string }> = {
   students:    { label: "Students",     fields: STUDENTS_FIELDS,     backPath: "/students" },
   kutirs:      { label: "Kutirs",       fields: KUTIRS_FIELDS,       backPath: "/kutirs" },
   admissions:  { label: "Admissions",   fields: ADMISSIONS_FIELDS,   backPath: "/admissions" },
@@ -27,31 +27,21 @@ function resolveTable(key: string | null): string {
   return key && key in TABLE_REGISTRY ? key : DEFAULT_TABLE;
 }
 
+/** Column visibility and order — used on Settings → Columns. */
 export default function FieldConfigPage() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Tab must live in the URL — React-only state resets to Progress on remount
   // (HMR, browser Back after a hard navigate, etc.).
   const activeTable = resolveTable(searchParams.get("table"));
-  const tableInfo = TABLE_REGISTRY[activeTable];
-  const backPath = tableInfo.backPath;
 
   function selectTable(key: string) {
     setSearchParams({ table: key }, { replace: true });
   }
 
-  return (
-    <div style={{ padding: "24px 28px", maxWidth: 680 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <button
-          onClick={() => navigate(backPath + "?_=" + Date.now())}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: "4px 0", fontSize: "0.875rem" }}
-        >
-          ← Back
-        </button>
-        <h2 style={{ margin: 0, color: "var(--text-primary)" }}>Column Settings</h2>
-      </div>
+  const tableInfo = TABLE_REGISTRY[activeTable];
 
+  return (
+    <div className="settings-columns-pane" style={{ minWidth: 0, maxWidth: 720 }}>
       {Object.keys(TABLE_REGISTRY).length > 1 && (
         <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
           {Object.entries(TABLE_REGISTRY).map(([key, { label }]) => (

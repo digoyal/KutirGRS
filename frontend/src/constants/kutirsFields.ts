@@ -10,6 +10,7 @@ import type { FieldMeta } from "../hooks/useFieldConfig";
 export const KUTIRS_FIELDS: FieldMeta[] = [
   { key: "name",           label: "Name",        hideable: false, defaultVisible: true  },
   { key: "kutir_type",     label: "Type",        hideable: true,  defaultVisible: true  },
+  { key: "district",       label: "District",    hideable: true,  defaultVisible: true,  form: false },
   { key: "cluster_id",     label: "Cluster",     hideable: true,  defaultVisible: false },
   { key: "street",         label: "Street",      hideable: true,  defaultVisible: false, form: false },
   { key: "state",          label: "State",       hideable: true,  defaultVisible: false },

@@ -20,6 +20,7 @@ export interface Student {
   medical: boolean;
   alt_contact_name: string | null;
   alt_contact_phone: string | null;
+  exam_year: number | null;
   photo: string | null;
   exam_count: number;
   created_at: string;
@@ -40,6 +41,7 @@ export interface StudentCreate {
   sub_category_id?: number | null;
   alt_contact_name?: string | null;
   alt_contact_phone?: string | null;
+  exam_year?: number | null;
   aadhaar?: boolean;
   category_cert?: boolean;
   birth_cert?: boolean;
@@ -56,6 +58,7 @@ export interface StudentsListParams {
   offset?: number;
   search?: string;
   name_only?: boolean;
+  exam_year?: number;
 }
 
 export interface StudentsPage {

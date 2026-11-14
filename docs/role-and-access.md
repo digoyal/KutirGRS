@@ -8,7 +8,7 @@ Roles (left → right, lowest → highest for day-to-day ops):
 
 Teacher · Cluster Coordinator · Education Coordinator · District Anchor · Regional Head · Admin
 
-**SysAdmin** is a separate ops role (not in the day-to-day hierarchy above). **Admin may create SysAdmin users.** SysAdmin sees **every** nav/menu item Admin (or lower) can see — including Users, Geography, Lookups, Column Settings, Import — **plus Deploy**. Admin does **not** see or call Deploy. For **data**, SysAdmin is unrestricted (same as Admin): all districts/clusters/kutirs/students/admissions/progress/visits/users/geography — no assignment filter.
+**SysAdmin** is a separate ops role (not in the day-to-day hierarchy above). **Admin may create SysAdmin users.** SysAdmin sees **every** nav/menu item Admin (or lower) can see — including Users, Geography, Lookups, Settings, Import — **plus Deploy**. Admin does **not** see or call Deploy. For **data**, SysAdmin is unrestricted (same as Admin): all districts/clusters/kutirs/students/admissions/progress/visits/users/geography — no assignment filter.
 
 ---
 
@@ -36,11 +36,11 @@ Teacher · Cluster Coordinator · Education Coordinator · District Anchor · Re
 | Lookups | View | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 | Users | Add/Edit/Delete | No | Yes | Yes | Yes | Yes | Yes | Yes |
 | Users | View | No | Yes | Yes | Yes | Yes | Yes | Yes |
-| Column Config | Add/Edit/Delete | No | No | No | No | No | Yes | Yes |
-| Column Config | View | No | No | No | No | No | Yes | Yes |
+| Settings | Add/Edit/Delete | No | No | No | No | No | Yes | Yes |
+| Settings | View | No | No | No | No | No | Yes | Yes |
 | Deploy | View / Run | No | No | No | No | No | No | Yes |
 
-**View-only examples (by design):** Teacher can view Kutirs / Visits / Schools / Exam Centers / Geography but not mutate them; Teacher cannot view Users or Column Config at all; Admin and SysAdmin may change Lookups and Column Config; only SysAdmin may Deploy (Admin cannot).
+**View-only examples (by design):** Teacher can view Kutirs / Visits / Schools / Exam Centers / Geography but not mutate them; Teacher cannot view Users or Settings at all; Admin and SysAdmin may change Lookups and Settings (including column layout); only SysAdmin may Deploy (Admin cannot).
 
 ---
 
@@ -68,6 +68,6 @@ Schools, Exam Centers, and Lookups are **global catalogs** (all roles see all ro
 ## Notes from initial review (Oct 2026)
 
 1. Spreadsheet typos kept as source intent but cleaned in this markdown: “Functionalty”, “cateogories”.
-2. **Decided (2026-10-26):** the Functionality matrix wins over the earlier Admin-only hardening (audit S2/S3 / PR #5). API and FE use Cluster Coordinator+ for school CUD, exam-center CUD, and visit Add/Edit/Delete; Geography remains Education Coordinator+; Lookups / Column Config stay Admin (+ SysAdmin) only. SysAdmin shares Admin gates (unrestricted + same menus) except Deploy.
+2. **Decided (2026-10-26):** the Functionality matrix wins over the earlier Admin-only hardening (audit S2/S3 / PR #5). API and FE use Cluster Coordinator+ for school CUD, exam-center CUD, and visit Add/Edit/Delete; Geography remains Education Coordinator+; Lookups / Settings stay Admin (+ SysAdmin) only. SysAdmin shares Admin gates (unrestricted + same menus) except Deploy.
 3. Backend `MANAGE_*` sets / FE manage buttons (Top-10 #9) are driven from the Functionality sheet so view-only roles never see dead edit controls.
 4. Data sheet matches the geographic `get_scope` model (kutir → cluster → area → district → zone → all).

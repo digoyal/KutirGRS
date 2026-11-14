@@ -9,6 +9,7 @@ import type { FieldMeta } from "../hooks/useFieldConfig";
  */
 export const STUDENTS_FIELDS: FieldMeta[] = [
   { key: "name",              label: "Name",          hideable: false, defaultVisible: true,  form: false },
+  { key: "exam_year",         label: "Exam Year",     hideable: true,  defaultVisible: true  },
   { key: "gender",            label: "Gender",        hideable: true,  defaultVisible: true  },
   { key: "phone",             label: "Phone",         hideable: true,  defaultVisible: true  },
   { key: "father_name",       label: "Father",        hideable: true,  defaultVisible: true  },

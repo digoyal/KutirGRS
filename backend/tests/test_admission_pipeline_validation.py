@@ -66,6 +66,15 @@ def test_pipeline_field_visible_selected_school_block():
     assert pipeline_field_visible(flags, "school_name") is True
 
 
+def test_sparse_eligible_create_allows_missing_exam_type():
+    validate_student_exam_write(
+        _base(eligible=True, exam_type_id=None, exam_category_id=None),
+        is_create=True,
+        subject_ids=[],
+        scores_by_subject={},
+    )
+
+
 def test_applied_stage_requires_application_number():
     with pytest.raises(HTTPException) as exc:
         validate_student_exam_write(

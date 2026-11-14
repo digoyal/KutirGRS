@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import LoginPage from "./pages/LoginPage";
@@ -41,13 +41,17 @@ import {
 } from "./pages/LegacyReportsRedirect";
 import TopKutirsReportPage from "./pages/TopKutirsReportPage";
 import KutirPerformanceReportPage from "./pages/KutirPerformanceReportPage";
+import StudentProgressReportPage from "./pages/StudentProgressReportPage";
 import LookupsPage from "./pages/LookupsPage";
 import ExamCentersPage from "./pages/ExamCentersPage";
 import ExamCenterDetailPage from "./pages/ExamCenterDetailPage";
 import ExamCenterAddPage from "./pages/ExamCenterAddPage";
 import FieldConfigPage from "./pages/FieldConfigPage";
+import SettingsLayout from "./pages/SettingsLayout";
+import SettingsGeneral from "./pages/SettingsGeneral";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import DeployPage from "./pages/DeployPage";
+import { canViewColumnConfig } from "./constants/roles";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +65,20 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   return user ? <Navigate to="/" replace /> : <>{children}</>;
+}
+
+function SettingsArea({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user && !canViewColumnConfig(user.title)) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
+function LegacyFieldConfigRedirect() {
+  const [searchParams] = useSearchParams();
+  const qs = searchParams.toString();
+  return <Navigate to={"/admin/settings/columns" + (qs ? `?${qs}` : "")} replace />;
 }
 
 function AppRoutes() {
@@ -101,13 +119,26 @@ function AppRoutes() {
         <Route path="progress/:id" element={<ProgressDetailPage />} />
         <Route path="new-year-setup" element={<Navigate to="/progress" replace />} />
         <Route path="import" element={<ImportDataPage />} />
-        <Route path="admin/field-config" element={<FieldConfigPage />} />
+        <Route
+          path="admin/settings"
+          element={
+            <SettingsArea>
+              <SettingsLayout />
+            </SettingsArea>
+          }
+        >
+          <Route index element={<Navigate to="general" replace />} />
+          <Route path="general" element={<SettingsGeneral />} />
+          <Route path="columns" element={<FieldConfigPage />} />
+        </Route>
+        <Route path="admin/field-config" element={<LegacyFieldConfigRedirect />} />
         <Route path="admin/change-password" element={<ChangePasswordPage />} />
         <Route path="admin/deploy" element={<DeployPage />} />
         <Route path="reports">
           <Route index element={<ReportsHubPage />} />
           <Route path="admission-funnel" element={<AdmissionFunnelReportPage />} />
           <Route path="admitted-students" element={<AdmittedStudentsReportPage />} />
+          <Route path="student-progress" element={<StudentProgressReportPage />} />
           <Route path="summary" element={<LegacySummaryReportsRedirect />} />
           <Route path="detailed" element={<LegacyDetailedReportsRedirect />} />
           <Route path="top-kutirs" element={<TopKutirsReportPage rank="top" />} />

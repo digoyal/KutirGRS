@@ -21,6 +21,7 @@ class StudentBase(BaseModel):
     sub_category_id: Optional[int] = None
     alt_contact_name: Optional[str] = None
     alt_contact_phone: Optional[str] = None
+    exam_year: Optional[int] = None
     aadhaar: bool = False
     category_cert: bool = False
     birth_cert: bool = False
@@ -44,6 +45,7 @@ class StudentUpdate(BaseModel):
     sub_category_id: Optional[int] = None
     alt_contact_name: Optional[str] = None
     alt_contact_phone: Optional[str] = None
+    exam_year: Optional[int] = None
     aadhaar: Optional[bool] = None
     category_cert: Optional[bool] = None
     birth_cert: Optional[bool] = None
@@ -134,6 +136,7 @@ class StudentExamOut(StudentExamBase):
 class AdmissionFunnelOut(BaseModel):
     """Scoped SQL aggregates for the home admission funnel (§5.2 stages)."""
     school_start_year: int
+    registered: int = 0
     total: int
     eligible: int
     applied: int
@@ -142,6 +145,19 @@ class AdmissionFunnelOut(BaseModel):
     result_declared: int
     selected: int
     admitted: int
+
+
+class AdmissionFunnelKutirRowOut(AdmissionFunnelOut):
+    """Per-kutir funnel row (same stage fields as AdmissionFunnelOut)."""
+    kutir_id: int
+    kutir_name: str
+
+
+class AdmissionFunnelEntityRowOut(AdmissionFunnelOut):
+    """Per-geo-entity funnel row for the admission funnel report."""
+    entity_id: int
+    entity_name: str
+    row_level: str  # district | area | cluster | kutir
 
 
 # ── StudentProgress ──────────────────────────────────────────────────────────

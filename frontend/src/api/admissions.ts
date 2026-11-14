@@ -124,6 +124,7 @@ export interface StudentProgressCreate {
 // ── Admission funnel aggregates (home dashboard) ─────────────────────────────
 export interface AdmissionFunnel {
   school_start_year: number;
+  registered?: number;
   total: number;
   eligible: number;
   applied: number;
@@ -138,9 +139,52 @@ export async function getAdmissionFunnel(params: {
   school_start_year: number;
   kutir_id?: number;
   cluster_id?: number;
+  area_id?: number;
   district_id?: number;
+  zone_id?: number;
 }): Promise<AdmissionFunnel> {
   const { data } = await api.get("/student-exams/funnel", { params });
+  return data;
+}
+
+export type AdmissionFunnelKutirRow = AdmissionFunnel & {
+  kutir_id: number;
+  kutir_name: string;
+};
+
+export async function getAdmissionFunnelByKutir(params: {
+  school_start_year: number;
+  kutir_id?: number;
+  cluster_id?: number;
+  area_id?: number;
+  district_id?: number;
+  zone_id?: number;
+}): Promise<AdmissionFunnelKutirRow[]> {
+  const { data } = await api.get("/student-exams/funnel-by-kutir", { params });
+  return data;
+}
+
+export type AdmissionFunnelRowLevel = "district" | "area" | "cluster" | "kutir";
+
+export type AdmissionFunnelEntityRow = AdmissionFunnel & {
+  entity_id: number;
+  entity_name: string;
+  row_level: AdmissionFunnelRowLevel;
+};
+
+export type AdmissionFunnelEntityLevel = "zone" | "district" | "area" | "cluster" | "kutir";
+
+export async function getAdmissionFunnelByEntity(params: {
+  school_start_year: number;
+  entity_level: AdmissionFunnelEntityLevel;
+  admission_class?: number;
+  kutir_id?: number;
+  cluster_id?: number;
+  area_id?: number;
+  district_id?: number;
+  zone_id?: number;
+}): Promise<AdmissionFunnelEntityRow[]> {
+  const { data } = await api.get("/student-exams/funnel-by-entity", { params });
   return data;
 }
 

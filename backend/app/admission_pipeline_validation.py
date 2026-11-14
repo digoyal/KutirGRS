@@ -124,6 +124,9 @@ def validate_student_exam_write(
     """Raise HTTP 422 with a single plain detail when a visible field is missing."""
     flags = normalize_pipeline_stages(_stage_flags(data))
     show = lambda field: pipeline_field_visible(flags, field)  # noqa: E731
+    # Bulk Apply and similar sparse creates: Eligible stage only, details before Applied.
+    stage_idx = pipeline_stage(flags)
+    sparse_eligible_create = is_create and stage_idx == 0 and not flags.get("applied")
 
     if is_create and not data.get("student_id"):
         raise HTTPException(422, "Select a student.")
@@ -137,10 +140,10 @@ def validate_student_exam_write(
         if year is None or (isinstance(year, int) and year <= 0):
             raise HTTPException(422, "Year is required.")
 
-    if show("exam_type") and not data.get("exam_type_id"):
+    if show("exam_type") and not data.get("exam_type_id") and not sparse_eligible_create:
         raise HTTPException(422, "Exam type is required.")
 
-    if show("exam_category") and not data.get("exam_category_id"):
+    if show("exam_category") and not data.get("exam_category_id") and not sparse_eligible_create:
         raise HTTPException(422, "Exam category is required.")
 
     if show("exam_center") and not data.get("exam_center_id"):

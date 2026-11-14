@@ -13,8 +13,9 @@ export const REPORT_SECTIONS: ReportSection[] = [
     id: "admissions",
     title: "Admissions",
     reports: [
-      { path: "/reports/admission-funnel", label: "Admission Funnel by Kutir" },
+      { path: "/reports/admission-funnel", label: "Admission Funnel" },
       { path: "/reports/admitted-students", label: "Admitted Students" },
+      { path: "/reports/student-progress", label: "Student Progress" },
     ],
   },
   {

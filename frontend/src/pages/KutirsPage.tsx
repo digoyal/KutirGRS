@@ -41,8 +41,26 @@ function teacherLabel(t: { first_name?: string | null; last_name?: string | null
   return [t.first_name, t.last_name].filter(Boolean).join(" ") || t.username;
 }
 
+function kutirDistrictName(
+  r: Kutir,
+  districtMap: Map<number, { id: number; name: string }>,
+  clusterMap: Map<number, { id: number; area_id: number }>,
+  areaMap: Map<number, { district_id: number }>,
+): string {
+  if (r.district_id != null) {
+    return districtMap.get(r.district_id)?.name ?? "";
+  }
+  const cl = clusterMap.get(r.cluster_id);
+  if (!cl) return "";
+  const ar = areaMap.get(cl.area_id);
+  if (!ar) return "";
+  return districtMap.get(ar.district_id)?.name ?? "";
+}
+
 function kutirColRenderers(
-  clusterMap: Map<number, { id: number; name: string }>,
+  districtMap: Map<number, { id: number; name: string }>,
+  clusterMap: Map<number, { id: number; name: string; area_id: number }>,
+  areaMap: Map<number, { district_id: number }>,
   donorMap: Map<number, { id: number; name: string }>,
 ): Record<string, KutirColRenderer> {
   const renderers: Record<string, KutirColRenderer> = {
@@ -63,6 +81,18 @@ function kutirColRenderers(
       nowrap: true,
       minWidth: 128,
       tdStyle: KUTIR_LIST_CELL,
+    },
+    district: {
+      sortable: true,
+      nowrap: true,
+      minWidth: 140,
+      tdStyle: KUTIR_LIST_CELL,
+      sortValue: (r) => kutirDistrictName(r, districtMap, clusterMap, areaMap),
+      render: (r) => {
+        const name = kutirDistrictName(r, districtMap, clusterMap, areaMap);
+        return <span>{name || "—"}</span>;
+      },
+      csvValue: (r) => kutirDistrictName(r, districtMap, clusterMap, areaMap),
     },
     cluster_id: {
       sortable: true,
@@ -171,9 +201,10 @@ export default function KutirsPage() {
   const { data: allClusters = [] }  = useQuery({ queryKey: ["all-clusters"],  queryFn: () => listClusters() });
   const { data: donors = [] } = useQuery({ queryKey: ["donors"], queryFn: listDonors });
 
-  const areaMap    = useMemo(() => new Map(allAreas.map((a) => [a.id, a])), [allAreas]);
-  const clusterMap = useMemo(() => new Map(allClusters.map((c) => [c.id, c])), [allClusters]);
-  const donorMap   = useMemo(() => new Map(donors.map((d) => [d.id, d])), [donors]);
+  const areaMap     = useMemo(() => new Map(allAreas.map((a) => [a.id, a])), [allAreas]);
+  const clusterMap  = useMemo(() => new Map(allClusters.map((c) => [c.id, c])), [allClusters]);
+  const districtMap = useMemo(() => new Map(allDistricts.map((d) => [d.id, d])), [allDistricts]);
+  const donorMap    = useMemo(() => new Map(donors.map((d) => [d.id, d])), [donors]);
 
   const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
@@ -218,7 +249,7 @@ export default function KutirsPage() {
   // List columns, labels, visibility, order, and CSV headers all come from KUTIRS_FIELDS.
   const { isVisible, orderedMetas } = useFieldConfig("kutirs", KUTIRS_FIELDS);
   const columns = useMemo<Col<Kutir>[]>(() => {
-    const renderers = kutirColRenderers(clusterMap, donorMap);
+    const renderers = kutirColRenderers(districtMap, clusterMap, areaMap, donorMap);
     return orderedMetas
       .filter((m) => isVisible(m.key))
       .map((meta): Col<Kutir> => {
@@ -235,11 +266,11 @@ export default function KutirsPage() {
           tdStyle: r.tdStyle,
         };
       });
-  }, [orderedMetas, isVisible, clusterMap, donorMap]);
+  }, [orderedMetas, isVisible, districtMap, clusterMap, areaMap, donorMap]);
 
   const exportColumns = useMemo(
-    () => buildRegistryExportColumns(KUTIRS_FIELDS, kutirColRenderers(clusterMap, donorMap)),
-    [clusterMap, donorMap],
+    () => buildRegistryExportColumns(KUTIRS_FIELDS, kutirColRenderers(districtMap, clusterMap, areaMap, donorMap)),
+    [districtMap, clusterMap, areaMap, donorMap],
   );
 
   return (

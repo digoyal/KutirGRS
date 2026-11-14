@@ -1,7 +1,7 @@
 """
 Students, StudentExams, StudentExamScores, StudentProgress
 """
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
 from sqlalchemy import select, delete, func, Integer, cast, text
 from sqlalchemy.orm import selectinload
@@ -14,11 +14,12 @@ from app.models.students import (
     Student, StudentExam, StudentExamScore, StudentProgress,
 )
 from app.models.kutirs import Kutir
-from app.models.geo import Cluster, Area
+from app.models.geo import Cluster, Area, District
 from app.models.lookups import Subject
 from app.schemas.students import (
     StudentCreate, StudentUpdate, StudentOut,
     StudentExamCreate, StudentExamUpdate, StudentExamOut, AdmissionFunnelOut,
+    AdmissionFunnelKutirRowOut, AdmissionFunnelEntityRowOut,
     StudentProgressCreate, StudentProgressUpdate, StudentProgressOut,
     ExamScoreCreate,
 )
@@ -112,6 +113,7 @@ async def list_students(
     district_id: Optional[int] = Query(None),
     cluster_id: Optional[int] = Query(None),
     gender: Optional[str] = Query(None),
+    exam_year: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     name_only: Optional[bool] = Query(False),
     limit: Optional[int] = Query(25),
@@ -137,6 +139,8 @@ async def list_students(
             q = q.where(Area.district_id == district_id)
         if gender:
             q = q.where(Student.gender == gender)
+        if exam_year is not None:
+            q = q.where(Student.exam_year == exam_year)
         if search:
             term = f"%{search}%"
             if name_only:
@@ -339,7 +343,9 @@ async def admission_funnel(
     school_start_year: int = Query(..., description="School start year to aggregate"),
     kutir_id: Optional[int] = Query(None),
     cluster_id: Optional[int] = Query(None),
+    area_id: Optional[int] = Query(None),
     district_id: Optional[int] = Query(None),
+    zone_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
@@ -355,33 +361,39 @@ async def admission_funnel(
         func.coalesce(func.sum(cast(StudentExam.admitted, Integer)), 0).label("admitted"),
     ).select_from(StudentExam)
 
-    needs_student = (
-        scope is not None
-        or kutir_id is not None
-        or cluster_id is not None
-        or district_id is not None
+    geo_filter = any(
+        v is not None for v in (kutir_id, cluster_id, area_id, district_id, zone_id)
     )
+    needs_student = scope is not None or geo_filter
     if needs_student:
         q = q.join(Student, StudentExam.student_id == Student.id)
     if scope is not None:
         q = q.where(Student.kutir_id.in_(scope))
     if kutir_id:
         q = q.where(Student.kutir_id == kutir_id)
-    if cluster_id is not None or district_id is not None:
-        q = (
-            q.join(Kutir, Student.kutir_id == Kutir.id)
-            .join(Cluster, Kutir.cluster_id == Cluster.id)
-            .join(Area, Cluster.area_id == Area.id)
-        )
-        if cluster_id:
-            q = q.where(Kutir.cluster_id == cluster_id)
-        elif district_id:
-            q = q.where(Area.district_id == district_id)
+    elif geo_filter:
+        q = q.join(Kutir, Student.kutir_id == Kutir.id)
+        if cluster_id is not None or area_id is not None or district_id is not None or zone_id is not None:
+            q = (
+                q.join(Cluster, Kutir.cluster_id == Cluster.id)
+                .join(Area, Cluster.area_id == Area.id)
+            )
+            if district_id is not None or zone_id is not None:
+                q = q.join(District, Area.district_id == District.id)
+                if zone_id:
+                    q = q.where(District.zone_id == zone_id)
+                elif district_id:
+                    q = q.where(Area.district_id == district_id)
+            elif area_id:
+                q = q.where(Cluster.area_id == area_id)
+            elif cluster_id:
+                q = q.where(Kutir.cluster_id == cluster_id)
 
     q = q.where(StudentExam.school_start_year == school_start_year)
     row = (await db.execute(q)).one()
     return AdmissionFunnelOut(
         school_start_year=school_start_year,
+        registered=0,
         total=int(row.total),
         eligible=int(row.eligible),
         applied=int(row.applied),
@@ -391,6 +403,325 @@ async def admission_funnel(
         selected=int(row.selected),
         admitted=int(row.admitted),
     )
+
+
+def _funnel_stage_aggs():
+    return (
+        func.count().label("total"),
+        func.coalesce(func.sum(cast(StudentExam.eligible, Integer)), 0).label("eligible"),
+        func.coalesce(func.sum(cast(StudentExam.applied, Integer)), 0).label("applied"),
+        func.coalesce(func.sum(cast(StudentExam.admit_card, Integer)), 0).label("admit_card"),
+        func.coalesce(func.sum(cast(StudentExam.appeared, Integer)), 0).label("appeared"),
+        func.coalesce(func.sum(cast(StudentExam.result_declared, Integer)), 0).label("result_declared"),
+        func.coalesce(func.sum(cast(StudentExam.selected, Integer)), 0).label("selected"),
+        func.coalesce(func.sum(cast(StudentExam.admitted, Integer)), 0).label("admitted"),
+    )
+
+
+@router.get(
+    "/student-exams/funnel-by-kutir",
+    response_model=list[AdmissionFunnelKutirRowOut],
+    tags=["Student Exams"],
+)
+async def admission_funnel_by_kutir(
+    school_start_year: int = Query(..., description="School start year to aggregate"),
+    kutir_id: Optional[int] = Query(None),
+    cluster_id: Optional[int] = Query(None),
+    area_id: Optional[int] = Query(None),
+    district_id: Optional[int] = Query(None),
+    zone_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
+    """Per-kutir pipeline stage counts for the admission funnel report."""
+    q = select(Kutir.id.label("kutir_id"), Kutir.name.label("kutir_name"), *_funnel_stage_aggs()).select_from(
+        StudentExam
+    )
+    q = q.join(Student, StudentExam.student_id == Student.id)
+    q = q.join(Kutir, Student.kutir_id == Kutir.id)
+    if scope is not None:
+        q = q.where(Student.kutir_id.in_(scope))
+    if kutir_id:
+        q = q.where(Student.kutir_id == kutir_id)
+    else:
+        geo_filter = any(
+            v is not None for v in (cluster_id, area_id, district_id, zone_id)
+        )
+        if geo_filter:
+            q = (
+                q.join(Cluster, Kutir.cluster_id == Cluster.id)
+                .join(Area, Cluster.area_id == Area.id)
+            )
+            if district_id is not None or zone_id is not None:
+                q = q.join(District, Area.district_id == District.id)
+                if zone_id:
+                    q = q.where(District.zone_id == zone_id)
+                elif district_id:
+                    q = q.where(Area.district_id == district_id)
+            elif area_id:
+                q = q.where(Cluster.area_id == area_id)
+            elif cluster_id:
+                q = q.where(Kutir.cluster_id == cluster_id)
+    q = q.where(StudentExam.school_start_year == school_start_year)
+    q = q.group_by(Kutir.id, Kutir.name)
+    eligible_sum = func.coalesce(func.sum(cast(StudentExam.eligible, Integer)), 0)
+    admitted_sum = func.coalesce(func.sum(cast(StudentExam.admitted, Integer)), 0)
+    selected_sum = func.coalesce(func.sum(cast(StudentExam.selected, Integer)), 0)
+    q = q.having(eligible_sum > 0)
+    q = q.order_by(admitted_sum.desc(), selected_sum.desc(), eligible_sum.desc(), Kutir.name)
+    rows = (await db.execute(q)).all()
+    return [
+        AdmissionFunnelKutirRowOut(
+            school_start_year=school_start_year,
+            registered=0,
+            kutir_id=int(r.kutir_id),
+            kutir_name=r.kutir_name,
+            total=int(r.total),
+            eligible=int(r.eligible),
+            applied=int(r.applied),
+            admit_card=int(r.admit_card),
+            appeared=int(r.appeared),
+            result_declared=int(r.result_declared),
+            selected=int(r.selected),
+            admitted=int(r.admitted),
+        )
+        for r in rows
+    ]
+
+
+_FUNNEL_ROW_LEVEL: dict[str, str] = {
+    "zone": "district",
+    "district": "area",
+    "area": "cluster",
+    "cluster": "kutir",
+    "kutir": "kutir",
+}
+
+
+def _apply_funnel_geo_filters(
+    q,
+    *,
+    kutir_id: Optional[int],
+    cluster_id: Optional[int],
+    area_id: Optional[int],
+    district_id: Optional[int],
+    zone_id: Optional[int],
+    scope: Optional[set[int]],
+):
+    q = q.join(Student, StudentExam.student_id == Student.id)
+    q = q.join(Kutir, Student.kutir_id == Kutir.id)
+    if scope is not None:
+        q = q.where(Student.kutir_id.in_(scope))
+    if kutir_id:
+        q = q.where(Student.kutir_id == kutir_id)
+        return q
+    geo_filter = any(v is not None for v in (cluster_id, area_id, district_id, zone_id))
+    if not geo_filter:
+        return q
+    q = (
+        q.join(Cluster, Kutir.cluster_id == Cluster.id)
+        .join(Area, Cluster.area_id == Area.id)
+    )
+    if district_id is not None or zone_id is not None:
+        q = q.join(District, Area.district_id == District.id)
+        if zone_id is not None:
+            q = q.where(District.zone_id == zone_id)
+        elif district_id is not None:
+            q = q.where(Area.district_id == district_id)
+    elif area_id is not None:
+        q = q.where(Cluster.area_id == area_id)
+    elif cluster_id is not None:
+        q = q.where(Kutir.cluster_id == cluster_id)
+    return q
+
+
+def _apply_student_geo_filters(
+    q,
+    *,
+    kutir_id: Optional[int],
+    cluster_id: Optional[int],
+    area_id: Optional[int],
+    district_id: Optional[int],
+    zone_id: Optional[int],
+    scope: Optional[set[int]],
+):
+    q = q.join(Kutir, Student.kutir_id == Kutir.id)
+    if scope is not None:
+        q = q.where(Student.kutir_id.in_(scope))
+    if kutir_id:
+        q = q.where(Student.kutir_id == kutir_id)
+        return q
+    geo_filter = any(v is not None for v in (cluster_id, area_id, district_id, zone_id))
+    if not geo_filter:
+        return q
+    q = (
+        q.join(Cluster, Kutir.cluster_id == Cluster.id)
+        .join(Area, Cluster.area_id == Area.id)
+    )
+    if district_id is not None or zone_id is not None:
+        q = q.join(District, Area.district_id == District.id)
+        if zone_id is not None:
+            q = q.where(District.zone_id == zone_id)
+        elif district_id is not None:
+            q = q.where(Area.district_id == district_id)
+    elif area_id is not None:
+        q = q.where(Cluster.area_id == area_id)
+    elif cluster_id is not None:
+        q = q.where(Kutir.cluster_id == cluster_id)
+    return q
+
+
+async def _registered_counts_by_entity(
+    db: AsyncSession,
+    *,
+    school_start_year: int,
+    row_level: str,
+    id_col,
+    name_col,
+    kutir_id: Optional[int],
+    cluster_id: Optional[int],
+    area_id: Optional[int],
+    district_id: Optional[int],
+    zone_id: Optional[int],
+    scope: Optional[set[int]],
+    admission_class: Optional[int],
+) -> dict[int, int]:
+    """Distinct students with exam_year = school year, grouped by child geo entity."""
+    q = select(
+        id_col.label("entity_id"),
+        func.count(func.distinct(Student.id)).label("registered"),
+    ).select_from(Student)
+    q = _apply_student_geo_filters(
+        q,
+        kutir_id=kutir_id,
+        cluster_id=cluster_id,
+        area_id=area_id,
+        district_id=district_id,
+        zone_id=zone_id,
+        scope=scope,
+    )
+    if row_level == "district" and zone_id is None and district_id is None:
+        q = q.join(District, Area.district_id == District.id)
+    q = q.where(Student.exam_year == school_start_year)
+    if admission_class is not None:
+        exam_match = (
+            select(StudentExam.student_id)
+            .where(
+                StudentExam.student_id == Student.id,
+                StudentExam.school_start_year == school_start_year,
+                StudentExam.admission_class == admission_class,
+            )
+            .correlate(Student)
+            .exists()
+        )
+        q = q.where(exam_match)
+    q = q.group_by(id_col)
+    rows = (await db.execute(q)).all()
+    return {int(r.entity_id): int(r.registered) for r in rows}
+
+
+@router.get(
+    "/student-exams/funnel-by-entity",
+    response_model=list[AdmissionFunnelEntityRowOut],
+    tags=["Student Exams"],
+)
+async def admission_funnel_by_entity(
+    school_start_year: int = Query(..., description="School start year to aggregate"),
+    entity_level: Literal["zone", "district", "area", "cluster", "kutir"] = Query(
+        ...,
+        description="Report entity level; table rows are the child geo level",
+    ),
+    kutir_id: Optional[int] = Query(None),
+    cluster_id: Optional[int] = Query(None),
+    area_id: Optional[int] = Query(None),
+    district_id: Optional[int] = Query(None),
+    zone_id: Optional[int] = Query(None),
+    admission_class: Optional[int] = Query(
+        None,
+        description="When 5 or 8, filter exam stages and registered to that admission class",
+    ),
+    db: AsyncSession = Depends(get_db),
+    scope: Optional[set[int]] = Depends(get_scope),
+):
+    """Pipeline stage counts grouped by the child geo entity for the selected report level."""
+    if admission_class is not None and admission_class not in (5, 8):
+        raise HTTPException(400, "admission_class must be 5, 8, or omitted")
+    leaf_id = {
+        "zone": zone_id,
+        "district": district_id,
+        "area": area_id,
+        "cluster": cluster_id,
+        "kutir": kutir_id,
+    }[entity_level]
+    if leaf_id is None:
+        raise HTTPException(
+            400,
+            f"Select a {entity_level} (pass {entity_level}_id) when entity_level is {entity_level}.",
+        )
+    row_level = _FUNNEL_ROW_LEVEL[entity_level]
+    id_col, name_col = {
+        "district": (District.id, District.name),
+        "area": (Area.id, Area.name),
+        "cluster": (Cluster.id, Cluster.name),
+        "kutir": (Kutir.id, Kutir.name),
+    }[row_level]
+
+    q = select(id_col.label("entity_id"), name_col.label("entity_name"), *_funnel_stage_aggs()).select_from(
+        StudentExam
+    )
+    q = _apply_funnel_geo_filters(
+        q,
+        kutir_id=kutir_id,
+        cluster_id=cluster_id,
+        area_id=area_id,
+        district_id=district_id,
+        zone_id=zone_id,
+        scope=scope,
+    )
+    if row_level == "district" and zone_id is None and district_id is None:
+        q = q.join(District, Area.district_id == District.id)
+    q = q.where(StudentExam.school_start_year == school_start_year)
+    if admission_class is not None:
+        q = q.where(StudentExam.admission_class == admission_class)
+    q = q.group_by(id_col, name_col)
+    eligible_sum = func.coalesce(func.sum(cast(StudentExam.eligible, Integer)), 0)
+    admitted_sum = func.coalesce(func.sum(cast(StudentExam.admitted, Integer)), 0)
+    selected_sum = func.coalesce(func.sum(cast(StudentExam.selected, Integer)), 0)
+    q = q.having(eligible_sum > 0)
+    q = q.order_by(admitted_sum.desc(), selected_sum.desc(), eligible_sum.desc(), name_col)
+    rows = (await db.execute(q)).all()
+    registered_by_entity = await _registered_counts_by_entity(
+        db,
+        school_start_year=school_start_year,
+        row_level=row_level,
+        id_col=id_col,
+        name_col=name_col,
+        kutir_id=kutir_id,
+        cluster_id=cluster_id,
+        area_id=area_id,
+        district_id=district_id,
+        zone_id=zone_id,
+        scope=scope,
+        admission_class=admission_class,
+    )
+    return [
+        AdmissionFunnelEntityRowOut(
+            school_start_year=school_start_year,
+            entity_id=int(r.entity_id),
+            entity_name=r.entity_name,
+            row_level=row_level,
+            registered=registered_by_entity.get(int(r.entity_id), 0),
+            total=int(r.total),
+            eligible=int(r.eligible),
+            applied=int(r.applied),
+            admit_card=int(r.admit_card),
+            appeared=int(r.appeared),
+            result_declared=int(r.result_declared),
+            selected=int(r.selected),
+            admitted=int(r.admitted),
+        )
+        for r in rows
+    ]
 
 
 def _require_admission_class_when_admitted(admitted: bool, admission_class) -> None:
