@@ -62,6 +62,7 @@ function districtIdForKutir(
 import {
   type StageKey,
   type PipelineField,
+  STAGES,
   StageBadge,
   PipelineStepper,
   subjectsForExamType,
@@ -321,14 +322,25 @@ export function validateAdmissionForm(
   if (show("school_district") && form.ui_school_district === "") {
     return "School district is required.";
   }
+  const selectedStageIndex = STAGES.findIndex((s) => s.key === "selected");
+  const atSelectedOnly = pipelineStage(stageFlags) === selectedStageIndex;
+  const hasGrsSchool =
+    form.admitted_school_id != null && form.school_type.trim() !== "";
+
   if (show("school_type") && !form.school_type.trim()) {
-    return "School type is required.";
+    if (!(atSelectedOnly && form.no_admit_reason_id != null)) {
+      return "School type is required.";
+    }
   }
   if (show("school_name") && form.admitted_school_id == null) {
-    return "School name is required.";
+    if (!(atSelectedOnly && form.no_admit_reason_id != null)) {
+      return "School name is required.";
+    }
   }
   if (show("reason_not_admitted") && form.no_admit_reason_id == null) {
-    return "Reason not admitted is required.";
+    if (!(atSelectedOnly && hasGrsSchool)) {
+      return "Either select a GRS school or provide a reason not admitted.";
+    }
   }
   return null;
 }
@@ -550,6 +562,7 @@ export function AdmissionForm({
       listStudents({
         name_only: true,
         exam_year: form.school_start_year,
+        exclude_admitted_for_year: form.school_start_year,
         ...(searchTrim ? { search: searchTrim } : {}),
         limit: 100,
         kutir_id: Number(filterKutir),
@@ -667,7 +680,7 @@ export function AdmissionForm({
 
   const subjects = subjectsForExamType(examTypeSubjects, form.exam_type_id);
 
-  // Server filters by kutir, exam_year (+ optional search).
+  // Server filters by kutir, exam_year, excludes admitted exams for year (+ optional search).
   const filteredStudents = students.filter(
     (s) => s.exam_year === form.school_start_year,
   );

@@ -180,6 +180,7 @@ class StudentProgressBase(BaseModel):
 
 class StudentProgressCreate(StudentProgressBase):
     track: Optional[str] = None  # inferred from admitted exam when omitted
+    transfer_grs_school_id: Optional[int] = None  # write-only → student_exams GRS fields
 
 class StudentProgressUpdate(BaseModel):
     academic_year: Optional[int] = None
@@ -187,6 +188,7 @@ class StudentProgressUpdate(BaseModel):
     track: Optional[str] = None
     status: Optional[str] = None
     transfer_school: Optional[str] = None
+    transfer_grs_school_id: Optional[int] = None
     marks_6: Optional[Decimal] = None
     marks_7: Optional[Decimal] = None
     marks_8: Optional[Decimal] = None

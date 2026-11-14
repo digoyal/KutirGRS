@@ -83,7 +83,7 @@ export default function AdmissionAddPage() {
       persistListYearAfterCreate(payload.school_start_year);
       navigate("/admissions", { replace: true });
     } catch (e: unknown) {
-      setSaveError(apiErrorDetail(e));
+      setSaveError(apiErrorDetail(e, "Add admission failed."));
       setSaving(false);
     }
   }

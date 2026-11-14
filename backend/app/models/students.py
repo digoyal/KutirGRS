@@ -177,4 +177,6 @@ class StudentProgress(Base, TimestampMixin):
     remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     student: Mapped[object] = relationship("Student", back_populates="progress_records")
-    school: Mapped[object] = relationship("GovtResidentialSchool", lazy="selectin")
+    school: Mapped[object] = relationship(
+        "GovtResidentialSchool", foreign_keys=[school_id], lazy="selectin"
+    )

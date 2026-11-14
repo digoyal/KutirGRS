@@ -6,6 +6,8 @@ from typing import Optional
 
 from fastapi import HTTPException
 
+from app.exam_type_school_types import school_type_names_for_exam_type
+
 TRACK_SIX_TWELVE = "six_twelve"
 TRACK_NINE_TWELVE = "nine_twelve"
 
@@ -21,6 +23,7 @@ PROGRESS_STATUSES_READ = frozenset({
 PROGRESS_STATUSES_WRITABLE = frozenset({
     "enrolled",
     "promoted",
+    "transferred",
     "dropped_out",
     "graduated",
     "admitted_to_college",
@@ -28,6 +31,7 @@ PROGRESS_STATUSES_WRITABLE = frozenset({
 
 # User-selected terminal statuses — do not overwrite via mark sync on save.
 PROGRESS_STATUSES_MANUAL = frozenset({
+    "transferred",
     "dropped_out",
     "admitted_to_college",
 })
@@ -122,8 +126,6 @@ def validate_status_write(
         return current
     if new not in PROGRESS_STATUSES_READ:
         raise HTTPException(400, f"Invalid progress status: {new}")
-    if new == "transferred":
-        raise HTTPException(400, "Status 'transferred' is no longer selectable.")
     if new not in PROGRESS_STATUSES_WRITABLE and new != current:
         raise HTTPException(400, f"Status '{new}' is not allowed.")
     if _marks_12_effective(progress, updates):
@@ -231,11 +233,148 @@ def initial_progress_fields_from_exam(exam) -> dict:
     }
 
 
+def admission_start_year_for_progress(progress) -> int:
+    """Progress academic_year is admission school_start_year + 1 (see initial_progress_fields_from_exam)."""
+    return progress.academic_year - 1
+
+
+async def admission_exam_for_progress(db, progress):
+    """Admitted exam for the same student + admission year as this progress row."""
+    from sqlalchemy import select
+    from app.models.students import StudentExam
+
+    start_year = admission_start_year_for_progress(progress)
+    result = await db.execute(
+        select(StudentExam)
+        .where(
+            StudentExam.student_id == progress.student_id,
+            StudentExam.school_start_year == start_year,
+            StudentExam.admitted.is_(True),
+        )
+        .order_by(StudentExam.id.desc())
+        .limit(1)
+    )
+    exam = result.scalar_one_or_none()
+    if exam:
+        return exam
+    result = await db.execute(
+        select(StudentExam)
+        .where(
+            StudentExam.student_id == progress.student_id,
+            StudentExam.admitted.is_(True),
+        )
+        .order_by(StudentExam.school_start_year.desc(), StudentExam.id.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+def validate_transfer_school_type_for_exam(
+    *,
+    exam_type_id: int | None,
+    school_type: str | None,
+    allowed_school_type_names: frozenset[str],
+) -> None:
+    """Destination school type must be linked to the admission exam type (same rule as admissions)."""
+    if not exam_type_id:
+        return
+    if not school_type:
+        return
+    if not allowed_school_type_names:
+        raise HTTPException(422, "This exam type has no school types configured.")
+    if school_type not in allowed_school_type_names:
+        raise HTTPException(422, "School type is not allowed for the student's exam type.")
+
+
+def validate_transfer_fields(progress, updates: dict) -> None:
+    """Transferred requires a destination GRS school (PATCH: transfer_grs_school_id)."""
+    final_status = updates.get("status", progress.status)
+    if final_status != "transferred":
+        return
+    becoming = final_status == "transferred" and progress.status != "transferred"
+    if becoming or "transfer_grs_school_id" in updates:
+        tid = updates.get("transfer_grs_school_id")
+        if not tid:
+            raise HTTPException(
+                400,
+                "Transferred status requires district, school type, and school name (select a GRS school).",
+            )
+
+
+def apply_transfer_field_clears(progress, data: dict) -> None:
+    """Drop transfer display name when status is not transferred."""
+    if "status" not in data:
+        return
+    if data["status"] == "transferred":
+        return
+    data["transfer_school"] = None
+
+
+async def sync_transfer_school_label(db, progress) -> None:
+    """Keep transfer_school list tooltip text in sync with the linked admission school name."""
+    if progress.status != "transferred":
+        progress.transfer_school = None
+        return
+    exam = await admission_exam_for_progress(db, progress)
+    if not exam:
+        return
+    school_id = admitted_school_id_for_exam(exam)
+    if not school_id:
+        return
+    from app.models.schools import GovtResidentialSchool
+
+    school = await db.get(GovtResidentialSchool, school_id)
+    if school:
+        progress.transfer_school = school.name
+
+
+async def apply_progress_transfer_to_admission(
+    db,
+    progress,
+    transfer_grs_school_id: int | None,
+) -> None:
+    """Transferred: update student_exams GRS fields and progress.school_id."""
+    if progress.status != "transferred":
+        return
+    if not transfer_grs_school_id:
+        return
+    from app.models.schools import GovtResidentialSchool
+
+    school = await db.get(GovtResidentialSchool, transfer_grs_school_id)
+    if not school:
+        raise HTTPException(400, "Transfer school not found.")
+    exam = await admission_exam_for_progress(db, progress)
+    if not exam:
+        raise HTTPException(
+            400,
+            "No admitted admission record for this student/year to attach the transfer school.",
+        )
+    allowed = await school_type_names_for_exam_type(db, exam.exam_type_id)
+    validate_transfer_school_type_for_exam(
+        exam_type_id=exam.exam_type_id,
+        school_type=school.school_type,
+        allowed_school_type_names=allowed,
+    )
+    exam.admitted_school_id = transfer_grs_school_id
+    exam.school_type = school.school_type
+    progress.school_id = transfer_grs_school_id
+    progress.transfer_school = school.name
+
+
+def pop_transfer_grs_school_id(updates: dict) -> int | None:
+    """Write-only PATCH field; not stored on student_progress."""
+    tid = updates.pop("transfer_grs_school_id", None)
+    return int(tid) if tid is not None else None
+
+
 def merge_progress_payload(progress, data: dict) -> dict:
     """Apply mark/status rules to an update/create payload."""
     validate_marks_write(progress, data)
     if "status" in data:
         data["status"] = validate_status_write(progress, data["status"], data)
+    apply_transfer_field_clears(progress, data)
+    validate_transfer_fields(progress, data)
+    pop_transfer_grs_school_id(data)
     return data
 
 

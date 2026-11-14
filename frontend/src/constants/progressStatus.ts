@@ -35,6 +35,7 @@ export const STATUS_LABELS: Record<ProgressStatus, string> = {
 export const STATUS_OPTIONS: { value: ProgressStatus; label: string }[] = [
   { value: "enrolled", label: "Enrolled" },
   { value: "promoted", label: "Promoted" },
+  { value: "transferred", label: "Transferred" },
   { value: "dropped_out", label: "Dropped out" },
   { value: "graduated", label: "Graduated" },
   { value: "admitted_to_college", label: "Admitted to College" },

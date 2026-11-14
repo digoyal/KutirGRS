@@ -220,6 +220,25 @@ export default function AdmissionsPage() {
       tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
     },
     {
+      key: "cluster", label: "", sortable: true,
+      sortValue: (exam) => {
+        const s = studentMap[exam.student_id];
+        const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
+        return kutir ? (clusterMap.get(kutir.cluster_id)?.name ?? "") : "";
+      },
+      render: (exam) => {
+        const s = studentMap[exam.student_id];
+        const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
+        return kutir ? (clusterMap.get(kutir.cluster_id)?.name ?? "—") : "—";
+      },
+      csvValue: (exam) => {
+        const s = studentMap[exam.student_id];
+        const kutir = s?.kutir_id != null ? kutirMap2.get(s.kutir_id) : null;
+        return kutir ? (clusterMap.get(kutir.cluster_id)?.name ?? "") : "";
+      },
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" },
+    },
+    {
       key: "kutir", label: "", sortable: true,
       sortValue: (exam) => {
         const s = studentMap[exam.student_id];

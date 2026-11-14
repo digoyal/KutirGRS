@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import api from "../api/client";
 import {
   listExams,
+  listExamTypes,
   type StudentExam,
   type ProgressStatus,
   type ProgressTrack,
@@ -43,6 +44,8 @@ export interface ProgressFormState {
   track: ProgressTrack;
   status: ProgressStatus;
   transfer_school: string | null;
+  /** UI + PATCH-only: maps to student_exams.admitted_school_id on save. */
+  transfer_grs_school_id: number | null;
   marks_6: number | null;
   marks_7: number | null;
   marks_8: number | null;
@@ -62,6 +65,7 @@ export function emptyProgressForm(year = CURRENT_YEAR): ProgressFormState {
     track: "six_twelve",
     status: "enrolled",
     transfer_school: null,
+    transfer_grs_school_id: null,
     marks_6: null,
     marks_7: null,
     marks_8: null,
@@ -88,10 +92,31 @@ export function progressUpdatePayloadFromForm(
     track: _track,
     ...writable
   } = form;
-  if (!progressStatusShowsRemarks(form.status)) {
-    return { ...writable, remarks: null };
+  if (form.status === "transferred") {
+    const base = progressStatusShowsRemarks(form.status)
+      ? writable
+      : { ...writable, remarks: null };
+    return {
+      ...base,
+      transfer_grs_school_id: form.transfer_grs_school_id,
+      transfer_school: null,
+    };
   }
-  return writable;
+  return {
+    ...writable,
+    transfer_grs_school_id: null,
+    transfer_school: null,
+    remarks: progressStatusShowsRemarks(form.status) ? writable.remarks : null,
+  };
+}
+
+/** Client-side validation before save (Progress edit). */
+export function validateProgressSave(form: ProgressFormState): string | null {
+  if (form.status !== "transferred") return null;
+  if (!form.transfer_grs_school_id) {
+    return "Transferred requires district, school type, and school name.";
+  }
+  return null;
 }
 
 export function progressToFormState(record: {
@@ -102,6 +127,7 @@ export function progressToFormState(record: {
   track: ProgressTrack;
   status: ProgressStatus;
   transfer_school: string | null;
+  transfer_grs_school_id?: number | null;
   marks_6: number | null;
   marks_7: number | null;
   marks_8: number | null;
@@ -111,7 +137,10 @@ export function progressToFormState(record: {
   marks_12: number | null;
   remarks: string | null;
 }): ProgressFormState {
-  return record;
+  return {
+    ...record,
+    transfer_grs_school_id: record.transfer_grs_school_id ?? null,
+  };
 }
 
 interface StudentMin {
@@ -158,11 +187,14 @@ export function ProgressForm({
   const [search, setSearch] = useState("");
   const [modalDistrict, setModalDistrict] = useState<number | "">("");
   const [modalCluster, setModalCluster] = useState<number | "">("");
+  const [transferDistrict, setTransferDistrict] = useState<number | "">("");
+  const [transferSchoolType, setTransferSchoolType] = useState("");
 
+  const needsGrsSchools = isAdd || (!readOnly && form.status === "transferred");
   const { data: schools = [] } = useQuery<School[]>({
     queryKey: ["schools"],
     queryFn: () => listSchools(),
-    enabled: isAdd,
+    enabled: needsGrsSchools || form.status === "transferred",
   });
 
   const { data: allKutirs = [] } = useQuery({
@@ -173,7 +205,7 @@ export function ProgressForm({
   const { data: allDistricts = [] } = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
-    enabled: isAdd,
+    enabled: isAdd || form.status === "transferred",
   });
   const { data: allAreas = [] } = useQuery({
     queryKey: ["all-areas"],
@@ -190,6 +222,48 @@ export function ProgressForm({
     queryFn: () => listExams({ admitted: true }),
     enabled: isAdd,
   });
+
+  const { data: studentExams = [] } = useQuery<StudentExam[]>({
+    queryKey: ["student-exams", form.student_id],
+    queryFn: () => listExams({ student_id: form.student_id, admitted: true, limit: 50 }),
+    enabled: !isAdd && form.student_id > 0,
+  });
+
+  const needsTransferExamTypes = !readOnly && form.status === "transferred";
+  const { data: examTypes = [] } = useQuery({
+    queryKey: ["exam-types"],
+    queryFn: listExamTypes,
+    enabled: needsTransferExamTypes,
+  });
+
+  const admissionExamForProgress = useMemo(() => {
+    const startYear = form.academic_year - 1;
+    return (
+      studentExams.find((e) => e.admitted && e.school_start_year === startYear) ??
+      studentExams.find((e) => e.admitted) ??
+      null
+    );
+  }, [studentExams, form.academic_year]);
+
+  const transferAdmissionExamTypeId = admissionExamForProgress?.exam_type_id ?? null;
+
+  const linkedTransferSchoolTypeNames = useMemo(() => {
+    if (transferAdmissionExamTypeId == null) return [] as string[];
+    const et = examTypes.find((e) => e.id === transferAdmissionExamTypeId);
+    const names = (et?.school_types ?? []).map((st) => st.name);
+    return [...names].sort();
+  }, [transferAdmissionExamTypeId, examTypes]);
+
+  /** Exam-type junction options; keep current selection on edit if linkage changed. */
+  const transferSchoolTypeOptions = useMemo(() => {
+    const names = [...linkedTransferSchoolTypeNames];
+    const saved = transferSchoolType.trim();
+    if (saved && !names.includes(saved)) {
+      names.push(saved);
+      names.sort();
+    }
+    return names;
+  }, [linkedTransferSchoolTypeNames, transferSchoolType]);
 
   const scopedDistricts =
     unscoped || !user
@@ -289,13 +363,72 @@ export function ProgressForm({
   const badge = STATUS_BADGES[currentStatus] ?? STATUS_BADGES.enrolled;
   const markClasses = classesForTrack(form.track);
   const enabled = enabledMarkClasses(form.track, form.class_in_year, form.status, form);
-  const statusLockedTransferred = currentStatus === "transferred";
   const statusSelectOptions = useMemo(
     () => progressStatusSelectOptions(form.marks_12),
     [form.marks_12],
   );
   const showRemarks = progressStatusShowsRemarks(currentStatus);
+  const showTransferSchool = currentStatus === "transferred";
   const classYearReadOnly = readOnly || !isAdd;
+
+  const transferDestSchool = useMemo(
+    () => schools.find((s) => s.id === form.transfer_grs_school_id) ?? null,
+    [schools, form.transfer_grs_school_id],
+  );
+
+  const transferSchoolsFiltered = useMemo(() => {
+    return schools.filter((s) => {
+      if (transferDistrict !== "" && s.district_id !== transferDistrict) return false;
+      if (transferSchoolType && s.school_type !== transferSchoolType) return false;
+      return true;
+    });
+  }, [schools, transferDistrict, transferSchoolType]);
+
+  useEffect(() => {
+    if (isAdd || form.status !== "transferred" || form.transfer_grs_school_id != null) return;
+    const fromExam =
+      admissionExamForProgress?.admitted_school_id ?? admissionExamForProgress?.school_id ?? null;
+    if (fromExam) {
+      setForm((f) => ({ ...f, transfer_grs_school_id: fromExam }));
+    }
+  }, [isAdd, form.status, form.transfer_grs_school_id, admissionExamForProgress]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!form.transfer_grs_school_id || schools.length === 0) return;
+    const sc = schools.find((s) => s.id === form.transfer_grs_school_id);
+    if (!sc) return;
+    if (sc.district_id != null && transferDistrict === "") {
+      setTransferDistrict(sc.district_id);
+    }
+    if (sc.school_type && transferSchoolType === "") {
+      setTransferSchoolType(sc.school_type);
+    }
+  }, [form.transfer_grs_school_id, schools.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (form.status !== "transferred" || readOnly) return;
+    if (
+      transferSchoolType.trim() !== "" &&
+      transferAdmissionExamTypeId != null &&
+      !linkedTransferSchoolTypeNames.includes(transferSchoolType)
+    ) {
+      setTransferSchoolType("");
+      setForm((f) => ({ ...f, transfer_grs_school_id: null }));
+    }
+  }, [
+    form.status,
+    readOnly,
+    transferAdmissionExamTypeId,
+    linkedTransferSchoolTypeNames,
+    transferSchoolType,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const transferDistrictName =
+    transferDestSchool?.district_id != null
+      ? allDistricts.find((d) => d.id === transferDestSchool.district_id)?.name
+      : transferDistrict !== ""
+        ? allDistricts.find((d) => d.id === transferDistrict)?.name
+        : undefined;
 
   return (
     <div className={readOnly ? "grs-form-layout" : "grs-form"}>
@@ -551,7 +684,7 @@ export function ProgressForm({
       </div>
 
       <div style={{ marginBottom: 14 }}>
-        {readOnly || statusLockedTransferred ? (
+        {readOnly ? (
           <ViewField
             label={progressFieldLabel("status")}
             labelStyle={progressViewLabelStyle}
@@ -570,11 +703,6 @@ export function ProgressForm({
               {badge.prefix}
               {STATUS_LABELS[currentStatus]}
             </span>
-            {currentStatus === "transferred" && form.transfer_school && (
-              <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 4 }}>
-                {form.transfer_school}
-              </div>
-            )}
           </ViewField>
         ) : (
           <>
@@ -587,8 +715,15 @@ export function ProgressForm({
                 setForm((f) => ({
                   ...f,
                   status: next,
+                  ...(next === "transferred"
+                    ? {}
+                    : { transfer_grs_school_id: null, transfer_school: null }),
                   ...(progressStatusShowsRemarks(next) ? {} : { remarks: null }),
                 }));
+                if (next !== "transferred") {
+                  setTransferDistrict("");
+                  setTransferSchoolType("");
+                }
               }}
             >
               {statusSelectOptions.map((o) => (
@@ -600,6 +735,129 @@ export function ProgressForm({
           </>
         )}
       </div>
+
+      {showTransferSchool && (
+        <div style={{ marginBottom: 14 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: 8,
+              alignItems: "end",
+            }}
+          >
+            {readOnly ? (
+              <>
+                <ViewField
+                  label="District"
+                  labelStyle={progressViewLabelStyle}
+                  valueStyle={progressViewValueStyle}
+                >
+                  {transferDistrictName ?? "—"}
+                </ViewField>
+                <ViewField
+                  label="School Type"
+                  labelStyle={progressViewLabelStyle}
+                  valueStyle={progressViewValueStyle}
+                >
+                  {transferDestSchool?.school_type ?? "—"}
+                </ViewField>
+                <ViewField
+                  label="School Name"
+                  labelStyle={progressViewLabelStyle}
+                  valueStyle={progressViewValueStyle}
+                >
+                  {transferDestSchool?.name ?? form.transfer_school ?? "—"}
+                </ViewField>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label style={labelStyle}>
+                    District <span style={{ color: "var(--danger)" }}>*</span>
+                  </label>
+                  <select
+                    style={inp}
+                    value={transferDistrict}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? "" : Number(e.target.value);
+                      setTransferDistrict(v);
+                      set("transfer_grs_school_id", null);
+                    }}
+                  >
+                    <option value="">— select —</option>
+                    {allDistricts.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>
+                    School Type <span style={{ color: "var(--danger)" }}>*</span>
+                  </label>
+                  <select
+                    value={transferSchoolType}
+                    onChange={(e) => {
+                      setTransferSchoolType(e.target.value);
+                      set("transfer_grs_school_id", null);
+                    }}
+                    disabled={transferAdmissionExamTypeId == null}
+                    style={{
+                      ...inp,
+                      ...(transferAdmissionExamTypeId == null
+                        ? { opacity: 0.6, cursor: "not-allowed" }
+                        : {}),
+                    }}
+                  >
+                    <option value="">
+                      {transferAdmissionExamTypeId == null
+                        ? "— no exam type on admission —"
+                        : transferSchoolTypeOptions.length === 0
+                          ? "— no school types for exam type —"
+                          : "— select —"}
+                    </option>
+                    {transferSchoolTypeOptions.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>
+                    School Name <span style={{ color: "var(--danger)" }}>*</span>
+                  </label>
+                  <select
+                    value={form.transfer_grs_school_id ?? ""}
+                    onChange={(e) =>
+                      set(
+                        "transfer_grs_school_id",
+                        e.target.value === "" ? null : Number(e.target.value),
+                      )
+                    }
+                    disabled={!transferSchoolType}
+                    style={{
+                      ...inp,
+                      ...(!transferSchoolType ? { opacity: 0.6, cursor: "not-allowed" } : {}),
+                    }}
+                  >
+                    <option value="">
+                      {!transferSchoolType ? "— select school type first —" : "— select —"}
+                    </option>
+                    {transferSchoolsFiltered.map((sc) => (
+                      <option key={sc.id} value={sc.id}>
+                        {sc.name} ({sc.school_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {showRemarks && (
         <div style={{ marginBottom: 14 }}>

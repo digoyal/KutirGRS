@@ -9,6 +9,7 @@ import type { FieldMeta } from "../hooks/useFieldConfig";
  */
 export const ADMISSIONS_FIELDS: FieldMeta[] = [
   { key: "district",             label: "District",       hideable: true,  defaultVisible: true,  form: false },
+  { key: "cluster",              label: "Cluster",        hideable: true,  defaultVisible: true,  form: false },
   { key: "kutir",                label: "Kutir",          hideable: true,  defaultVisible: true  },
   { key: "student",              label: "Student",        hideable: false, defaultVisible: true  },
   { key: "admission_class",      label: "Class",          hideable: true,  defaultVisible: true  },

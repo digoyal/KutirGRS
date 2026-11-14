@@ -190,6 +190,53 @@ def test_selected_requires_school_name():
     assert exc.value.detail == "School name is required."
 
 
+def test_selected_with_grs_school_skips_reason_not_admitted():
+    validate_student_exam_write(
+        _base(
+            eligible=True,
+            applied=True,
+            admit_card=True,
+            appeared=True,
+            result_declared=True,
+            selected=True,
+            application_number="APP1",
+            roll_number="R1",
+            exam_center_id=1,
+            school_type="GRS",
+            admitted_school_id=99,
+            no_admit_reason_id=None,
+        ),
+        is_create=True,
+        subject_ids=[10],
+        scores_by_subject={10: 90.0},
+    )
+
+
+def test_selected_requires_school_or_reason():
+    with pytest.raises(HTTPException) as exc:
+        validate_student_exam_write(
+            _base(
+                eligible=True,
+                applied=True,
+                admit_card=True,
+                appeared=True,
+                result_declared=True,
+                selected=True,
+                application_number="APP1",
+                roll_number="R1",
+                exam_center_id=1,
+                school_type="",
+                admitted_school_id=None,
+                no_admit_reason_id=None,
+            ),
+            is_create=True,
+            subject_ids=[10],
+            scores_by_subject={10: 90.0},
+        )
+    detail = exc.value.detail.lower()
+    assert "school" in detail or "reason not admitted" in detail
+
+
 def test_school_type_must_match_exam_type_linkage():
     flags_data = _base(
         eligible=True,

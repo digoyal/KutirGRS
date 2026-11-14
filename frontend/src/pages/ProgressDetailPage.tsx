@@ -10,6 +10,7 @@ import {
   emptyProgressForm,
   progressToFormState,
   progressUpdatePayloadFromForm,
+  validateProgressSave,
   type ProgressFormState,
 } from "../components/ProgressForm";
 import { grs } from "../styles/grs";
@@ -55,6 +56,11 @@ export default function ProgressDetailPage() {
   async function handleSave() {
     if (!form.school_id) {
       setError("Select a school.");
+      return;
+    }
+    const validationError = validateProgressSave(form);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setSaving(true);

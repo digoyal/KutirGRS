@@ -59,6 +59,8 @@ export interface StudentsListParams {
   search?: string;
   name_only?: boolean;
   exam_year?: number;
+  /** Omit students with an admitted exam for this school_start_year (Add admission picker). */
+  exclude_admitted_for_year?: number;
 }
 
 export interface StudentsPage {

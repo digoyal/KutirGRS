@@ -352,7 +352,9 @@ export default function StudentProgressPage() {
               const st = p.status as ProgressStatus;
               const b = STATUS_BADGES[st] ?? STATUS_BADGES.enrolled;
               const detail =
-                st === "transferred" && p.transfer_school ? p.transfer_school : undefined;
+                st === "transferred" && p.transfer_school
+                  ? p.transfer_school
+                  : undefined;
               return (
                 <span
                   title={detail}

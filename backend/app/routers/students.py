@@ -5,7 +5,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
 from sqlalchemy import select, delete, func, Integer, cast, text
 from sqlalchemy.orm import selectinload
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -26,7 +26,8 @@ from app.schemas.students import (
 import os, uuid, shutil
 from app.config import settings
 from app.admission_uniqueness import assert_admission_uniqueness, admission_duplicate_detail
-from app.db_integrity import raise_http_for_integrity
+from app.exam_type_school_types import school_type_names_for_exam_type
+from app.db_integrity import raise_http_for_integrity, raise_http_for_programming
 from app.student_validation import validate_student_write, student_merged_for_update
 from app.admission_pipeline_validation import (
     STAGE_KEYS,
@@ -44,8 +45,13 @@ from app.progress_logic import (
     sync_class_year_from_marks,
     infer_track_for_student,
     merge_progress_payload,
+    apply_progress_transfer_to_admission,
+    pop_transfer_grs_school_id,
+    sync_transfer_school_label,
     validate_status_write,
     validate_marks_write,
+    validate_transfer_fields,
+    apply_transfer_field_clears,
 )
 
 router = APIRouter()
@@ -116,6 +122,10 @@ async def list_students(
     cluster_id: Optional[int] = Query(None),
     gender: Optional[str] = Query(None),
     exam_year: Optional[int] = Query(None),
+    exclude_admitted_for_year: Optional[int] = Query(
+        None,
+        description="Omit students who already have an admitted student_exam for this school_start_year.",
+    ),
     search: Optional[str] = Query(None),
     name_only: Optional[bool] = Query(False),
     limit: Optional[int] = Query(25),
@@ -143,6 +153,16 @@ async def list_students(
             q = q.where(Student.gender == gender)
         if exam_year is not None:
             q = q.where(Student.exam_year == exam_year)
+        if exclude_admitted_for_year is not None:
+            admitted_ids = (
+                select(StudentExam.student_id)
+                .where(
+                    StudentExam.school_start_year == exclude_admitted_for_year,
+                    StudentExam.admitted.is_(True),
+                )
+                .distinct()
+            )
+            q = q.where(Student.id.not_in(admitted_ids))
         if search:
             term = f"%{search}%"
             if name_only:
@@ -760,20 +780,6 @@ async def _subject_ids_for_exam_type(db: AsyncSession, exam_type_id: int | None)
     return [int(r[0]) for r in rows]
 
 
-async def _school_type_names_for_exam_type(db: AsyncSession, exam_type_id: int | None) -> frozenset[str]:
-    if not exam_type_id:
-        return frozenset()
-    rows = await db.execute(
-        text(
-            "SELECT st.name FROM school_types st "
-            "JOIN exam_type_school_types j ON j.school_type_id = st.id "
-            "WHERE j.exam_type_id = :eid"
-        ),
-        {"eid": exam_type_id},
-    )
-    return frozenset(r[0] for r in rows)
-
-
 def _scores_by_subject_from_payload(scores: list) -> dict[int, float | None]:
     out: dict[int, float | None] = {}
     for s in scores:
@@ -815,7 +821,7 @@ async def create_exam(
         subject_ids=subject_ids,
         scores_by_subject=_scores_by_subject_from_payload(scores),
     )
-    allowed_school_types = await _school_type_names_for_exam_type(db, exam_data.get("exam_type_id"))
+    allowed_school_types = await school_type_names_for_exam_type(db, exam_data.get("exam_type_id"))
     validate_school_type_for_exam_type(exam_data, allowed_school_type_names=allowed_school_types)
 
     await assert_admission_uniqueness(
@@ -839,14 +845,16 @@ async def create_exam(
     for s in scores:
         db.add(StudentExamScore(exam_id=exam.id, subject_id=s.subject_id, score=s.score))
 
-    if exam.admitted:
-        await ensure_progress_from_admitted_exam(db, exam)
-
     try:
+        if exam.admitted:
+            await ensure_progress_from_admitted_exam(db, exam)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
         raise_http_for_integrity(e, school_start_year=exam_data["school_start_year"])
+    except ProgrammingError as e:
+        await db.rollback()
+        raise_http_for_programming(e)
     await db.refresh(exam)
     return exam
 
@@ -895,7 +903,7 @@ async def update_exam(
         subject_ids=subject_ids,
         scores_by_subject=scores_map,
     )
-    allowed_school_types = await _school_type_names_for_exam_type(db, final_exam_type)
+    allowed_school_types = await school_type_names_for_exam_type(db, final_exam_type)
     validate_school_type_for_exam_type(merged, allowed_school_type_names=allowed_school_types)
 
     final_exam_type = merged.get("exam_type_id")
@@ -921,13 +929,16 @@ async def update_exam(
         )
         for s in scores:
             db.add(StudentExamScore(exam_id=id, subject_id=s["subject_id"], score=s.get("score")))
-    if final_admitted:
-        await ensure_progress_from_admitted_exam(db, obj)
     try:
+        if final_admitted:
+            await ensure_progress_from_admitted_exam(db, obj)
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
         raise_http_for_integrity(e, school_start_year=obj.school_start_year)
+    except ProgrammingError as e:
+        await db.rollback()
+        raise_http_for_programming(e)
     await db.refresh(obj)
     return obj
 
@@ -1022,15 +1033,23 @@ async def create_progress(
 ):
     await _require_student_in_scope(db, data.student_id, scope, detail="StudentProgress not found")
     payload = data.model_dump()
+    transfer_grs_school_id = pop_transfer_grs_school_id(payload)
     if not payload.get("track"):
         payload["track"] = await infer_track_for_student(db, data.student_id)
     obj = StudentProgress(**payload)
     validate_marks_write(obj, payload)
     obj.status = validate_status_write(obj, obj.status, payload)
+    apply_transfer_field_clears(obj, payload)
+    transfer_updates = payload.copy()
+    if transfer_grs_school_id is not None:
+        transfer_updates["transfer_grs_school_id"] = transfer_grs_school_id
+    validate_transfer_fields(obj, transfer_updates)
     marks_before = {c: None for c in classes_for_track(obj.track)}
     sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
     apply_graduated_status(obj)
+    await apply_progress_transfer_to_admission(db, obj, transfer_grs_school_id)
+    await sync_transfer_school_label(db, obj)
     db.add(obj)
     try:
         await db.commit()
@@ -1065,12 +1084,18 @@ async def update_progress(
         raise HTTPException(404, "StudentProgress not found")
     await _require_student_in_scope(db, obj.student_id, scope, detail="StudentProgress not found")
     marks_before = snapshot_marks(obj)
-    update = merge_progress_payload(obj, data.model_dump(exclude_unset=True))
+    raw = data.model_dump(exclude_unset=True)
+    transfer_grs_school_id = pop_transfer_grs_school_id(raw)
+    if transfer_grs_school_id is not None:
+        raw["transfer_grs_school_id"] = transfer_grs_school_id
+    update = merge_progress_payload(obj, raw)
     for k, v in update.items():
         setattr(obj, k, v)
     sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
     apply_graduated_status(obj)
+    await apply_progress_transfer_to_admission(db, obj, transfer_grs_school_id)
+    await sync_transfer_school_label(db, obj)
     await db.commit()
     await db.refresh(obj)
     return obj

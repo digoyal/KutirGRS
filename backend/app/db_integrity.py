@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 
 from app.admission_uniqueness import admission_duplicate_detail
 
@@ -26,3 +26,15 @@ def raise_http_for_integrity(err: IntegrityError, *, school_start_year: int | No
     raw = str(getattr(err, "orig", err))
     status, detail = _constraint_message(raw, school_start_year=school_start_year)
     raise HTTPException(status, detail) from err
+
+
+def raise_http_for_programming(err: ProgrammingError) -> None:
+    """Schema drift (pending SQL migrations) should not surface as a bare 500."""
+    raw = str(getattr(err, "orig", err)).lower()
+    if "student_progress" in raw or "undefinedcolumn" in raw.replace(" ", ""):
+        raise HTTPException(
+            503,
+            "Database schema is out of date for progress. Run: cd backend && "
+            "./venv/bin/python -m app.sql_migrations",
+        ) from err
+    raise HTTPException(500, "Database schema error.") from err

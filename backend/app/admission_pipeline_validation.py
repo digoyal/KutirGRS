@@ -193,14 +193,25 @@ def validate_student_exam_write(
             if score is None or (isinstance(score, str) and not score.strip()):
                 raise HTTPException(422, "Enter a score for every subject.")
 
+    at_selected_only = pipeline_stage(flags) == STAGE_INDEX["selected"]
+
+    def _has_grs_school() -> bool:
+        return not _is_blank(data.get("school_type")) and bool(data.get("admitted_school_id"))
+
     if show("school_type") and _is_blank(data.get("school_type")):
-        raise HTTPException(422, "School type is required.")
+        if not (at_selected_only and data.get("no_admit_reason_id")):
+            raise HTTPException(422, "School type is required.")
 
     if show("school_name") and not data.get("admitted_school_id"):
-        raise HTTPException(422, "School name is required.")
+        if not (at_selected_only and data.get("no_admit_reason_id")):
+            raise HTTPException(422, "School name is required.")
 
     if show("reason_not_admitted") and not data.get("no_admit_reason_id"):
-        raise HTTPException(422, "Reason not admitted is required.")
+        if not (at_selected_only and _has_grs_school()):
+            raise HTTPException(
+                422,
+                "Either select a GRS school or provide a reason not admitted.",
+            )
 
 
 def validate_school_type_for_exam_type(

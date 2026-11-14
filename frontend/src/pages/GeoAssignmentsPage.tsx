@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -73,55 +73,25 @@ function dashIfEmpty(value: string): string {
   return value.trim() ? value : "—";
 }
 
-/** Geo entity name columns — content width; th/td padding adds ~16px (8px each side). */
-const GEO_ENTITY_NAME_W = 64;
-const GEO_HEAD_NAME_W = 72;
-
-const geoNameThEllipsis: CSSProperties = {
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-};
+/** List-hub min widths — avoid legacy ~64px caps; Table applies ellipsis at DATA_COL_MAX. */
+const GEO_ENTITY_MIN_W = 112;
+const GEO_HEAD_MIN_W = 132;
 
 function geoEntityNameCol(
-  col: Omit<
-    Col<Row>,
-    "nowrap" | "minWidth" | "maxWidth" | "width" | "thStyle" | "tdStyle"
-  > &
-    Partial<Pick<Col<Row>, "tdStyle" | "maxWidth" | "width">>,
+  col: Omit<Col<Row>, "minWidth"> & Partial<Pick<Col<Row>, "minWidth">>,
 ): Col<Row> {
-  const extra =
-    col.tdStyle && typeof col.tdStyle !== "function" ? col.tdStyle : undefined;
-  const w = col.width ?? col.maxWidth ?? GEO_ENTITY_NAME_W;
   return {
     ...col,
-    nowrap: true,
-    width: w,
-    maxWidth: col.maxWidth ?? w,
-    minWidth: 0,
-    thStyle: { ...geoNameThEllipsis, maxWidth: w, width: w },
-    tdStyle: { maxWidth: w, ...extra },
+    minWidth: col.minWidth ?? GEO_ENTITY_MIN_W,
   };
 }
 
 function geoHeadNameCol(
-  col: Omit<
-    Col<Row>,
-    "nowrap" | "minWidth" | "maxWidth" | "width" | "thStyle" | "tdStyle"
-  > &
-    Partial<Pick<Col<Row>, "tdStyle" | "maxWidth" | "width">>,
+  col: Omit<Col<Row>, "minWidth"> & Partial<Pick<Col<Row>, "minWidth">>,
 ): Col<Row> {
-  const extra =
-    col.tdStyle && typeof col.tdStyle !== "function" ? col.tdStyle : undefined;
-  const w = col.width ?? col.maxWidth ?? GEO_HEAD_NAME_W;
   return {
     ...col,
-    nowrap: true,
-    width: w,
-    maxWidth: col.maxWidth ?? w,
-    minWidth: 0,
-    thStyle: { ...geoNameThEllipsis, maxWidth: w, width: w },
-    tdStyle: { maxWidth: w, ...extra },
+    minWidth: col.minWidth ?? GEO_HEAD_MIN_W,
   };
 }
 
@@ -378,29 +348,22 @@ export default function GeoAssignmentsPage() {
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px", minWidth: 0 }}>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
-        <Link to="/geo" style={{ ...grs.btnSecondary, textDecoration: "none" }}>
-          ← Geography
-        </Link>
-        <h1 className="grs-page-title" style={{ margin: 0, flex: "1 1 auto" }}>
-          Geo Assignments
-        </h1>
-      </div>
+      <header className="grs-report-page-header">
+        <div className="grs-report-page-header-main">
+          <Link to="/geo" className="grs-page-back" style={{ textDecoration: "none" }}>
+            ← Geography
+          </Link>
+          <h2 className="grs-page-title grs-report-page-title">Geo Assignments</h2>
+        </div>
+      </header>
 
       <GrsTable<Row>
         title="Geo Assignments"
+        showPageHeader={false}
         columns={columns}
         data={tableRows}
-        tableLayout={entityLevel === "Cluster" ? "fixed" : "auto"}
         shellFullWidth
+        listHubGrow
         rowKey={(r) => r.id}
         isLoading={geoFiltersEnabled && isLoading}
         emptyMessage={

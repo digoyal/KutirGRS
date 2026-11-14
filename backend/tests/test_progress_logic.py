@@ -15,6 +15,8 @@ from app.progress_logic import (
     snapshot_marks,
     validate_marks_write,
     validate_status_write,
+    validate_transfer_fields,
+    validate_transfer_school_type_for_exam,
     TRACK_NINE_TWELVE,
     TRACK_SIX_TWELVE,
 )
@@ -192,6 +194,50 @@ def test_validate_status_write_marks_12_in_same_payload():
     )
     with pytest.raises(HTTPException):
         validate_status_write(p, "enrolled", {"marks_12": Decimal("90")})
+
+
+def test_validate_status_write_allows_transferred():
+    p = _progress(status="promoted")
+    assert validate_status_write(p, "transferred") == "transferred"
+
+
+def test_validate_transfer_fields_requires_school():
+    p = _progress(status="promoted")
+    with pytest.raises(HTTPException):
+        validate_transfer_fields(p, {"status": "transferred"})
+    validate_transfer_fields(p, {"status": "transferred", "transfer_grs_school_id": 99})
+
+
+def test_validate_transfer_school_type_for_exam():
+    validate_transfer_school_type_for_exam(
+        exam_type_id=1,
+        school_type="JNV",
+        allowed_school_type_names=frozenset({"JNV", "EMRS"}),
+    )
+    with pytest.raises(HTTPException):
+        validate_transfer_school_type_for_exam(
+            exam_type_id=1,
+            school_type="KSP",
+            allowed_school_type_names=frozenset({"JNV"}),
+        )
+    with pytest.raises(HTTPException):
+        validate_transfer_school_type_for_exam(
+            exam_type_id=1,
+            school_type="JNV",
+            allowed_school_type_names=frozenset(),
+        )
+    validate_transfer_school_type_for_exam(
+        exam_type_id=None,
+        school_type="JNV",
+        allowed_school_type_names=frozenset(),
+    )
+
+
+def test_admission_start_year_for_progress():
+    from app.progress_logic import admission_start_year_for_progress
+
+    p = _progress(academic_year=2027)
+    assert admission_start_year_for_progress(p) == 2026
 
 
 def test_graduation_nine_twelve_track():
