@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -16,7 +16,13 @@ import {
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { grs } from "../styles/grs";
-import { countActiveFilters, type FilterId } from "../utils/geoFilters";
+import { useAuth } from "../context/AuthContext";
+import {
+  autoPickFilterId,
+  countActiveFilters,
+  defaultGeoAssignmentEntityLevel,
+  type FilterId,
+} from "../utils/geoFilters";
 
 const ENTITY_LEVELS = ["Zone", "District", "Area", "Cluster"] as const;
 type EntityLevel = (typeof ENTITY_LEVELS)[number];
@@ -123,13 +129,24 @@ const chainThroughDistrictHeadCols: Col<Row>[] = [
 ];
 
 export default function GeoAssignmentsPage() {
-  const [entityLevel, setEntityLevel] = useState<EntityLevelSelection>("");
+  const { user } = useAuth();
+  const districtAnchorDefaultsApplied = useRef(false);
+
+  const [entityLevel, setEntityLevel] = useState<EntityLevelSelection>(() =>
+    defaultGeoAssignmentEntityLevel(user),
+  );
   const [zoneId, setZoneId] = useState<FilterId>("");
   const [districtId, setDistrictId] = useState<FilterId>("");
   const [areaId, setAreaId] = useState<FilterId>("");
   const [clusterId, setClusterId] = useState<FilterId>("");
 
   const geoFiltersEnabled = entityLevel !== "";
+
+  useEffect(() => {
+    if (user?.title !== "District Anchor" || districtAnchorDefaultsApplied.current) return;
+    districtAnchorDefaultsApplied.current = true;
+    setEntityLevel("District");
+  }, [user?.title]);
 
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ["zones"],
@@ -151,6 +168,12 @@ export default function GeoAssignmentsPage() {
     queryFn: () => listClusters(),
     enabled: geoFiltersEnabled,
   });
+
+  useEffect(() => {
+    if (user?.title !== "District Anchor" || entityLevel === "") return;
+    const pick = autoPickFilterId(zones, zoneId, true);
+    if (pick !== null) setZoneId(pick);
+  }, [user?.title, entityLevel, zones, zoneId]);
 
   const districtsInZone = useMemo(
     () => (zoneId === "" ? districts : districts.filter((d) => d.zone_id === zoneId)),

@@ -37,6 +37,13 @@ export interface KutirLike {
   cluster_id: number;
 }
 
+/** Geo Assignments list: District Anchor opens at District level with districts = All. */
+export function defaultGeoAssignmentEntityLevel(
+  user: Pick<GeoScopedUser, "title"> | null | undefined,
+): "District" | "" {
+  return user?.title === "District Anchor" ? "District" : "";
+}
+
 /** Role-based initial filters (Students / Admissions / Progress). */
 export function defaultsFromUser(user: GeoScopedUser | null | undefined): GeoFilterValue {
   if (!user) return { district: "", cluster: "", kutir: "" };
