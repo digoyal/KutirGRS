@@ -64,6 +64,9 @@ export default function AdmissionsPage() {
   }>(STORAGE_KEY);
 
   const [year, setYear] = useState<number>(saved?.year ?? CURRENT_YEAR);
+  const setSelectedYear = useCallback((value: number | "") => {
+    if (value !== "") setYear(value);
+  }, []);
 
   const defaults = defaultsFromUser(user);
 
@@ -171,7 +174,7 @@ export default function AdmissionsPage() {
   useSingleOptionAutoSelect({
     options: YEARS,
     value: year,
-    setValue: setYear,
+    setValue: setSelectedYear,
     skip: saved?.year != null,
   });
 
