@@ -59,7 +59,10 @@ export const FIELD_REGISTRY_MODEL_ENTITIES = [
       "location_source",
       "geocoded_at",
     ],
-    virtualRegistryKeys: ["teachers"],
+    virtualRegistryKeys: ["district", "teachers"],
+    columnRegistryKey: {
+      district_id: "district",
+    },
   },
   {
     entity: "admissions",
