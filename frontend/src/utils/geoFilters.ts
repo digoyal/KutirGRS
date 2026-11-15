@@ -1,5 +1,7 @@
 /** Shared geo-filter cascade helpers for list pages (R7). */
 
+import { isAdmin } from "../constants/roles";
+
 export type FilterId = number | "";
 
 export interface GeoFilterValue {
@@ -37,11 +39,13 @@ export interface KutirLike {
   cluster_id: number;
 }
 
-/** Geo Assignments list: District Anchor opens at District level with districts = All. */
+/** Geo Assignments list: Admin and District Anchor open at District level (filters unchanged for Admin). */
 export function defaultGeoAssignmentEntityLevel(
   user: Pick<GeoScopedUser, "title"> | null | undefined,
 ): "District" | "" {
-  return user?.title === "District Anchor" ? "District" : "";
+  const title = user?.title;
+  if (title === "District Anchor" || isAdmin(title)) return "District";
+  return "";
 }
 
 /** Role-based initial filters (Students / Admissions / Progress). */

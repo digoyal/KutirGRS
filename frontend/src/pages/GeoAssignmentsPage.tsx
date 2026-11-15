@@ -130,7 +130,7 @@ const chainThroughDistrictHeadCols: Col<Row>[] = [
 
 export default function GeoAssignmentsPage() {
   const { user } = useAuth();
-  const districtAnchorDefaultsApplied = useRef(false);
+  const defaultEntityLevelApplied = useRef(false);
 
   const [entityLevel, setEntityLevel] = useState<EntityLevelSelection>(() =>
     defaultGeoAssignmentEntityLevel(user),
@@ -143,10 +143,12 @@ export default function GeoAssignmentsPage() {
   const geoFiltersEnabled = entityLevel !== "";
 
   useEffect(() => {
-    if (user?.title !== "District Anchor" || districtAnchorDefaultsApplied.current) return;
-    districtAnchorDefaultsApplied.current = true;
-    setEntityLevel("District");
-  }, [user?.title]);
+    if (defaultEntityLevelApplied.current) return;
+    const level = defaultGeoAssignmentEntityLevel(user);
+    if (level === "") return;
+    defaultEntityLevelApplied.current = true;
+    setEntityLevel(level);
+  }, [user]);
 
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ["zones"],
