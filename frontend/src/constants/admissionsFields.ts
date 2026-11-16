@@ -12,6 +12,7 @@ export const ADMISSIONS_FIELDS: FieldMeta[] = [
   { key: "cluster",              label: "Cluster",        hideable: true,  defaultVisible: true,  form: false },
   { key: "kutir",                label: "Kutir",          hideable: true,  defaultVisible: true  },
   { key: "student",              label: "Student",        hideable: false, defaultVisible: true  },
+  { key: "dob",                  label: "DOB",            hideable: true,  defaultVisible: true,  form: false },
   { key: "admission_class",      label: "Class",          hideable: true,  defaultVisible: true  },
   { key: "gender",               label: "Gender",         hideable: true,  defaultVisible: true,  form: false },
   { key: "school_start_year",    label: "Year",           formLabel: "Academic Year", hideable: true, defaultVisible: true },

@@ -88,7 +88,7 @@ function Field({
 }) {
   if (!labeled) return <>{children}</>;
   return (
-    <div>
+    <div style={{ flex: "0 0 auto", minWidth: 0 }}>
       {label && (
         <label style={{ ...grs.fieldLabel, display: "block", marginBottom: 4 }}>{label}</label>
       )}
@@ -236,5 +236,11 @@ export function GeoFilterBar({
     </>
   );
 
-  return <div className="grs-filter-controls">{content}</div>;
+  return (
+    <div
+      className={labeled ? "grs-filter-controls grs-filter-controls--labeled" : "grs-filter-controls"}
+    >
+      {content}
+    </div>
+  );
 }

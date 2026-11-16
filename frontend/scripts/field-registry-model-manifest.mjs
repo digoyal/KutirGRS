@@ -77,7 +77,7 @@ export const FIELD_REGISTRY_MODEL_ENTITIES = [
       "school_id",
       "admitted_school_id",
     ],
-    virtualRegistryKeys: ["district", "cluster", "kutir", "student", "school", "stage", "gender", "scores"],
+    virtualRegistryKeys: ["district", "cluster", "kutir", "student", "dob", "school", "stage", "gender", "scores"],
   },
   {
     entity: "progress",

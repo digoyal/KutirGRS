@@ -11,6 +11,7 @@ import { listKutirs } from "../api/kutirs";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { GeoFilterBar } from "../components/GeoFilterBar";
+import { grs } from "../styles/grs";
 import { useFieldConfig } from "../hooks/useFieldConfig";
 import { useBfcacheReload } from "../hooks/useBfcacheReload";
 import { useGeoFilterAutoSelect, useSingleOptionAutoSelect } from "../hooks/useGeoFilterAutoSelect";
@@ -60,6 +61,8 @@ export default function AdmissionsPage() {
     kutir?: FilterId;
     search?: string;
     pipeline_stage?: PipelineStageFilter;
+    dob_from?: string;
+    dob_to?: string;
     page?: number;
   }>(STORAGE_KEY);
 
@@ -75,6 +78,11 @@ export default function AdmissionsPage() {
   const [filterKutir, setFilterKutir]       = useState<FilterId>(saved?.kutir    ?? defaults.kutir);
   const [filterPipelineStage, setFilterPipelineStage] = useState<PipelineStageFilter>(
     saved?.pipeline_stage ?? "",
+  );
+  const [filterDobFrom, setFilterDobFrom] = useState(saved?.dob_from ?? "");
+  const [filterDobTo, setFilterDobTo] = useState(saved?.dob_to ?? "");
+  const dobRangeInvalid = Boolean(
+    filterDobFrom && filterDobTo && filterDobTo < filterDobFrom,
   );
   const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
@@ -94,9 +102,12 @@ export default function AdmissionsPage() {
       filterCluster,
       filterKutir,
       filterPipelineStage,
+      filterDobFrom,
+      filterDobTo,
       debouncedSearch,
       page,
     ],
+    enabled: !dobRangeInvalid,
     queryFn: () => listExamsPaged({
       school_start_year: year,
       district_id: filterDistrict !== "" ? filterDistrict : undefined,
@@ -104,6 +115,8 @@ export default function AdmissionsPage() {
       kutir_id:    filterKutir    !== "" ? filterKutir    : undefined,
       pipeline_stage: filterPipelineStage || undefined,
       search: debouncedSearch || undefined,
+      dob_from: filterDobFrom || undefined,
+      dob_to: filterDobTo || undefined,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     }),
@@ -190,6 +203,8 @@ export default function AdmissionsPage() {
       cluster: filterCluster,
       kutir: filterKutir,
       pipeline_stage: filterPipelineStage,
+      dob_from: filterDobFrom,
+      dob_to: filterDobTo,
       search: searchQuery,
       page,
     });
@@ -279,6 +294,18 @@ export default function AdmissionsPage() {
       tdStyle: { whiteSpace: "nowrap" },
     },
     {
+      key: "dob", label: "", sortable: true,
+      sortValue: (exam) => exam.student?.dob ?? studentMap[exam.student_id]?.dob ?? "",
+      render: (exam) => {
+        const dob = exam.student?.dob ?? studentMap[exam.student_id]?.dob;
+        return dob
+          ? new Date(dob).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+          : "—";
+      },
+      csvValue: (exam) => exam.student?.dob ?? studentMap[exam.student_id]?.dob ?? "",
+      tdStyle: { fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" },
+    },
+    {
       key: "admission_class", label: "", sortable: true,
       sortValue: (exam) => exam.admission_class ?? -1,
       render: (exam) => exam.admission_class != null ? String(exam.admission_class) : "—",
@@ -334,13 +361,19 @@ export default function AdmissionsPage() {
     {
       key: "stage", label: "", sortable: true,
       sortValue: (exam) => pipelineStage(exam),
-      render: (exam) => <StageBadge exam={exam} />,
+      render: (exam) => <StageBadge exam={exam} compact />,
       csvValue: (exam) => {
         const idx = pipelineStage(exam);
         return idx >= 0 ? STAGES[idx].label : "Registered";
       },
       nowrap: true,
-      minWidth: 180,
+      minWidth: 72,
+      maxWidth: 124,
+      tdStyle: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      },
     },
     ...(["eligible", "applied", "admit_card", "appeared", "result_declared", "selected", "admitted"] as const).map((stageKey): Col<StudentExam> => ({
       key: stageKey,
@@ -460,15 +493,40 @@ export default function AdmissionsPage() {
       kutir_id: filterKutir !== "" ? filterKutir : undefined,
       pipeline_stage: filterPipelineStage || undefined,
       search: debouncedSearch || undefined,
+      dob_from: filterDobFrom || undefined,
+      dob_to: filterDobTo || undefined,
       limit: exportFetchLimit(examTotal),
       offset: 0,
     });
     return items;
-  }, [year, filterDistrict, filterCluster, filterKutir, filterPipelineStage, debouncedSearch, examTotal]);
+  }, [
+    year,
+    filterDistrict,
+    filterCluster,
+    filterKutir,
+    filterPipelineStage,
+    filterDobFrom,
+    filterDobTo,
+    debouncedSearch,
+    examTotal,
+  ]);
 
   const filterSelectStyle: React.CSSProperties = {
     padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)",
-    background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 14, flexShrink: 0,
+    background: "var(--bg-input)", color: "var(--text-primary)", fontSize: 16, flexShrink: 0,
+    boxSizing: "border-box",
+  };
+  const filterLabelStyle: React.CSSProperties = {
+    ...grs.fieldLabel,
+    display: "block",
+    marginBottom: 4,
+  };
+  const filterFieldStyle: React.CSSProperties = { flex: "0 0 auto", minWidth: 0 };
+  const dobInputStyle: React.CSSProperties = {
+    ...filterSelectStyle,
+    padding: "6px 1.35rem 6px 8px",
+    width: 132,
+    maxWidth: "min(132px, 38vw)",
   };
 
   return (
@@ -481,7 +539,11 @@ export default function AdmissionsPage() {
         pagination={{ page, pageSize: PAGE_SIZE, total: examTotal, onPageChange: setPage }}
         rowKey={(exam) => String(exam.id)}
         isLoading={isLoading}
-        emptyMessage={`No admissions for ${formatAcademicYear(year)}.`}
+        emptyMessage={
+          dobRangeInvalid
+            ? "DOB From must be on or before DOB To."
+            : `No admissions for ${formatAcademicYear(year)}.`
+        }
         searchable
         searchPlaceholder="Search student..."
         externalSearch={searchQuery}
@@ -492,32 +554,70 @@ export default function AdmissionsPage() {
           filterCluster,
           filterKutir,
           filterPipelineStage,
+          filterDobFrom,
+          filterDobTo,
         )}
         filters={
           <GeoFilterBar
+            labeled
             leading={
               <>
-                <select
-                  value={year}
-                  onChange={e => { setYear(Number(e.target.value)); setPage(1); }}
-                  style={{ ...filterSelectStyle, width: 110 }}
-                >
-                  {YEARS.map(y => <option key={y} value={y}>{formatAcademicYear(y)}</option>)}
-                </select>
-                <select
-                  value={filterPipelineStage}
-                  onChange={e => {
-                    setFilterPipelineStage(e.target.value as PipelineStageFilter);
-                    setPage(1);
-                  }}
-                  aria-label="Pipeline stage"
-                  style={{ ...filterSelectStyle, width: 168, maxWidth: "min(168px, 42vw)" }}
-                >
-                  <option value="">All</option>
-                  {STAGES.map(s => (
-                    <option key={s.key} value={s.key}>{s.label}</option>
-                  ))}
-                </select>
+                <div style={filterFieldStyle}>
+                  <label style={filterLabelStyle}>Year</label>
+                  <select
+                    value={year}
+                    onChange={e => { setYear(Number(e.target.value)); setPage(1); }}
+                    aria-label="Year"
+                    style={{ ...filterSelectStyle, width: 110 }}
+                  >
+                    {YEARS.map(y => <option key={y} value={y}>{formatAcademicYear(y)}</option>)}
+                  </select>
+                </div>
+                <div style={filterFieldStyle}>
+                  <label style={filterLabelStyle}>Pipeline stage</label>
+                  <select
+                    value={filterPipelineStage}
+                    onChange={e => {
+                      setFilterPipelineStage(e.target.value as PipelineStageFilter);
+                      setPage(1);
+                    }}
+                    aria-label="Pipeline stage"
+                    style={{ ...filterSelectStyle, width: 168, maxWidth: "min(168px, 42vw)" }}
+                  >
+                    <option value="">All</option>
+                    {STAGES.map(s => (
+                      <option key={s.key} value={s.key}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={filterFieldStyle}>
+                  <label style={filterLabelStyle}>DOB from</label>
+                  <input
+                    type="date"
+                    className="top-kutirs-date"
+                    aria-label="DOB from"
+                    value={filterDobFrom}
+                    onChange={(e) => {
+                      setFilterDobFrom(e.target.value);
+                      setPage(1);
+                    }}
+                    style={dobInputStyle}
+                  />
+                </div>
+                <div style={filterFieldStyle}>
+                  <label style={filterLabelStyle}>DOB to</label>
+                  <input
+                    type="date"
+                    className="top-kutirs-date"
+                    aria-label="DOB to"
+                    value={filterDobTo}
+                    onChange={(e) => {
+                      setFilterDobTo(e.target.value);
+                      setPage(1);
+                    }}
+                    style={dobInputStyle}
+                  />
+                </div>
               </>
             }
             district={filterDistrict}

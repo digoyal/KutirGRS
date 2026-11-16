@@ -61,6 +61,13 @@ class StudentOut(StudentBase):
     model_config = {"from_attributes": True}
 
 
+class StudentExamStudentRef(BaseModel):
+    """Minimal student fields on student_exams list responses."""
+    id: int
+    dob: Optional[date] = None
+    model_config = {"from_attributes": True}
+
+
 # ── StudentExamScore ─────────────────────────────────────────────────────────
 class ExamScoreBase(BaseModel):
     subject_id: int
@@ -128,6 +135,7 @@ class StudentExamOut(StudentExamBase):
     school_id: Optional[int] = None
     school_type: Optional[str] = None
     scores: list[ExamScoreOut] = []
+    student: Optional[StudentExamStudentRef] = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

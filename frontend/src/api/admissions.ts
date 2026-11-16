@@ -40,6 +40,7 @@ export interface StudentExam {
   no_exam_reason_id: number | null;
   scores: ExamScore[];
   school?: SchoolMin;
+  student?: { id: number; dob: string | null };
   admission_class: number | null;
   created_at: string;
   updated_at: string;
@@ -297,6 +298,8 @@ export interface ExamsListParams {
   district_id?: number;
   pipeline_stage?: Exclude<PipelineStageFilter, "">;
   search?: string;
+  dob_from?: string;
+  dob_to?: string;
   limit?: number;
   offset?: number;
 }

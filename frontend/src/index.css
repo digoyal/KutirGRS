@@ -112,6 +112,11 @@ html {
   }
 }
 
+.grs-filter-controls.grs-filter-controls--labeled {
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
 body {
   margin: 0;
   overflow-x: clip;

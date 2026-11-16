@@ -1,4 +1,5 @@
 // Shared pipeline helpers for Admissions pages
+import type { CSSProperties } from "react";
 import type { StudentExam } from "../api/admissions";
 import type { ExamTypeSubjectRow, SubjectRef } from "../api/admissions";
 
@@ -106,15 +107,29 @@ export function pipelineFieldVisible(
   return idx === STAGE_INDEX[rule.stage];
 }
 
-export function StageBadge({ exam }: { exam: StudentExam }) {
+export function StageBadge({ exam, compact }: { exam: StudentExam; compact?: boolean }) {
   const idx = pipelineStage(exam);
+  const label = idx < 0 ? "Registered" : STAGES[idx].label;
+  const ellipsis: CSSProperties = compact
+    ? {
+        display: "inline-block",
+        maxWidth: "100%",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        verticalAlign: "bottom",
+      }
+    : {};
   if (idx < 0) {
     return (
-      <span style={{
-        background: "var(--badge-grey-bg)", color: "var(--badge-grey-fg)",
-        padding: "2px 8px", borderRadius: 12, fontSize: 12, fontWeight: 600,
-        whiteSpace: "nowrap",
-      }}>Registered</span>
+      <span
+        title={label}
+        style={{
+          background: "var(--badge-grey-bg)", color: "var(--badge-grey-fg)",
+          padding: "2px 8px", borderRadius: 12, fontSize: 12, fontWeight: 600,
+          whiteSpace: "nowrap",
+          ...ellipsis,
+        }}
+      >{label}</span>
     );
   }
   const colors: Record<number, { bg: string; color: string }> = {
@@ -128,12 +143,16 @@ export function StageBadge({ exam }: { exam: StudentExam }) {
   };
   const { bg, color } = colors[idx] ?? colors[0];
   return (
-    <span style={{
-      background: bg, color,
-      padding: "2px 8px", borderRadius: 12, fontSize: 12, fontWeight: 700,
-      letterSpacing: "0.02em",
-      whiteSpace: "nowrap",
-    }}>{STAGES[idx].label}</span>
+    <span
+      title={label}
+      style={{
+        background: bg, color,
+        padding: "2px 8px", borderRadius: 12, fontSize: 12, fontWeight: 700,
+        letterSpacing: "0.02em",
+        whiteSpace: "nowrap",
+        ...ellipsis,
+      }}
+    >{label}</span>
   );
 }
 

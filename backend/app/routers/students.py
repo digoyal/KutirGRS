@@ -1,6 +1,7 @@
 """
 Students, StudentExams, StudentExamScores, StudentProgress
 """
+from datetime import date
 from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
 from sqlalchemy import select, delete, func, Integer, cast, text
@@ -304,11 +305,16 @@ async def list_exams(
         description="Current pipeline stage: eligible, applied, admit_card, appeared, result_declared, selected, admitted",
     ),
     search: Optional[str] = Query(None),
+    dob_from: Optional[date] = Query(None, description="Inclusive lower bound on linked student DOB"),
+    dob_to: Optional[date] = Query(None, description="Inclusive upper bound on linked student DOB"),
     limit: Optional[int] = Query(25),
     offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
+    if dob_from is not None and dob_to is not None and dob_to < dob_from:
+        raise HTTPException(400, "dob_to must be on or after dob_from")
+
     stage_filter: Optional[str] = None
     if pipeline_stage is not None and pipeline_stage.strip():
         stage_filter = parse_pipeline_stage_filter(pipeline_stage)
@@ -317,7 +323,8 @@ async def list_exams(
         needs_student = (
             scope is not None or kutir_id is not None or
             cluster_id is not None or district_id is not None or
-            (search is not None and search.strip() != "")
+            (search is not None and search.strip() != "") or
+            dob_from is not None or dob_to is not None
         )
         if needs_student:
             q = q.join(Student, StudentExam.student_id == Student.id)
@@ -354,6 +361,10 @@ async def list_exams(
                 (Student.phone.ilike(term)) |
                 (Student.father_name.ilike(term))
             )
+        if dob_from is not None:
+            q = q.where(Student.dob.is_not(None), Student.dob >= dob_from)
+        if dob_to is not None:
+            q = q.where(Student.dob.is_not(None), Student.dob <= dob_to)
         return q
 
     count_q = _apply_filters(select(func.count()).select_from(StudentExam))
@@ -362,7 +373,10 @@ async def list_exams(
     response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
 
     data_q = _apply_filters(
-        select(StudentExam).options(selectinload(StudentExam.scores))
+        select(StudentExam).options(
+            selectinload(StudentExam.scores),
+            selectinload(StudentExam.student),
+        )
     ).order_by(StudentExam.school_start_year.desc())
     if student_id is None and admitted is not True:
         data_q = data_q.limit(limit).offset(offset)
