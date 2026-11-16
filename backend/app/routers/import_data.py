@@ -1099,6 +1099,13 @@ async def _import_progress(rows, db):
         if not school_id:
             errors.append(f"School '{school_name}' not found for student '{ref}' — row skipped"); continue
 
+        sch_meta = (await db.execute(
+            text("SELECT school_type, district_id FROM schools WHERE id=:id"),
+            {"id": school_id},
+        )).one_or_none()
+        school_type = sch_meta[0] if sch_meta else None
+        district_id = sch_meta[1] if sch_meta else None
+
         academic_year = _int(r.get("academic_year"))
         if not academic_year:
             errors.append(f"Missing academic_year for student id={sid} — row skipped"); continue
@@ -1135,6 +1142,7 @@ async def _import_progress(rows, db):
 
         params = {
             "si": sid, "sc": school_id, "yr": academic_year,
+            "styp": school_type, "did": district_id,
             "cl": _int(r.get("class_in_year")),
             "tr": track,
             "st": status,
@@ -1161,7 +1169,8 @@ async def _import_progress(rows, db):
             progress_id = exists_rows[0]
             await db.execute(text("""
                 UPDATE student_progress SET
-                    school_id=:sc, academic_year=:yr, class_in_year=:cl, track=:tr,
+                    school_id=:sc, school_type=:styp, district_id=:did,
+                    academic_year=:yr, class_in_year=:cl, track=:tr,
                     status=:st, transfer_school=:ts,
                     marks_6=:m6, marks_7=:m7, marks_8=:m8, marks_9=:m9,
                     marks_10=:m10, marks_11=:m11, marks_12=:m12,
@@ -1174,12 +1183,13 @@ async def _import_progress(rows, db):
                 await db.execute(
                     text("""
                         INSERT INTO student_progress
-                            (student_id, school_id, academic_year, class_in_year, track,
+                            (student_id, school_id, school_type, district_id,
+                             academic_year, class_in_year, track,
                              status, transfer_school,
                              marks_6, marks_7, marks_8, marks_9, marks_10, marks_11, marks_12,
                              remarks, created_at, updated_at)
                         VALUES
-                            (:si, :sc, :yr, :cl, :tr,
+                            (:si, :sc, :styp, :did, :yr, :cl, :tr,
                              :st, :ts,
                              :m6, :m7, :m8, :m9, :m10, :m11, :m12,
                              :rm, now(), now())

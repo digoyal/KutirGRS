@@ -9,6 +9,7 @@ import type { FieldConfigEntry, FieldMeta } from "../hooks/useFieldConfig";
  */
 export const PROGRESS_FIELDS: FieldMeta[] = [
   { key: "student",                  label: "Student", hideable: false, defaultVisible: true  },
+  { key: "status",                   label: "Status",  hideable: false, defaultVisible: true  },
   { key: "academic_year",            label: "Year",    hideable: true,  defaultVisible: false },
   { key: "class_in_year",            label: "Class",   hideable: true,  defaultVisible: true  },
   { key: "marks_6",                  label: "6th",     hideable: true,  defaultVisible: false, form: false },
@@ -18,8 +19,9 @@ export const PROGRESS_FIELDS: FieldMeta[] = [
   { key: "marks_10",                 label: "10th",    hideable: true,  defaultVisible: false, form: false },
   { key: "marks_11",                 label: "11th",    hideable: true,  defaultVisible: false, form: false },
   { key: "marks_12",                 label: "12th",    hideable: true,  defaultVisible: false, form: false },
-  { key: "school_id",                label: "School",  hideable: true,  defaultVisible: true  },
-  { key: "status",                   label: "Status",  hideable: false, defaultVisible: true  },
+  { key: "school_id",                label: "School",  hideable: true,  defaultVisible: true, formLabel: "School Name" },
+  { key: "school_type",              label: "School Type", hideable: true, defaultVisible: false },
+  { key: "district",                   label: "District", hideable: true, defaultVisible: false },
   { key: "remarks",                  label: "Remarks", hideable: true,  defaultVisible: false },
 ];
 
@@ -36,11 +38,9 @@ export function isProgressMarksKey(key: string): boolean {
   return key.startsWith(MARKS_KEY_PREFIX);
 }
 
-/**
- * Keep marks_6…marks_12 as one contiguous block (registry order). Non-marks fields
- * keep their relative order; the block is placed where the first marks column was.
- */
-export function coalesceProgressMarksOrder(ordered: FieldMeta[]): FieldMeta[] {
+const PROGRESS_PINNED_AFTER_STUDENT = "status" as const;
+
+function coalesceMarksBlock(ordered: FieldMeta[]): FieldMeta[] {
   if (PROGRESS_MARKS_FIELDS.length === 0) return ordered;
 
   const marksKeys = new Set(PROGRESS_MARKS_FIELDS.map((f) => f.key));
@@ -55,11 +55,33 @@ export function coalesceProgressMarksOrder(ordered: FieldMeta[]): FieldMeta[] {
   return result;
 }
 
+/**
+ * Keep marks_6…marks_12 as one contiguous block (registry order). Non-marks fields
+ * keep their relative order; the block is placed where the first marks column was.
+ * Student stays first; Status always immediately after Student (never after marks).
+ */
+export function coalesceProgressMarksOrder(ordered: FieldMeta[]): FieldMeta[] {
+  const pinnedKeys = new Set<string>(["student", PROGRESS_PINNED_AFTER_STUDENT]);
+  const student = ordered.find((m) => m.key === "student");
+  const status = ordered.find((m) => m.key === PROGRESS_PINNED_AFTER_STUDENT);
+  const rest = ordered.filter((m) => !pinnedKeys.has(m.key));
+  const coalescedRest = coalesceMarksBlock(rest);
+
+  const result: FieldMeta[] = [];
+  if (student) result.push(student);
+  if (status) result.push(status);
+  result.push(...coalescedRest);
+  return result;
+}
+
 function progressFieldOrderEqual(a: FieldMeta[], b: FieldMeta[]): boolean {
   return a.length === b.length && a.every((m, i) => m.key === b[i]?.key);
 }
 
-/** Rewrite saved positions when legacy config interleaves Status/Remarks into marks. */
+/**
+ * Rewrite saved positions when legacy config interleaves marks, or puts Status after marks
+ * (registry default: student → status → …).
+ */
 export function normalizeProgressSavedConfig(
   saved: Record<string, FieldConfigEntry>,
   allFields: FieldMeta[] = PROGRESS_FIELDS,
@@ -73,7 +95,10 @@ export function normalizeProgressSavedConfig(
 
   const raw = sortBySaved(allFields);
   const coalesced = coalesceProgressMarksOrder(raw);
-  if (progressFieldOrderEqual(raw, coalesced)) return null;
+  const legacyStatusPosition =
+    saved[PROGRESS_PINNED_AFTER_STUDENT] != null &&
+    saved[PROGRESS_PINNED_AFTER_STUDENT].position !== 1;
+  if (progressFieldOrderEqual(raw, coalesced) && !legacyStatusPosition) return null;
 
   const next: Record<string, FieldConfigEntry> = { ...saved };
   coalesced.forEach((m, i) => {

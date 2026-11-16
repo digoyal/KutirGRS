@@ -240,6 +240,51 @@ def test_admission_start_year_for_progress():
     assert admission_start_year_for_progress(p) == 2026
 
 
+@pytest.mark.asyncio
+async def test_apply_progress_transfer_school_does_not_update_admission(monkeypatch):
+    from app.progress_logic import apply_progress_transfer_school
+
+    progress = SimpleNamespace(
+        status="transferred",
+        school_id=10,
+        school_type="JNV",
+        district_id=1,
+        transfer_school=None,
+        student_id=1,
+        academic_year=2027,
+    )
+    exam = SimpleNamespace(
+        admitted_school_id=10,
+        school_type="JNV",
+        exam_type_id=5,
+    )
+    dest_school = SimpleNamespace(id=99, school_type="EMRS", district_id=2, name="Dest School")
+
+    async def fake_load_grs_school(db, school_id):
+        if school_id == 99:
+            return dest_school
+        return None
+
+    async def fake_admission_exam(db, p):
+        return exam
+
+    async def fake_allowed(db, exam_type_id):
+        return frozenset({"JNV", "EMRS"})
+
+    monkeypatch.setattr("app.progress_logic.load_grs_school", fake_load_grs_school)
+    monkeypatch.setattr("app.progress_logic.admission_exam_for_progress", fake_admission_exam)
+    monkeypatch.setattr("app.progress_logic.school_type_names_for_exam_type", fake_allowed)
+
+    await apply_progress_transfer_school(None, progress, 99)
+
+    assert progress.school_id == 99
+    assert progress.school_type == "EMRS"
+    assert progress.district_id == 2
+    assert progress.transfer_school == "Dest School"
+    assert exam.admitted_school_id == 10
+    assert exam.school_type == "JNV"
+
+
 def test_graduation_nine_twelve_track():
     p = _progress(
         track=TRACK_NINE_TWELVE,

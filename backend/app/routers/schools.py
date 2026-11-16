@@ -13,6 +13,19 @@ from app.schemas.schools import SchoolCreate, SchoolUpdate, SchoolOut
 router = APIRouter(prefix="/schools", tags=["Schools"])
 
 
+async def _school_with_district(db: AsyncSession, school_id: int) -> GovtResidentialSchool:
+    """Load school with district eager-loaded (async-safe for SchoolOut)."""
+    result = await db.execute(
+        select(GovtResidentialSchool)
+        .where(GovtResidentialSchool.id == school_id)
+        .options(selectinload(GovtResidentialSchool.district))
+    )
+    obj = result.scalar_one_or_none()
+    if not obj:
+        raise HTTPException(404, "School not found")
+    return obj
+
+
 @router.get("", response_model=list[SchoolOut])
 async def list_schools(
     district_id: Optional[int] = Query(None),
@@ -35,18 +48,16 @@ async def create_school(body: SchoolCreate, db: AsyncSession = Depends(get_db), 
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
-    return obj
+    return await _school_with_district(db, obj.id)
 
 
 @router.get("/{school_id}", response_model=SchoolOut)
 async def get_school(school_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
-    obj = await db.get(GovtResidentialSchool, school_id, options=[selectinload(GovtResidentialSchool.district)])
-    if not obj:
-        raise HTTPException(404, "School not found")
-    return obj
+    return await _school_with_district(db, school_id)
 
 
 @router.put("/{school_id}", response_model=SchoolOut)
+@router.patch("/{school_id}", response_model=SchoolOut)
 async def update_school(school_id: int, body: SchoolUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_SCHOOLS))):
     obj = await db.get(GovtResidentialSchool, school_id)
     if not obj:
@@ -54,8 +65,7 @@ async def update_school(school_id: int, body: SchoolUpdate, db: AsyncSession = D
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.commit()
-    await db.refresh(obj)
-    return obj
+    return await _school_with_district(db, school_id)
 
 
 @router.delete("/{school_id}", status_code=204)

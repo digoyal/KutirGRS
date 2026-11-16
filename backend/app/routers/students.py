@@ -45,8 +45,9 @@ from app.progress_logic import (
     sync_class_year_from_marks,
     infer_track_for_student,
     merge_progress_payload,
-    apply_progress_transfer_to_admission,
+    apply_progress_transfer_school,
     pop_transfer_grs_school_id,
+    sync_progress_grs_fields_from_school_id,
     sync_transfer_school_label,
     validate_status_write,
     validate_marks_write,
@@ -1037,6 +1038,7 @@ async def create_progress(
     if not payload.get("track"):
         payload["track"] = await infer_track_for_student(db, data.student_id)
     obj = StudentProgress(**payload)
+    await sync_progress_grs_fields_from_school_id(db, obj, obj.school_id)
     validate_marks_write(obj, payload)
     obj.status = validate_status_write(obj, obj.status, payload)
     apply_transfer_field_clears(obj, payload)
@@ -1048,7 +1050,7 @@ async def create_progress(
     sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
     apply_graduated_status(obj)
-    await apply_progress_transfer_to_admission(db, obj, transfer_grs_school_id)
+    await apply_progress_transfer_school(db, obj, transfer_grs_school_id)
     await sync_transfer_school_label(db, obj)
     db.add(obj)
     try:
@@ -1094,7 +1096,7 @@ async def update_progress(
     sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
     apply_graduated_status(obj)
-    await apply_progress_transfer_to_admission(db, obj, transfer_grs_school_id)
+    await apply_progress_transfer_school(db, obj, transfer_grs_school_id)
     await sync_transfer_school_label(db, obj)
     await db.commit()
     await db.refresh(obj)

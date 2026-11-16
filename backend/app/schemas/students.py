@@ -164,6 +164,8 @@ class AdmissionFunnelEntityRowOut(AdmissionFunnelOut):
 class StudentProgressBase(BaseModel):
     student_id: int
     school_id: int
+    school_type: Optional[str] = None
+    district_id: Optional[int] = None
     academic_year: int
     class_in_year: Optional[int] = None
     track: str  # six_twelve | nine_twelve
@@ -180,7 +182,7 @@ class StudentProgressBase(BaseModel):
 
 class StudentProgressCreate(StudentProgressBase):
     track: Optional[str] = None  # inferred from admitted exam when omitted
-    transfer_grs_school_id: Optional[int] = None  # write-only → student_exams GRS fields
+    transfer_grs_school_id: Optional[int] = None  # write-only → student_progress GRS fields on transfer
 
 class StudentProgressUpdate(BaseModel):
     academic_year: Optional[int] = None

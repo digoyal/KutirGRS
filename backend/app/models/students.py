@@ -160,6 +160,10 @@ class StudentProgress(Base, TimestampMixin):
     school_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False
     )
+    school_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    district_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("districts.id", ondelete="SET NULL"), nullable=True
+    )
     academic_year: Mapped[int] = mapped_column(Integer, nullable=False)
     class_in_year: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)  # current class in journey
     track: Mapped[str] = mapped_column(String(20), nullable=False)  # six_twelve | nine_twelve

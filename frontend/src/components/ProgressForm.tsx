@@ -39,6 +39,8 @@ const CURRENT_YEAR = new Date().getFullYear();
 export interface ProgressFormState {
   student_id: number;
   school_id: number;
+  school_type: string | null;
+  district_id: number | null;
   academic_year: number;
   class_in_year: number | null;
   track: ProgressTrack;
@@ -60,6 +62,8 @@ export function emptyProgressForm(year = CURRENT_YEAR): ProgressFormState {
   return {
     student_id: 0,
     school_id: 0,
+    school_type: null,
+    district_id: null,
     academic_year: year,
     class_in_year: null,
     track: "six_twelve",
@@ -122,6 +126,8 @@ export function validateProgressSave(form: ProgressFormState): string | null {
 export function progressToFormState(record: {
   student_id: number;
   school_id: number;
+  school_type?: string | null;
+  district_id?: number | null;
   academic_year: number;
   class_in_year: number | null;
   track: ProgressTrack;
@@ -139,7 +145,11 @@ export function progressToFormState(record: {
 }): ProgressFormState {
   return {
     ...record,
-    transfer_grs_school_id: record.transfer_grs_school_id ?? null,
+    school_type: record.school_type ?? null,
+    district_id: record.district_id ?? null,
+    transfer_grs_school_id:
+      record.transfer_grs_school_id ??
+      (record.status === "transferred" ? record.school_id : null),
   };
 }
 
@@ -190,11 +200,11 @@ export function ProgressForm({
   const [transferDistrict, setTransferDistrict] = useState<number | "">("");
   const [transferSchoolType, setTransferSchoolType] = useState("");
 
-  const needsGrsSchools = isAdd || (!readOnly && form.status === "transferred");
+  const needsGrsSchools = isAdd || !readOnly || form.status === "transferred" || (readOnly && !isAdd);
   const { data: schools = [] } = useQuery<School[]>({
     queryKey: ["schools"],
     queryFn: () => listSchools(),
-    enabled: needsGrsSchools || form.status === "transferred",
+    enabled: needsGrsSchools,
   });
 
   const { data: allKutirs = [] } = useQuery({
@@ -205,7 +215,7 @@ export function ProgressForm({
   const { data: allDistricts = [] } = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
-    enabled: isAdd || form.status === "transferred",
+    enabled: isAdd || form.status === "transferred" || !isAdd,
   });
   const { data: allAreas = [] } = useQuery({
     queryKey: ["all-areas"],
@@ -386,12 +396,10 @@ export function ProgressForm({
 
   useEffect(() => {
     if (isAdd || form.status !== "transferred" || form.transfer_grs_school_id != null) return;
-    const fromExam =
-      admissionExamForProgress?.admitted_school_id ?? admissionExamForProgress?.school_id ?? null;
-    if (fromExam) {
-      setForm((f) => ({ ...f, transfer_grs_school_id: fromExam }));
+    if (form.school_id) {
+      setForm((f) => ({ ...f, transfer_grs_school_id: form.school_id }));
     }
-  }, [isAdd, form.status, form.transfer_grs_school_id, admissionExamForProgress]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAdd, form.status, form.transfer_grs_school_id, form.school_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!form.transfer_grs_school_id || schools.length === 0) return;
@@ -429,6 +437,18 @@ export function ProgressForm({
       : transferDistrict !== ""
         ? allDistricts.find((d) => d.id === transferDistrict)?.name
         : undefined;
+
+  const currentSchool = useMemo(
+    () => schools.find((s) => s.id === form.school_id) ?? null,
+    [schools, form.school_id],
+  );
+  const currentDistrictName =
+    form.district_id != null
+      ? allDistricts.find((d) => d.id === form.district_id)?.name
+      : currentSchool?.district_id != null
+        ? allDistricts.find((d) => d.id === currentSchool.district_id)?.name
+        : undefined;
+  const showCurrentGrsSchool = !isAdd && !showTransferSchool;
 
   return (
     <div className={readOnly ? "grs-form-layout" : "grs-form"}>
@@ -551,14 +571,43 @@ export function ProgressForm({
               )
             ) : null}
           </ViewField>
-          <ViewField
-            label={progressFieldLabel("school_id")}
-            labelStyle={progressViewLabelStyle}
-            valueStyle={progressViewValueStyle}
-            style={{ flex: 1, minWidth: 140 }}
+        </div>
+      )}
+
+      {showCurrentGrsSchool && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: 6 }}>
+            GRS school
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: 8,
+            }}
           >
-            {schoolName ?? "—"}
-          </ViewField>
+            <ViewField
+              label={progressFieldLabel("district")}
+              labelStyle={progressViewLabelStyle}
+              valueStyle={progressViewValueStyle}
+            >
+              {currentDistrictName ?? "—"}
+            </ViewField>
+            <ViewField
+              label={progressFieldLabel("school_type")}
+              labelStyle={progressViewLabelStyle}
+              valueStyle={progressViewValueStyle}
+            >
+              {form.school_type ?? currentSchool?.school_type ?? "—"}
+            </ViewField>
+            <ViewField
+              label={progressFieldLabel("school_id")}
+              labelStyle={progressViewLabelStyle}
+              valueStyle={progressViewValueStyle}
+            >
+              {schoolName ?? currentSchool?.name ?? "—"}
+            </ViewField>
+          </div>
         </div>
       )}
 
@@ -738,6 +787,9 @@ export function ProgressForm({
 
       {showTransferSchool && (
         <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: 6 }}>
+            {readOnly ? "Current GRS school (after transfer)" : "Transfer to GRS school"}
+          </div>
           <div
             style={{
               display: "grid",

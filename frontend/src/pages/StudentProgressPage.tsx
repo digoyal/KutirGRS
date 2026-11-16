@@ -180,6 +180,10 @@ export default function StudentProgressPage() {
   // Stable map references so columns useMemo deps stay clean
   const studentMap2  = useMemo(() => new Map(allStudents.map((s: any) => [s.id, s])),  [allStudents]);
   const schoolMap    = useMemo(() => new Map(schools.map((s: any) => [s.id, s])),      [schools]);
+  const districtMap  = useMemo(
+    () => new Map(allDistricts.map((d: { id: number; name: string }) => [d.id, d])),
+    [allDistricts],
+  );
 
   const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
@@ -241,6 +245,11 @@ export default function StudentProgressPage() {
             case "academic_year": return p.academic_year ?? -1;
             case "class_in_year": return p.class_in_year ?? -1;
             case "school_id": return (schoolMap.get(p.school_id)?.name ?? "").toLowerCase();
+            case "school_type": return (p.school_type ?? schoolMap.get(p.school_id)?.school_type ?? "").toLowerCase();
+            case "district": {
+              const did = p.district_id ?? schoolMap.get(p.school_id)?.district_id;
+              return did != null ? (districtMap.get(did)?.name ?? "").toLowerCase() : "";
+            }
             case "status": return p.status ?? "";
             case "remarks":
               return progressStatusShowsRemarks(p.status) ? (p.remarks ?? "").toLowerCase() : "";
@@ -266,6 +275,12 @@ export default function StudentProgressPage() {
             case "academic_year": return p.academic_year != null ? formatAcademicYear(p.academic_year) : "";
             case "class_in_year": return p.class_in_year != null ? String(p.class_in_year) : "";
             case "school_id": return (p.school ?? schoolMap.get(p.school_id))?.name ?? "";
+            case "school_type":
+              return p.school_type ?? schoolMap.get(p.school_id)?.school_type ?? "";
+            case "district": {
+              const did = p.district_id ?? schoolMap.get(p.school_id)?.district_id;
+              return did != null ? districtMap.get(did)?.name ?? "" : "";
+            }
             case "status": return STATUS_LABELS[p.status as ProgressStatus] ?? p.status;
             case "remarks":
               return progressStatusShowsRemarks(p.status) ? (p.remarks ?? "") : "";
@@ -345,6 +360,21 @@ export default function StudentProgressPage() {
                   }}
                 >
                   {name}
+                </span>
+              );
+            }
+            case "school_type":
+              return (
+                <span style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
+                  {p.school_type ?? schoolMap.get(p.school_id)?.school_type ?? "—"}
+                </span>
+              );
+            case "district": {
+              const did = p.district_id ?? schoolMap.get(p.school_id)?.district_id;
+              const name = did != null ? districtMap.get(did)?.name : undefined;
+              return (
+                <span style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
+                  {name ?? "—"}
                 </span>
               );
             }

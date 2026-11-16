@@ -215,6 +215,27 @@ def apply_graduated_status(progress) -> None:
         progress.status = "graduated"
 
 
+def apply_grs_school_fields_to_progress(progress, school) -> None:
+    """Copy GRS school id + denormalized type/district onto progress."""
+    progress.school_id = school.id
+    progress.school_type = school.school_type
+    progress.district_id = school.district_id
+
+
+async def load_grs_school(db, school_id: int | None):
+    if not school_id:
+        return None
+    from app.models.schools import GovtResidentialSchool
+
+    return await db.get(GovtResidentialSchool, school_id)
+
+
+async def sync_progress_grs_fields_from_school_id(db, progress, school_id: int | None) -> None:
+    school = await load_grs_school(db, school_id)
+    if school:
+        apply_grs_school_fields_to_progress(progress, school)
+
+
 def admitted_school_id_for_exam(exam):
     """UI sets admitted_school_id; imports may only have school_id."""
     return exam.admitted_school_id or getattr(exam, "school_id", None)
@@ -311,43 +332,36 @@ def apply_transfer_field_clears(progress, data: dict) -> None:
 
 
 async def sync_transfer_school_label(db, progress) -> None:
-    """Keep transfer_school list tooltip text in sync with the linked admission school name."""
+    """Keep transfer_school list tooltip text in sync with progress's current GRS school."""
     if progress.status != "transferred":
         progress.transfer_school = None
         return
-    exam = await admission_exam_for_progress(db, progress)
-    if not exam:
-        return
-    school_id = admitted_school_id_for_exam(exam)
+    school_id = progress.school_id
     if not school_id:
         return
-    from app.models.schools import GovtResidentialSchool
-
-    school = await db.get(GovtResidentialSchool, school_id)
+    school = await load_grs_school(db, school_id)
     if school:
         progress.transfer_school = school.name
 
 
-async def apply_progress_transfer_to_admission(
+async def apply_progress_transfer_school(
     db,
     progress,
     transfer_grs_school_id: int | None,
 ) -> None:
-    """Transferred: update student_exams GRS fields and progress.school_id."""
+    """Transferred: update only student_progress current GRS fields (admission unchanged)."""
     if progress.status != "transferred":
         return
     if not transfer_grs_school_id:
         return
-    from app.models.schools import GovtResidentialSchool
-
-    school = await db.get(GovtResidentialSchool, transfer_grs_school_id)
+    school = await load_grs_school(db, transfer_grs_school_id)
     if not school:
         raise HTTPException(400, "Transfer school not found.")
     exam = await admission_exam_for_progress(db, progress)
     if not exam:
         raise HTTPException(
             400,
-            "No admitted admission record for this student/year to attach the transfer school.",
+            "No admitted admission record for this student/year to validate the transfer school.",
         )
     allowed = await school_type_names_for_exam_type(db, exam.exam_type_id)
     validate_transfer_school_type_for_exam(
@@ -355,9 +369,7 @@ async def apply_progress_transfer_to_admission(
         school_type=school.school_type,
         allowed_school_type_names=allowed,
     )
-    exam.admitted_school_id = transfer_grs_school_id
-    exam.school_type = school.school_type
-    progress.school_id = transfer_grs_school_id
+    apply_grs_school_fields_to_progress(progress, school)
     progress.transfer_school = school.name
 
 
@@ -395,8 +407,12 @@ async def ensure_progress_from_admitted_exam(db, exam) -> None:
     if existing:
         for key in ("school_id", "academic_year", "class_in_year", "track"):
             setattr(existing, key, fields[key])
+        if existing.status != "transferred":
+            await sync_progress_grs_fields_from_school_id(db, existing, fields["school_id"])
         return
-    db.add(StudentProgress(**fields))
+    obj = StudentProgress(**fields)
+    await sync_progress_grs_fields_from_school_id(db, obj, fields["school_id"])
+    db.add(obj)
 
 
 async def infer_track_for_student(db, student_id: int) -> str:

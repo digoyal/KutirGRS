@@ -84,6 +84,8 @@ export interface StudentProgress {
   id: number;
   student_id: number;
   school_id: number;
+  school_type?: string | null;
+  district_id?: number | null;
   academic_year: number;
   class_in_year: number | null;
   track: ProgressTrack;
