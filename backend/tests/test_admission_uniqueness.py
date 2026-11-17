@@ -1,5 +1,6 @@
 """Run: cd backend && ./venv/bin/python -m pytest tests/test_admission_uniqueness.py -v"""
 import pytest
+from sqlalchemy import select
 
 import app.models.lookups  # noqa: F401 — ORM registry
 import app.models.geo  # noqa: F401
@@ -16,87 +17,80 @@ from app.admission_uniqueness import (
     admission_duplicate_detail,
     admission_uniqueness_violation,
     format_academic_year,
-    grs_school_id,
 )
-from app.database import AsyncSessionLocal
-
-
-def test_grs_school_id_prefers_admitted_school():
-    assert grs_school_id(1, 2) == 2
-    assert grs_school_id(1, None) == 1
-    assert grs_school_id(None, None) is None
+from app.database import AsyncSessionLocal, engine
+from app.models.students import StudentExam
 
 
 def test_format_academic_year_matches_ui():
     assert format_academic_year(2025) == "2025-26"
     assert admission_duplicate_detail(2026) == (
         "Student already has a admission record in progress for academic year 2026-27 "
-        "for the selected exam type and/or GRS school."
+        "for the selected class and exam type."
     )
 
 
-@pytest.mark.asyncio
-async def test_blocks_duplicate_null_exam_type_same_grs_school():
-    """Reproduces seeded dupes: exam_type_id NULL, school_id set, guard must fire."""
-    async with AsyncSessionLocal() as db:
-        msg = await admission_uniqueness_violation(
-            db,
-            student_id=28,
-            school_start_year=2027,
-            admitted=False,
-            exam_type_id=None,
-            school_id=1,
-            admitted_school_id=None,
-            exclude_exam_id=-1,
-        )
-        assert msg == admission_duplicate_detail(2027)
+async def _sample_exam(db):
+    """Pick any existing exam row so tests do not depend on fixed seed IDs."""
+    return (
+        await db.execute(select(StudentExam).order_by(StudentExam.id).limit(1))
+    ).scalar_one_or_none()
 
 
 @pytest.mark.asyncio
-async def test_blocks_same_exam_type_split_grs_columns():
-    """UI row (admitted_school_id) vs import row (school_id) for same physical school."""
+async def test_uniqueness_quartet_integration():
+    """One session: quartet blocks duplicate; class and exam type differentiate rows."""
     async with AsyncSessionLocal() as db:
+        row = await _sample_exam(db)
+        if row is None:
+            pytest.skip("No student_exams in database")
+
         msg = await admission_uniqueness_violation(
             db,
-            student_id=28,
-            school_start_year=2027,
+            student_id=row.student_id,
+            school_start_year=row.school_start_year,
             admitted=False,
-            exam_type_id=3,
-            school_id=None,
-            admitted_school_id=1,
-            exclude_exam_id=45,
-        )
-        assert msg == admission_duplicate_detail(2027)
-
-
-@pytest.mark.asyncio
-async def test_blocks_second_null_grs_same_year_different_exam_type():
-    """Reproduces Aman (student 310): two Add rows with no GRS school, different exam types."""
-    async with AsyncSessionLocal() as db:
-        msg = await admission_uniqueness_violation(
-            db,
-            student_id=310,
-            school_start_year=2026,
-            admitted=False,
-            exam_type_id=1,
-            school_id=None,
-            admitted_school_id=None,
-            exclude_exam_id=-1,
-        )
-        assert msg == admission_duplicate_detail(2026)
-
-
-@pytest.mark.asyncio
-async def test_allows_different_exam_type_same_grs():
-    async with AsyncSessionLocal() as db:
-        msg = await admission_uniqueness_violation(
-            db,
-            student_id=28,
-            school_start_year=2027,
-            admitted=False,
-            exam_type_id=99,
-            school_id=1,
-            admitted_school_id=None,
-            exclude_exam_id=45,
+            exam_type_id=row.exam_type_id,
+            admission_class=row.admission_class,
+            exclude_exam_id=row.id,
         )
         assert msg is None
+
+        msg = await admission_uniqueness_violation(
+            db,
+            student_id=row.student_id,
+            school_start_year=row.school_start_year,
+            admitted=False,
+            exam_type_id=row.exam_type_id,
+            admission_class=row.admission_class,
+            exclude_exam_id=-1,
+        )
+        assert msg == admission_duplicate_detail(row.school_start_year)
+
+        other_type = 99_999 if row.exam_type_id != 99_999 else 99_998
+        msg = await admission_uniqueness_violation(
+            db,
+            student_id=row.student_id,
+            school_start_year=row.school_start_year,
+            admitted=False,
+            exam_type_id=other_type,
+            admission_class=row.admission_class,
+            exclude_exam_id=-1,
+        )
+        assert msg is None
+
+        alt_class = 8 if row.admission_class != 8 else 5
+        if row.admission_class == alt_class:
+            alt_class = 5 if alt_class == 8 else 8
+        msg = await admission_uniqueness_violation(
+            db,
+            student_id=row.student_id,
+            school_start_year=row.school_start_year,
+            admitted=False,
+            exam_type_id=row.exam_type_id,
+            admission_class=alt_class,
+            exclude_exam_id=-1,
+        )
+        assert msg is None
+
+    await engine.dispose()

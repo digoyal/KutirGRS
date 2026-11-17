@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type SetStateAction } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormPageShell } from "@parivaar/ui";
@@ -8,12 +8,14 @@ import {
   type ExamTypeSubjectRow,
   type StudentExamCreate,
 } from "../api/admissions";
+import { listSchools } from "../api/schools";
 import { subjectsForExamType } from "../components/admissions-pipeline";
 import {
   AdmissionForm,
   emptyAdmissionForm,
   admissionPayloadFromForm,
   validateAdmissionForm,
+  PIPELINE_STAGE_REQUIRED_MSG,
   type AdmissionFormState,
 } from "../components/AdmissionForm";
 import { ADMISSIONS_FILTER_STORAGE_KEY } from "../constants/admissionsList";
@@ -49,6 +51,15 @@ export default function AdmissionAddPage() {
 
   const initYear = Number(searchParams.get("year")) || CURRENT_YEAR;
   const [form, setForm] = useState<AdmissionFormState>(() => emptyAdmissionForm(initYear));
+  const formRef = useRef(form);
+  formRef.current = form;
+  const setFormWithRef = useCallback((update: SetStateAction<AdmissionFormState>) => {
+    setForm((prev) => {
+      const next = typeof update === "function" ? update(prev) : update;
+      formRef.current = next;
+      return next;
+    });
+  }, []);
   const [admitBlockMsg, setAdmitBlockMsg] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -56,6 +67,11 @@ export default function AdmissionAddPage() {
   const { data: examTypeSubjects = [] } = useQuery<ExamTypeSubjectRow[]>({
     queryKey: ["exam-type-subjects"],
     queryFn: listExamTypeSubjects,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: schools = [] } = useQuery({
+    queryKey: ["schools"],
+    queryFn: () => listSchools(),
     staleTime: 5 * 60 * 1000,
   });
   const subjectIds = useMemo(
@@ -67,15 +83,22 @@ export default function AdmissionAddPage() {
     [subjectIds],
   );
 
+  function clearStalePipelineError() {
+    setSaveError((prev) =>
+      prev === PIPELINE_STAGE_REQUIRED_MSG ? null : prev,
+    );
+  }
+
   async function handleSave() {
-    const validationError = validateAdmissionForm(form, validateOpts);
+    const currentForm = formRef.current;
+    const validationError = validateAdmissionForm(currentForm, validateOpts);
     if (validationError) {
       setSaveError(validationError);
       return;
     }
     setSaveError(null);
     setSaving(true);
-    const payload = admissionPayloadFromForm(form) as StudentExamCreate;
+    const payload = admissionPayloadFromForm(currentForm, schools) as StudentExamCreate;
 
     try {
       await createExam(payload);
@@ -109,10 +132,11 @@ export default function AdmissionAddPage() {
     >
       <AdmissionForm
         form={form}
-        setForm={setForm}
+        setForm={setFormWithRef}
         mode="add"
         admitBlockMsg={admitBlockMsg}
         onAdmitBlockMsg={setAdmitBlockMsg}
+        onPipelineStageChange={clearStalePipelineError}
       />
     </FormPageShell>
   );

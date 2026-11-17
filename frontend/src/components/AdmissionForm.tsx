@@ -14,7 +14,7 @@ import {
   type ExamTypeSubjectRow,
 } from "../api/admissions";
 import { listStudents, type Student } from "../api/students";
-import { listSchools } from "../api/schools";
+import { listSchools, type School } from "../api/schools";
 import { listKutirs } from "../api/kutirs";
 import {
   listDistricts,
@@ -69,6 +69,7 @@ import {
   pipelineFieldVisible,
   pipelineStage,
   normalizePipelineStages,
+  mergePipelineStageToggle,
 } from "./admissions-pipeline";
 import { formatAcademicYear } from "../utils/academicYear";
 
@@ -157,6 +158,19 @@ export function admissionStageFlags(form: AdmissionStageFlags): AdmissionStageFl
   });
 }
 
+export type GrsSchoolLookup = Pick<School, "id" | "school_type">[];
+
+function schoolTypeForPayload(
+  form: Pick<AdmissionFormState, "school_type" | "admitted_school_id">,
+  schools: GrsSchoolLookup = [],
+): string {
+  const trimmed = form.school_type.trim();
+  if (trimmed) return trimmed;
+  if (form.admitted_school_id == null) return "";
+  const school = schools.find((s) => s.id == form.admitted_school_id);
+  return school?.school_type?.trim() ?? "";
+}
+
 export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
   const stages = normalizePipelineStages({
     eligible: exam.eligible,
@@ -203,16 +217,18 @@ export function admissionFormFromExam(exam: StudentExam): AdmissionFormState {
 /** Build create/update payload from form state (scores as numbers). */
 export function admissionPayloadFromForm(
   form: AdmissionFormState,
+  schools: GrsSchoolLookup = [],
 ): Omit<StudentExamCreate, "student_id"> & { student_id: number } {
   const stageFlags = admissionStageFlags(form);
   const show = (field: Parameters<typeof pipelineFieldVisible>[1]) =>
     pipelineFieldVisible(stageFlags, field);
   const showScores = show("scores");
   const showSchool = show("school_name");
+  const grsSchoolType = schoolTypeForPayload(form, schools);
   return {
     student_id: form.student_id,
     school_id: null,
-    school_type: showSchool ? form.school_type || null : null,
+    school_type: showSchool ? grsSchoolType || null : null,
     exam_type_id: show("exam_type") ? form.exam_type_id : null,
     school_start_year: form.school_start_year,
     eligible: stageFlags.eligible,
@@ -324,10 +340,10 @@ export function validateAdmissionForm(
   }
   const selectedStageIndex = STAGES.findIndex((s) => s.key === "selected");
   const atSelectedOnly = pipelineStage(stageFlags) === selectedStageIndex;
-  const hasGrsSchool =
-    form.admitted_school_id != null && form.school_type.trim() !== "";
+  const hasGrsSchool = form.admitted_school_id != null;
 
-  if (show("school_type") && !form.school_type.trim()) {
+  const schoolNameSatisfiesType = show("school_name") && form.admitted_school_id != null;
+  if (!schoolNameSatisfiesType && show("school_type") && !form.school_type.trim()) {
     if (!(atSelectedOnly && form.no_admit_reason_id != null)) {
       return "School type is required.";
     }
@@ -387,6 +403,8 @@ interface AdmissionFormProps {
   /** Set when an admit toggle is blocked; cleared on successful stage change. */
   admitBlockMsg?: string | null;
   onAdmitBlockMsg?: (msg: string | null) => void;
+  /** Called after a successful pipeline stage toggle (e.g. clear stale save errors). */
+  onPipelineStageChange?: () => void;
 }
 
 export function AdmissionForm({
@@ -399,6 +417,7 @@ export function AdmissionForm({
   currentExamId,
   admitBlockMsg,
   onAdmitBlockMsg,
+  onPipelineStageChange,
 }: AdmissionFormProps) {
   const readOnly = mode === "view";
   const isAdd = mode === "add";
@@ -429,6 +448,7 @@ export function AdmissionForm({
     queryKey: ["schools"],
     queryFn: () => listSchools(),
   });
+
   const { data: presenceDistricts = [] } = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
@@ -624,6 +644,20 @@ export function AdmissionForm({
     );
   }, [mode, form.admitted_school_id, studentKutirId, schools, allKutirsData, allClusters, allAreas, allDistricts]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Edit: backfill school_type from admitted school when legacy row omitted school_type
+  useEffect(() => {
+    if (mode !== "edit") return;
+    if (form.admitted_school_id == null) return;
+    if (form.school_type.trim() !== "") return;
+    const school = schools.find((s) => s.id === form.admitted_school_id);
+    if (!school?.school_type?.trim()) return;
+    setForm((f) =>
+      f.admitted_school_id === form.admitted_school_id && !f.school_type.trim()
+        ? { ...f, school_type: school.school_type }
+        : f,
+    );
+  }, [mode, form.admitted_school_id, form.school_type, schools]);
+
   function setField<K extends keyof AdmissionFormState>(key: K, val: AdmissionFormState[K]) {
     setForm((f) => ({ ...f, [key]: val }));
   }
@@ -648,16 +682,11 @@ export function AdmissionForm({
       }
     }
     onAdmitBlockMsg?.(null);
-    setForm((f) => {
-      const school_start_year = f.school_start_year;
-      return {
-        ...normalizePipelineStages({
-          ...f,
-          ...updates,
-        }),
-        school_start_year,
-      };
-    });
+    setForm((f) => ({
+      ...f,
+      ...mergePipelineStageToggle(admissionStageFlags(f), updates),
+    }));
+    onPipelineStageChange?.();
   }
 
   const linkedSchoolTypeNames = useMemo(() => {
@@ -1226,20 +1255,23 @@ export function AdmissionForm({
                 value={form.exam_type_id ?? ""}
                 onChange={(e) => {
                   const nextId = e.target.value === "" ? null : Number(e.target.value);
-                  const allowed =
+                  const nextSubjectIds =
                     nextId == null
                       ? []
-                      : (examTypes.find((t) => t.id === nextId)?.school_types ?? []).map(
-                          (st) => st.name,
-                        );
+                      : subjectsForExamType(examTypeSubjects, nextId).map((s) => s.id);
                   setForm((f) => {
-                    const clearSchool =
-                      f.school_type.trim() !== "" &&
-                      (nextId == null || !allowed.includes(f.school_type));
+                    const nextScores: Record<number, string> = {};
+                    for (const subjectId of nextSubjectIds) {
+                      const raw = f.scoreInputs[subjectId];
+                      if (raw !== undefined) nextScores[subjectId] = raw;
+                    }
                     return {
                       ...f,
                       exam_type_id: nextId,
-                      ...(clearSchool ? { school_type: "", admitted_school_id: null } : {}),
+                      school_type: "",
+                      admitted_school_id: null,
+                      ui_school_district: "",
+                      scoreInputs: nextScores,
                     };
                   });
                 }}
@@ -1480,8 +1512,12 @@ export function AdmissionForm({
               <select
                 value={schoolDistrictFilter}
                 onChange={(e) => {
-                  setField("ui_school_district", e.target.value === "" ? "" : Number(e.target.value));
-                  setField("admitted_school_id", null);
+                  const nextDistrict = e.target.value === "" ? "" : Number(e.target.value);
+                  setForm((f) => ({
+                    ...f,
+                    ui_school_district: nextDistrict,
+                    admitted_school_id: null,
+                  }));
                 }}
                 style={selStyles}
               >
@@ -1502,10 +1538,13 @@ export function AdmissionForm({
               </label>
               <select
                 value={form.school_type}
-                onChange={(e) => {
-                  setField("school_type", e.target.value);
-                  setField("admitted_school_id", null);
-                }}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    school_type: e.target.value,
+                    admitted_school_id: null,
+                  }))
+                }
                 disabled={form.exam_type_id == null}
                 style={{
                   ...selStyles,
@@ -1531,12 +1570,17 @@ export function AdmissionForm({
               </label>
               <select
                 value={form.admitted_school_id ?? ""}
-                onChange={(e) =>
-                  setField(
-                    "admitted_school_id",
-                    e.target.value === "" ? null : Number(e.target.value),
-                  )
-                }
+                onChange={(e) => {
+                  const nextId = e.target.value === "" ? null : Number(e.target.value);
+                  const school =
+                    nextId == null ? undefined : schools.find((s) => s.id == nextId);
+                  const catalogType = school?.school_type?.trim() ?? "";
+                  setForm((f) => ({
+                    ...f,
+                    admitted_school_id: nextId,
+                    ...(nextId != null ? { school_type: catalogType } : {}),
+                  }));
+                }}
                 disabled={!form.school_type}
                 style={{
                   ...selStyles,

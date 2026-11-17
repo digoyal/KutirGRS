@@ -212,6 +212,29 @@ def test_selected_with_grs_school_skips_reason_not_admitted():
     )
 
 
+def test_selected_with_school_name_skips_blank_school_type():
+    """School name selected ⇒ no separate school_type required (matches exam category pattern)."""
+    validate_student_exam_write(
+        _base(
+            eligible=True,
+            applied=True,
+            admit_card=True,
+            appeared=True,
+            result_declared=True,
+            selected=True,
+            application_number="APP1",
+            roll_number="R1",
+            exam_center_id=1,
+            school_type="",
+            admitted_school_id=99,
+            no_admit_reason_id=None,
+        ),
+        is_create=True,
+        subject_ids=[10],
+        scores_by_subject={10: 90.0},
+    )
+
+
 def test_selected_requires_school_or_reason():
     with pytest.raises(HTTPException) as exc:
         validate_student_exam_write(

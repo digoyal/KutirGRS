@@ -51,6 +51,14 @@ export function normalizePipelineStages<T extends Pick<StudentExam, StageKey>>(e
   return next;
 }
 
+/** Apply stepper partial updates onto current stage flags (contiguous prefix). */
+export function mergePipelineStageToggle(
+  current: Pick<StudentExam, StageKey>,
+  updates: Partial<Record<StageKey, boolean>>,
+): Pick<StudentExam, StageKey> {
+  return normalizePipelineStages({ ...current, ...updates });
+}
+
 /** Spreadsheet "Admin Card Downloaded" ↔ stage key `admit_card`. */
 export type PipelineField =
   | "year"

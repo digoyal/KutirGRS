@@ -196,9 +196,10 @@ def validate_student_exam_write(
     at_selected_only = pipeline_stage(flags) == STAGE_INDEX["selected"]
 
     def _has_grs_school() -> bool:
-        return not _is_blank(data.get("school_type")) and bool(data.get("admitted_school_id"))
+        return bool(data.get("admitted_school_id"))
 
-    if show("school_type") and _is_blank(data.get("school_type")):
+    school_name_satisfies_type = show("school_name") and data.get("admitted_school_id")
+    if not school_name_satisfies_type and show("school_type") and _is_blank(data.get("school_type")):
         if not (at_selected_only and data.get("no_admit_reason_id")):
             raise HTTPException(422, "School type is required.")
 

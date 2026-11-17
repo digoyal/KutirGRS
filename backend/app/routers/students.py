@@ -373,10 +373,7 @@ async def list_exams(
     response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
 
     data_q = _apply_filters(
-        select(StudentExam).options(
-            selectinload(StudentExam.scores),
-            selectinload(StudentExam.student),
-        )
+        select(StudentExam).options(*_exam_out_options())
     ).order_by(StudentExam.school_start_year.desc())
     if student_id is None and admitted is not True:
         data_q = data_q.limit(limit).offset(offset)
@@ -817,6 +814,24 @@ async def _scores_by_subject_for_exam(db: AsyncSession, exam_id: int) -> dict[in
     return {int(sid): score for sid, score in rows}
 
 
+def _exam_out_options():
+    """Eager loads for StudentExamOut (scores.subject + student)."""
+    return (
+        selectinload(StudentExam.scores).selectinload(StudentExamScore.subject),
+        selectinload(StudentExam.student),
+    )
+
+
+async def _load_student_exam(db: AsyncSession, exam_id: int) -> Optional[StudentExam]:
+    """Load exam with relations needed for StudentExamOut (same as list_exams)."""
+    result = await db.execute(
+        select(StudentExam)
+        .where(StudentExam.id == exam_id)
+        .options(*_exam_out_options())
+    )
+    return result.scalar_one_or_none()
+
+
 @router.post("/student-exams", response_model=StudentExamOut, status_code=201, tags=["Student Exams"])
 async def create_exam(
     data: StudentExamCreate,
@@ -845,8 +860,7 @@ async def create_exam(
         school_start_year=exam_data["school_start_year"],
         admitted=bool(exam_data.get("admitted")),
         exam_type_id=exam_data.get("exam_type_id"),
-        school_id=exam_data.get("school_id"),
-        admitted_school_id=exam_data.get("admitted_school_id"),
+        admission_class=exam_data.get("admission_class"),
     )
 
     exam = StudentExam(**exam_data)
@@ -870,8 +884,10 @@ async def create_exam(
     except ProgrammingError as e:
         await db.rollback()
         raise_http_for_programming(e)
-    await db.refresh(exam)
-    return exam
+    loaded = await _load_student_exam(db, exam.id)
+    if not loaded:
+        raise HTTPException(500, "StudentExam not found after create")
+    return loaded
 
 
 @router.get("/student-exams/{id}", response_model=StudentExamOut, tags=["Student Exams"])
@@ -880,7 +896,7 @@ async def get_exam(
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
-    obj = await db.get(StudentExam, id)
+    obj = await _load_student_exam(db, id)
     if not obj:
         raise HTTPException(404, "StudentExam not found")
     await _require_student_in_scope(db, obj.student_id, scope, detail="StudentExam not found")
@@ -922,7 +938,7 @@ async def update_exam(
     validate_school_type_for_exam_type(merged, allowed_school_type_names=allowed_school_types)
 
     final_exam_type = merged.get("exam_type_id")
-    final_admitted_school = merged.get("admitted_school_id")
+    final_admission_class = merged.get("admission_class")
 
     await assert_admission_uniqueness(
         db,
@@ -930,8 +946,7 @@ async def update_exam(
         school_start_year=obj.school_start_year,
         admitted=bool(final_admitted),
         exam_type_id=final_exam_type,
-        school_id=obj.school_id,
-        admitted_school_id=final_admitted_school,
+        admission_class=final_admission_class,
         exclude_exam_id=id,
     )
 
@@ -954,8 +969,10 @@ async def update_exam(
     except ProgrammingError as e:
         await db.rollback()
         raise_http_for_programming(e)
-    await db.refresh(obj)
-    return obj
+    loaded = await _load_student_exam(db, id)
+    if not loaded:
+        raise HTTPException(500, "StudentExam not found after update")
+    return loaded
 
 
 @router.delete("/student-exams/{id}", status_code=204, tags=["Student Exams"])

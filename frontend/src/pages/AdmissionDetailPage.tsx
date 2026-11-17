@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, type SetStateAction } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,12 +8,12 @@ import {
   listExamTypes,
   listExamTypeSubjects,
   type StudentExam,
+  type ExamTypeSubjectRow,
   type StudentExamCreate,
   type ExamTypeMin,
-  type ExamTypeSubjectRow,
 } from "../api/admissions";
-import { subjectsForExamType } from "../components/admissions-pipeline";
 import { getStudent } from "../api/students";
+import { listSchools } from "../api/schools";
 import {
   AdmissionForm,
   admissionFormFromExam,
@@ -21,7 +21,9 @@ import {
   validateAdmissionForm,
   emptyAdmissionForm,
   type AdmissionFormState,
+  type GrsSchoolLookup,
 } from "../components/AdmissionForm";
+import { subjectsForExamType } from "../components/admissions-pipeline";
 import { FormPageShell } from "@parivaar/ui";
 import { formatAcademicYear } from "../utils/academicYear";
 import { studentLabel } from "../utils/studentLabel";
@@ -40,10 +42,23 @@ export default function AdmissionDetailPage() {
   const enteredViaEdit = searchParams.get("edit") === "1";
   const [editing, setEditing] = useState(enteredViaEdit);
   const [form, setForm] = useState<AdmissionFormState>(emptyAdmissionForm);
+  const formRef = useRef(form);
+  formRef.current = form;
+  const setFormWithRef = useCallback((update: SetStateAction<AdmissionFormState>) => {
+    setForm((prev) => {
+      const next = typeof update === "function" ? update(prev) : update;
+      formRef.current = next;
+      return next;
+    });
+  }, []);
   const [admitBlockMsg, setAdmitBlockMsg] = useState<string | null>(null);
   const [saveError, setSaveError] = useState("");
-
-  const { data: exam, isLoading } = useQuery<StudentExam>({
+  const {
+    data: exam,
+    isLoading,
+    isError,
+    error: loadError,
+  } = useQuery<StudentExam>({
     queryKey: ["admission", id],
     queryFn: () => getExam(Number(id)),
     enabled: !!id && !isNaN(Number(id)),
@@ -51,7 +66,9 @@ export default function AdmissionDetailPage() {
 
   useEffect(() => {
     if (!exam) return;
-    setForm(admissionFormFromExam(exam));
+    const next = admissionFormFromExam(exam);
+    formRef.current = next;
+    setForm(next);
   }, [exam?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: student } = useQuery({
@@ -71,19 +88,16 @@ export default function AdmissionDetailPage() {
     queryFn: listExamTypes,
     staleTime: 5 * 60 * 1000,
   });
+  const { data: schools = [] } = useQuery({
+    queryKey: ["schools"],
+    queryFn: () => listSchools(),
+    staleTime: 5 * 60 * 1000,
+  });
   const { data: examTypeSubjects = [] } = useQuery<ExamTypeSubjectRow[]>({
     queryKey: ["exam-type-subjects"],
     queryFn: listExamTypeSubjects,
     staleTime: 5 * 60 * 1000,
   });
-  const subjectIds = useMemo(
-    () => subjectsForExamType(examTypeSubjects, form.exam_type_id).map((s) => s.id),
-    [examTypeSubjects, form.exam_type_id],
-  );
-  const validateOpts = useMemo(
-    () => ({ mode: "edit" as const, subjectIds }),
-    [subjectIds],
-  );
 
   const updateMut = useMutation({
     mutationFn: (data: Partial<StudentExamCreate>) => updateExam(Number(id), data),
@@ -103,24 +117,42 @@ export default function AdmissionDetailPage() {
   });
 
   if (isLoading) return <p style={{ color: "var(--text-secondary)", padding: 24 }}>Loading…</p>;
+  if (isError) {
+    return (
+      <p style={{ color: "var(--danger)", padding: 24 }}>
+        {apiErrorDetail(loadError, "Failed to load admission.")}
+      </p>
+    );
+  }
   if (!exam) return <p style={{ color: "var(--danger)", padding: 24 }}>Admission not found.</p>;
 
   const studentName = studentLabel(student, `Student #${exam.student_id}`);
 
   function resetFromExam() {
-    setForm(admissionFormFromExam(exam!));
+    const next = admissionFormFromExam(exam!);
+    formRef.current = next;
+    setForm(next);
     setAdmitBlockMsg(null);
     setSaveError("");
   }
 
   function handleSave() {
-    const validationError = validateAdmissionForm(form, validateOpts);
+    const currentForm = formRef.current;
+    const schoolsCatalog =
+      (qc.getQueryData<GrsSchoolLookup>(["schools"]) as GrsSchoolLookup | undefined) ?? schools;
+    const subjectIds = subjectsForExamType(examTypeSubjects, currentForm.exam_type_id).map(
+      (s) => s.id,
+    );
+    const validationError = validateAdmissionForm(currentForm, {
+      mode: "edit",
+      subjectIds,
+    });
     if (validationError) {
       setSaveError(validationError);
       return;
     }
     setSaveError("");
-    const payload = admissionPayloadFromForm(form);
+    const payload = admissionPayloadFromForm(currentForm, schoolsCatalog);
     const { student_id: _sid, school_start_year: _year, ...rest } = payload;
     updateMut.mutate(rest);
   }
@@ -248,7 +280,7 @@ export default function AdmissionDetailPage() {
     >
       <AdmissionForm
         form={form}
-        setForm={setForm}
+        setForm={setFormWithRef}
         mode="edit"
         studentName={studentName}
         studentKutirId={student?.kutir_id}

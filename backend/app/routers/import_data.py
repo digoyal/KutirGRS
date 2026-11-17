@@ -979,8 +979,7 @@ async def _import_admissions(rows, db):
             school_start_year=year,
             admitted=admitted_flag,
             exam_type_id=exam_type_id,
-            school_id=school_id,
-            admitted_school_id=adm_school_id,
+            admission_class=adm_class,
             exclude_exam_id=exists,
         )
         if uniq_err:

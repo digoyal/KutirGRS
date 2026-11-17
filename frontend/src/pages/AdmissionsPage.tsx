@@ -648,10 +648,10 @@ export default function AdmissionsPage() {
         exportColumns={exportColumns}
         getExportRows={getExportRows}
         printTitle="Admissions"
-        onAdd={() => { saveFilters(); navigate(`new?year=${year}`); }}
+        onAdd={() => { saveFilters(); navigate(`/admissions/new?year=${year}`); }}
         actions={(exam) => ({
-          onView: () => { saveFilters(); navigate(String(exam.id)); },
-          onEdit: () => { saveFilters(); navigate(`${exam.id}?edit=1`); },
+          onView: () => { saveFilters(); navigate(`/admissions/${exam.id}`); },
+          onEdit: () => { saveFilters(); navigate(`/admissions/${exam.id}?edit=1`); },
           onDelete: () => setPendingDelete(exam.id),
         })}
       />
