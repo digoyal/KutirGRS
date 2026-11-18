@@ -36,24 +36,22 @@ from app.admission_pipeline_validation import (
     validate_student_exam_write,
     validate_school_type_for_exam_type,
     student_exam_merged_for_update,
+    merged_pipeline_admitted,
+    normalize_pipeline_stages,
 )
 from app.progress_logic import (
     apply_graduated_status,
     apply_promoted_status,
     classes_for_track,
+    delete_progress_on_unadmit,
     ensure_progress_from_admitted_exam,
     snapshot_marks,
     sync_class_year_from_marks,
     infer_track_for_student,
     merge_progress_payload,
-    apply_progress_transfer_school,
-    pop_transfer_grs_school_id,
     sync_progress_grs_fields_from_school_id,
-    sync_transfer_school_label,
     validate_status_write,
     validate_marks_write,
-    validate_transfer_fields,
-    apply_transfer_field_clears,
 )
 
 router = APIRouter()
@@ -913,12 +911,13 @@ async def update_exam(
     if not obj:
         raise HTTPException(404, "StudentExam not found")
     await _require_student_in_scope(db, obj.student_id, scope, detail="StudentExam not found")
+    was_admitted = bool(obj.admitted)
     update = data.model_dump(exclude_unset=True)
     scores = update.pop("scores", None)
 
     merged = student_exam_merged_for_update(obj, update)
 
-    final_admitted = update["admitted"] if "admitted" in update else obj.admitted
+    final_admitted = merged_pipeline_admitted(merged)
     final_class = update["admission_class"] if "admission_class" in update else obj.admission_class
     _require_admission_class_when_admitted(bool(final_admitted), final_class)
 
@@ -950,8 +949,12 @@ async def update_exam(
         exclude_exam_id=id,
     )
 
+    stage_flags = normalize_pipeline_stages({k: bool(merged.get(k)) for k in STAGE_KEYS})
     for k, v in update.items():
-        setattr(obj, k, v)
+        if k not in STAGE_KEYS:
+            setattr(obj, k, v)
+    for k in STAGE_KEYS:
+        setattr(obj, k, stage_flags[k])
     if scores is not None:
         # replace scores
         await db.execute(
@@ -960,6 +963,9 @@ async def update_exam(
         for s in scores:
             db.add(StudentExamScore(exam_id=id, subject_id=s["subject_id"], score=s.get("score")))
     try:
+        await delete_progress_on_unadmit(
+            db, obj, was_admitted=was_admitted, final_admitted=bool(final_admitted)
+        )
         if final_admitted:
             await ensure_progress_from_admitted_exam(db, obj)
         await db.commit()
@@ -1065,24 +1071,16 @@ async def create_progress(
 ):
     await _require_student_in_scope(db, data.student_id, scope, detail="StudentProgress not found")
     payload = data.model_dump()
-    transfer_grs_school_id = pop_transfer_grs_school_id(payload)
     if not payload.get("track"):
         payload["track"] = await infer_track_for_student(db, data.student_id)
     obj = StudentProgress(**payload)
     await sync_progress_grs_fields_from_school_id(db, obj, obj.school_id)
     validate_marks_write(obj, payload)
     obj.status = validate_status_write(obj, obj.status, payload)
-    apply_transfer_field_clears(obj, payload)
-    transfer_updates = payload.copy()
-    if transfer_grs_school_id is not None:
-        transfer_updates["transfer_grs_school_id"] = transfer_grs_school_id
-    validate_transfer_fields(obj, transfer_updates)
     marks_before = {c: None for c in classes_for_track(obj.track)}
     sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
     apply_graduated_status(obj)
-    await apply_progress_transfer_school(db, obj, transfer_grs_school_id)
-    await sync_transfer_school_label(db, obj)
     db.add(obj)
     try:
         await db.commit()
@@ -1118,17 +1116,12 @@ async def update_progress(
     await _require_student_in_scope(db, obj.student_id, scope, detail="StudentProgress not found")
     marks_before = snapshot_marks(obj)
     raw = data.model_dump(exclude_unset=True)
-    transfer_grs_school_id = pop_transfer_grs_school_id(raw)
-    if transfer_grs_school_id is not None:
-        raw["transfer_grs_school_id"] = transfer_grs_school_id
     update = merge_progress_payload(obj, raw)
     for k, v in update.items():
         setattr(obj, k, v)
     sync_class_year_from_marks(obj, marks_before)
     apply_promoted_status(obj)
     apply_graduated_status(obj)
-    await apply_progress_transfer_school(db, obj, transfer_grs_school_id)
-    await sync_transfer_school_label(db, obj)
     await db.commit()
     await db.refresh(obj)
     return obj

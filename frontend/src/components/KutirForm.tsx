@@ -13,6 +13,7 @@ import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
 import { kutirFieldLabel } from "../constants/kutirsFields";
 import { grs } from "../styles/grs";
+import { scopeDistricts } from "../utils/geoFilters";
 
 const KUTIR_TYPES = ["Seva Kutir", "Shiksha Kutir", "Non-Kutir"];
 const STATES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"];
@@ -104,10 +105,10 @@ export function KutirForm({
     queryFn: listDonors,
   });
 
-  const scopedDistricts =
-    unscoped || !user
-      ? allDistricts
-      : allDistricts.filter((d) => user.district_ids.includes(d.id));
+  const scopedDistricts = scopeDistricts(allDistricts, user ?? undefined, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+  });
   const scopedClusters =
     unscoped || !user
       ? allClusters

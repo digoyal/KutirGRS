@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, type ReactNode, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listExamCenters, listDistricts, deleteExamCenter } from "../api/geo";
+import { listAreas, listClusters, listExamCenters, listDistricts, deleteExamCenter } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
@@ -86,8 +86,16 @@ export default function ExamCentersPage() {
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
+  const { data: allAreas = [] } = useQuery({ queryKey: ["all-areas"], queryFn: () => listAreas() });
+  const { data: allClusters = [] } = useQuery({
+    queryKey: ["all-clusters"],
+    queryFn: () => listClusters(),
+  });
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+  });
   const setFilterClusterNoop = useCallback(() => {}, []);
 
   useGeoFilterAutoSelect({

@@ -3,6 +3,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.admission_pipeline_validation import (
+    merged_pipeline_admitted,
     normalize_pipeline_stages,
     pipeline_field_visible,
     pipeline_stage_matches,
@@ -110,6 +111,23 @@ def test_sparse_eligible_create_allows_missing_exam_type():
     )
 
 
+def test_admit_card_allows_missing_no_exam_reason():
+    validate_student_exam_write(
+        _base(
+            eligible=True,
+            applied=True,
+            admit_card=True,
+            application_number="APP1",
+            roll_number="R1",
+            exam_center_id=1,
+            no_exam_reason_id=None,
+        ),
+        is_create=True,
+        subject_ids=[],
+        scores_by_subject={},
+    )
+
+
 def test_applied_stage_requires_application_number():
     with pytest.raises(HTTPException) as exc:
         validate_student_exam_write(
@@ -190,7 +208,8 @@ def test_selected_requires_school_name():
     assert exc.value.detail == "School name is required."
 
 
-def test_selected_with_grs_school_skips_reason_not_admitted():
+def test_selected_allows_missing_no_admit_reason():
+    """Reason not admitted visible at Selected but optional (same as no-exam reason at admit card)."""
     validate_student_exam_write(
         _base(
             eligible=True,
@@ -235,7 +254,7 @@ def test_selected_with_school_name_skips_blank_school_type():
     )
 
 
-def test_selected_requires_school_or_reason():
+def test_selected_without_school_or_reason_still_requires_school():
     with pytest.raises(HTTPException) as exc:
         validate_student_exam_write(
             _base(
@@ -256,8 +275,8 @@ def test_selected_requires_school_or_reason():
             subject_ids=[10],
             scores_by_subject={10: 90.0},
         )
-    detail = exc.value.detail.lower()
-    assert "school" in detail or "reason not admitted" in detail
+    assert "school" in exc.value.detail.lower()
+    assert "reason not admitted" not in exc.value.detail.lower()
 
 
 def test_school_type_must_match_exam_type_linkage():
@@ -286,3 +305,26 @@ def test_school_type_must_match_exam_type_linkage():
         flags_data,
         allowed_school_type_names=frozenset({"GRS", "OTHER"}),
     )
+
+
+def test_merged_pipeline_admitted_normalizes_stages():
+    admitted = _base(
+        eligible=True,
+        applied=True,
+        admit_card=True,
+        appeared=True,
+        result_declared=True,
+        selected=True,
+        admitted=True,
+    )
+    assert merged_pipeline_admitted(admitted) is True
+    selected_only = _base(
+        eligible=True,
+        applied=True,
+        admit_card=True,
+        appeared=True,
+        result_declared=True,
+        selected=True,
+        admitted=False,
+    )
+    assert merged_pipeline_admitted(selected_only) is False

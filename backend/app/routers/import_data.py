@@ -1115,10 +1115,12 @@ async def _import_progress(rows, db):
         )).scalars().all()
 
         status = _str(r.get("status", "enrolled"))
+        if status == "transferred":
+            status = "transferred_to_local"
         if status not in (
             "enrolled",
             "promoted",
-            "transferred",
+            "transferred_to_local",
             "dropped_out",
             "graduated",
             "admitted_to_college",
@@ -1145,7 +1147,6 @@ async def _import_progress(rows, db):
             "cl": _int(r.get("class_in_year")),
             "tr": track,
             "st": status,
-            "ts": _str(r.get("transfer_school")) or None,
             "m6": _mark("marks_6"), "m7": _mark("marks_7"), "m8": _mark("marks_8"),
             "m9": _mark("marks_9"), "m10": _mark("marks_10"), "m11": _mark("marks_11"), "m12": _mark("marks_12"),
             "rm": _str(r.get("remarks")) or None,
@@ -1170,7 +1171,7 @@ async def _import_progress(rows, db):
                 UPDATE student_progress SET
                     school_id=:sc, school_type=:styp, district_id=:did,
                     academic_year=:yr, class_in_year=:cl, track=:tr,
-                    status=:st, transfer_school=:ts,
+                    status=:st,
                     marks_6=:m6, marks_7=:m7, marks_8=:m8, marks_9=:m9,
                     marks_10=:m10, marks_11=:m11, marks_12=:m12,
                     remarks=:rm, updated_at=now()
@@ -1184,12 +1185,12 @@ async def _import_progress(rows, db):
                         INSERT INTO student_progress
                             (student_id, school_id, school_type, district_id,
                              academic_year, class_in_year, track,
-                             status, transfer_school,
+                             status,
                              marks_6, marks_7, marks_8, marks_9, marks_10, marks_11, marks_12,
                              remarks, created_at, updated_at)
                         VALUES
                             (:si, :sc, :styp, :did, :yr, :cl, :tr,
-                             :st, :ts,
+                             :st,
                              :m6, :m7, :m8, :m9, :m10, :m11, :m12,
                              :rm, now(), now())
                         RETURNING id

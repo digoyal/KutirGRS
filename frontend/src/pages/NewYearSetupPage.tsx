@@ -78,7 +78,11 @@ export default function NewYearSetupPage() {
     return m;
   }, [admittedExams]);
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+    kutirs: allKutirs,
+  });
   const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 
   useEffect(() => {

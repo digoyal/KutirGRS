@@ -5,6 +5,7 @@ import {
   getExam,
   updateExam,
   listExams,
+  listProgress,
   listExamTypes,
   listExamTypeSubjects,
   type StudentExam,
@@ -19,6 +20,7 @@ import {
   admissionFormFromExam,
   admissionPayloadFromForm,
   validateAdmissionForm,
+  validateAdmissionUnadmit,
   emptyAdmissionForm,
   type AdmissionFormState,
   type GrsSchoolLookup,
@@ -81,6 +83,15 @@ export default function AdmissionDetailPage() {
     queryKey: ["student-exams-for-student", exam?.student_id],
     queryFn: () => listExams({ student_id: exam!.student_id }),
     enabled: !!exam?.student_id && editing,
+  });
+
+  const { data: progressRow = null } = useQuery({
+    queryKey: ["student-progress-for-admission", exam?.student_id],
+    queryFn: async () => {
+      const rows = await listProgress({ student_id: exam!.student_id, limit: 1 });
+      return rows[0] ?? null;
+    },
+    enabled: !!exam?.student_id && editing && exam.admitted,
   });
 
   const { data: examTypes = [] } = useQuery<ExamTypeMin[]>({
@@ -149,6 +160,11 @@ export default function AdmissionDetailPage() {
     });
     if (validationError) {
       setSaveError(validationError);
+      return;
+    }
+    const unadmitError = validateAdmissionUnadmit(currentForm, exam!.admitted, progressRow);
+    if (unadmitError) {
+      setSaveError(unadmitError);
       return;
     }
     setSaveError("");

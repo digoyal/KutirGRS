@@ -169,8 +169,7 @@ class StudentProgress(Base, TimestampMixin):
     track: Mapped[str] = mapped_column(String(20), nullable=False)  # six_twelve | nine_twelve
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="enrolled",
-    )  # enrolled|promoted|transferred|dropped_out|graduated|admitted_to_college
-    transfer_school: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    )  # enrolled|promoted|transferred_to_local|dropped_out|graduated|admitted_to_college
     marks_6: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     marks_7: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     marks_8: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)

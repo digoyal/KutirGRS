@@ -14,9 +14,8 @@ from app.progress_logic import (
     sync_class_year_from_marks,
     snapshot_marks,
     validate_marks_write,
+    validate_progress_allows_unadmit,
     validate_status_write,
-    validate_transfer_fields,
-    validate_transfer_school_type_for_exam,
     TRACK_NINE_TWELVE,
     TRACK_SIX_TWELVE,
 )
@@ -196,41 +195,9 @@ def test_validate_status_write_marks_12_in_same_payload():
         validate_status_write(p, "enrolled", {"marks_12": Decimal("90")})
 
 
-def test_validate_status_write_allows_transferred():
+def test_validate_status_write_allows_transferred_to_local():
     p = _progress(status="promoted")
-    assert validate_status_write(p, "transferred") == "transferred"
-
-
-def test_validate_transfer_fields_requires_school():
-    p = _progress(status="promoted")
-    with pytest.raises(HTTPException):
-        validate_transfer_fields(p, {"status": "transferred"})
-    validate_transfer_fields(p, {"status": "transferred", "transfer_grs_school_id": 99})
-
-
-def test_validate_transfer_school_type_for_exam():
-    validate_transfer_school_type_for_exam(
-        exam_type_id=1,
-        school_type="JNV",
-        allowed_school_type_names=frozenset({"JNV", "EMRS"}),
-    )
-    with pytest.raises(HTTPException):
-        validate_transfer_school_type_for_exam(
-            exam_type_id=1,
-            school_type="KSP",
-            allowed_school_type_names=frozenset({"JNV"}),
-        )
-    with pytest.raises(HTTPException):
-        validate_transfer_school_type_for_exam(
-            exam_type_id=1,
-            school_type="JNV",
-            allowed_school_type_names=frozenset(),
-        )
-    validate_transfer_school_type_for_exam(
-        exam_type_id=None,
-        school_type="JNV",
-        allowed_school_type_names=frozenset(),
-    )
+    assert validate_status_write(p, "transferred_to_local") == "transferred_to_local"
 
 
 def test_admission_start_year_for_progress():
@@ -240,49 +207,42 @@ def test_admission_start_year_for_progress():
     assert admission_start_year_for_progress(p) == 2026
 
 
-@pytest.mark.asyncio
-async def test_apply_progress_transfer_school_does_not_update_admission(monkeypatch):
-    from app.progress_logic import apply_progress_transfer_school
+def test_validate_progress_allows_unadmit_first_year_ok():
+    exam = SimpleNamespace(student_id=1, school_start_year=2025, admission_class=5)
+    progress = _progress(academic_year=2026, class_in_year=6, status="enrolled")
+    validate_progress_allows_unadmit(exam, progress)
+    progress.status = "promoted"
+    progress.marks_6 = Decimal("70")
+    validate_progress_allows_unadmit(exam, progress)
 
-    progress = SimpleNamespace(
-        status="transferred",
-        school_id=10,
-        school_type="JNV",
-        district_id=1,
-        transfer_school=None,
-        student_id=1,
-        academic_year=2027,
+
+def test_validate_progress_allows_unadmit_rejects_advanced_class():
+    exam = SimpleNamespace(student_id=1, school_start_year=2025, admission_class=5)
+    progress = _progress(academic_year=2027, class_in_year=7, status="promoted", marks_6=Decimal("70"))
+    with pytest.raises(HTTPException) as exc:
+        validate_progress_allows_unadmit(exam, progress)
+    assert exc.value.status_code == 400
+    assert "class 7" in exc.value.detail
+
+
+def test_validate_progress_allows_unadmit_rejects_later_marks():
+    exam = SimpleNamespace(student_id=1, school_start_year=2025, admission_class=5)
+    progress = _progress(
+        academic_year=2026,
+        class_in_year=6,
+        status="enrolled",
+        marks_7=Decimal("80"),
     )
-    exam = SimpleNamespace(
-        admitted_school_id=10,
-        school_type="JNV",
-        exam_type_id=5,
-    )
-    dest_school = SimpleNamespace(id=99, school_type="EMRS", district_id=2, name="Dest School")
+    with pytest.raises(HTTPException) as exc:
+        validate_progress_allows_unadmit(exam, progress)
+    assert "marks for class 7" in exc.value.detail
 
-    async def fake_load_grs_school(db, school_id):
-        if school_id == 99:
-            return dest_school
-        return None
 
-    async def fake_admission_exam(db, p):
-        return exam
-
-    async def fake_allowed(db, exam_type_id):
-        return frozenset({"JNV", "EMRS"})
-
-    monkeypatch.setattr("app.progress_logic.load_grs_school", fake_load_grs_school)
-    monkeypatch.setattr("app.progress_logic.admission_exam_for_progress", fake_admission_exam)
-    monkeypatch.setattr("app.progress_logic.school_type_names_for_exam_type", fake_allowed)
-
-    await apply_progress_transfer_school(None, progress, 99)
-
-    assert progress.school_id == 99
-    assert progress.school_type == "EMRS"
-    assert progress.district_id == 2
-    assert progress.transfer_school == "Dest School"
-    assert exam.admitted_school_id == 10
-    assert exam.school_type == "JNV"
+def test_validate_progress_allows_unadmit_rejects_status():
+    exam = SimpleNamespace(student_id=1, school_start_year=2025, admission_class=5)
+    progress = _progress(academic_year=2026, class_in_year=6, status="dropped_out")
+    with pytest.raises(HTTPException):
+        validate_progress_allows_unadmit(exam, progress)
 
 
 def test_graduation_nine_twelve_track():

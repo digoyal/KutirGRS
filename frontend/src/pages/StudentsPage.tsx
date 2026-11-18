@@ -211,7 +211,11 @@ export default function StudentsPage() {
   const { data: allClusters = [] } = useQuery({ queryKey: ["all-clusters"], queryFn: () => listClusters() });
 
   const kutirMap = useMemo(() => new Map(allKutirs.map(k => [k.id, k])), [allKutirs]);
-  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+    kutirs: allKutirs,
+  });
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
   const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 

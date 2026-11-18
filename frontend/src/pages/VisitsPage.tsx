@@ -120,7 +120,10 @@ export default function VisitsPage() {
     return new Set(user.kutir_ids ?? []);
   }, [isTeacher, user]);
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+  });
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
 
   useGeoFilterAutoSelect({

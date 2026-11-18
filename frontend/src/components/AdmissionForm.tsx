@@ -10,6 +10,7 @@ import {
   listExamTypeSubjects,
   type StudentExam,
   type StudentExamCreate,
+  type StudentProgress,
   type ExamTypeMin,
   type ExamTypeSubjectRow,
 } from "../api/admissions";
@@ -72,6 +73,7 @@ import {
   mergePipelineStageToggle,
 } from "./admissions-pipeline";
 import { formatAcademicYear } from "../utils/academicYear";
+import { classesForTrack, getMark } from "../utils/progressTrack";
 
 /** Add-mode student picker: year + admission class prefix before name. */
 function admissionStudentPickerLabel(
@@ -262,11 +264,17 @@ export function admissionFieldVisible(
 }
 
 /** Whether a pipeline-gated or always-on add/edit field is required (visible ⇒ required). */
+const OPTIONAL_PIPELINE_FIELDS: ReadonlySet<PipelineField> = new Set([
+  "reason_not_appeared",
+  "reason_not_admitted",
+]);
+
 export function admissionFieldRequired(
   form: Pick<AdmissionFormState, StageKey>,
   field: PipelineField | "student" | "admission_class",
 ): boolean {
   if (field === "student" || field === "admission_class") return true;
+  if (OPTIONAL_PIPELINE_FIELDS.has(field as PipelineField)) return false;
   return pipelineFieldVisible(admissionStageFlags(form), field);
 }
 
@@ -318,9 +326,6 @@ export function validateAdmissionForm(
   if (show("roll_number") && !form.roll_number?.trim()) {
     return `${admissionFieldLabel("roll_number")} is required.`;
   }
-  if (show("reason_not_appeared") && form.no_exam_reason_id == null) {
-    return "Reason not appeared is required.";
-  }
   if (show("scores")) {
     if (opts.subjectIds.length === 0) {
       if (form.exam_type_id == null) {
@@ -340,7 +345,6 @@ export function validateAdmissionForm(
   }
   const selectedStageIndex = STAGES.findIndex((s) => s.key === "selected");
   const atSelectedOnly = pipelineStage(stageFlags) === selectedStageIndex;
-  const hasGrsSchool = form.admitted_school_id != null;
 
   const schoolNameSatisfiesType = show("school_name") && form.admitted_school_id != null;
   if (!schoolNameSatisfiesType && show("school_type") && !form.school_type.trim()) {
@@ -353,10 +357,46 @@ export function validateAdmissionForm(
       return "School name is required.";
     }
   }
-  if (show("reason_not_admitted") && form.no_admit_reason_id == null) {
-    if (!(atSelectedOnly && hasGrsSchool)) {
-      return "Either select a GRS school or provide a reason not admitted.";
+  return null;
+}
+
+/** Client mirror of API un-admit rules when moving below Admitted on edit. */
+export function validateAdmissionUnadmit(
+  form: AdmissionFormState,
+  examWasAdmitted: boolean,
+  progress: StudentProgress | null | undefined,
+): string | null {
+  if (!examWasAdmitted) return null;
+  if (admissionStageFlags(form).admitted) return null;
+  if (form.admission_class !== 5 && form.admission_class !== 8) {
+    return "Cannot revert admission: admission class must be 5 or 8.";
+  }
+  if (!progress) return null;
+  const expectedClass = form.admission_class! + 1;
+  const expectedYear = form.school_start_year + 1;
+  if (progress.class_in_year !== expectedClass) {
+    return (
+      `Cannot revert admission: progress is in class ${progress.class_in_year}; ` +
+      `revert is only allowed in the first GRS year (class ${expectedClass}).`
+    );
+  }
+  if (progress.academic_year !== expectedYear) {
+    return (
+      `Cannot revert admission: progress academic year is ${progress.academic_year}; ` +
+      `revert is only allowed for academic year ${expectedYear}.`
+    );
+  }
+  const entry = classesForTrack(progress.track)[0];
+  for (const c of classesForTrack(progress.track)) {
+    if (c !== entry && getMark(progress, c) != null) {
+      return `Cannot revert admission: progress has marks for class ${c} beyond the entry year.`;
     }
+  }
+  if (progress.status !== "enrolled" && progress.status !== "promoted") {
+    return (
+      `Cannot revert admission: progress status is '${progress.status}'; ` +
+      "only Enrolled or Promoted (first-year journey) can be reverted."
+    );
   }
   return null;
 }
@@ -494,8 +534,13 @@ export function AdmissionForm({
     enabled: needGeoForDistrict,
   });
   const scopedPresenceDistricts = useMemo(
-    () => scopeDistricts(presenceDistricts, user ?? undefined, unscoped),
-    [presenceDistricts, user, unscoped],
+    () =>
+      scopeDistricts(presenceDistricts, user ?? undefined, unscoped, {
+        areas: allAreas,
+        clusters: allClusters,
+        kutirs: allKutirsData,
+      }),
+    [presenceDistricts, user, unscoped, allAreas, allClusters, allKutirsData],
   );
   const scopedClusters = useMemo(
     () => scopeClusters(allClusters, user ?? undefined, unscoped),
@@ -1464,12 +1509,7 @@ export function AdmissionForm({
       {/* Reason Not Appeared — only at Admin Card Downloaded stage */}
       {showReasonNotAppeared && (
         <section style={sec}>
-          <div style={secTitle}>
-            Reason Not Appeared for Exam
-            {admissionFieldRequired(form, "reason_not_appeared") && (
-              <span style={{ color: "var(--danger)" }}> *</span>
-            )}
-          </div>
+          <div style={secTitle}>Reason Not Appeared for Exam</div>
           <select
             value={form.no_exam_reason_id ?? ""}
             onChange={(e) =>
@@ -1604,12 +1644,7 @@ export function AdmissionForm({
       {/* Reason Not Admitted — Selected only */}
       {showReasonNotAdmitted && (
         <section style={sec}>
-          <div style={secTitle}>
-            Reason Not Admitted
-            {admissionFieldRequired(form, "reason_not_admitted") && (
-              <span style={{ color: "var(--danger)" }}> *</span>
-            )}
-          </div>
+          <div style={secTitle}>Reason Not Admitted</div>
           <select
             value={form.no_admit_reason_id ?? ""}
             onChange={(e) =>

@@ -165,15 +165,17 @@ async def _me_out(user: User, db: AsyncSession) -> UserOut:
             )
             out.cluster_ids = [row[0] for row in r.all()]
 
-    # ── Cluster Coordinator: user_clusters → derive district_ids ─────────────
-    if not out.district_ids and out.cluster_ids:
+    # ── Cluster Coordinator: clusters → district_ids (union; stale user_districts may disagree) ─
+    if out.cluster_ids:
         r = await db.execute(
             select(Area.district_id)
             .join(Cluster, Cluster.area_id == Area.id)
             .where(Cluster.id.in_(out.cluster_ids))
             .distinct()
         )
-        out.district_ids = [row[0] for row in r.all()]
+        from_clusters = [row[0] for row in r.all()]
+        if from_clusters:
+            out.district_ids = list(dict.fromkeys(from_clusters + out.district_ids))
 
     # ── Teacher: user_kutirs → derive cluster_ids + district_ids ─────────────
     if out.kutir_ids:
@@ -184,14 +186,16 @@ async def _me_out(user: User, db: AsyncSession) -> UserOut:
                 .distinct()
             )
             out.cluster_ids = [row[0] for row in r.all()]
-        if not out.district_ids and out.cluster_ids:
+        if out.cluster_ids:
             r = await db.execute(
                 select(Area.district_id)
                 .join(Cluster, Cluster.area_id == Area.id)
                 .where(Cluster.id.in_(out.cluster_ids))
                 .distinct()
             )
-            out.district_ids = [row[0] for row in r.all()]
+            from_clusters = [row[0] for row in r.all()]
+            if from_clusters:
+                out.district_ids = list(dict.fromkeys(from_clusters + out.district_ids))
 
     return out
 

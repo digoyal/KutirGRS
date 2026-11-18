@@ -6,15 +6,13 @@ from typing import Optional
 
 from fastapi import HTTPException
 
-from app.exam_type_school_types import school_type_names_for_exam_type
-
 TRACK_SIX_TWELVE = "six_twelve"
 TRACK_NINE_TWELVE = "nine_twelve"
 
 PROGRESS_STATUSES_READ = frozenset({
     "enrolled",
     "promoted",
-    "transferred",
+    "transferred_to_local",
     "dropped_out",
     "graduated",
     "admitted_to_college",
@@ -23,7 +21,7 @@ PROGRESS_STATUSES_READ = frozenset({
 PROGRESS_STATUSES_WRITABLE = frozenset({
     "enrolled",
     "promoted",
-    "transferred",
+    "transferred_to_local",
     "dropped_out",
     "graduated",
     "admitted_to_college",
@@ -31,7 +29,7 @@ PROGRESS_STATUSES_WRITABLE = frozenset({
 
 # User-selected terminal statuses — do not overwrite via mark sync on save.
 PROGRESS_STATUSES_MANUAL = frozenset({
-    "transferred",
+    "transferred_to_local",
     "dropped_out",
     "admitted_to_college",
 })
@@ -290,104 +288,74 @@ async def admission_exam_for_progress(db, progress):
     return result.scalar_one_or_none()
 
 
-def validate_transfer_school_type_for_exam(
-    *,
-    exam_type_id: int | None,
-    school_type: str | None,
-    allowed_school_type_names: frozenset[str],
-) -> None:
-    """Destination school type must be linked to the admission exam type (same rule as admissions)."""
-    if not exam_type_id:
-        return
-    if not school_type:
-        return
-    if not allowed_school_type_names:
-        raise HTTPException(422, "This exam type has no school types configured.")
-    if school_type not in allowed_school_type_names:
-        raise HTTPException(422, "School type is not allowed for the student's exam type.")
-
-
-def validate_transfer_fields(progress, updates: dict) -> None:
-    """Transferred requires a destination GRS school (PATCH: transfer_grs_school_id)."""
-    final_status = updates.get("status", progress.status)
-    if final_status != "transferred":
-        return
-    becoming = final_status == "transferred" and progress.status != "transferred"
-    if becoming or "transfer_grs_school_id" in updates:
-        tid = updates.get("transfer_grs_school_id")
-        if not tid:
-            raise HTTPException(
-                400,
-                "Transferred status requires district, school type, and school name (select a GRS school).",
-            )
-
-
-def apply_transfer_field_clears(progress, data: dict) -> None:
-    """Drop transfer display name when status is not transferred."""
-    if "status" not in data:
-        return
-    if data["status"] == "transferred":
-        return
-    data["transfer_school"] = None
-
-
-async def sync_transfer_school_label(db, progress) -> None:
-    """Keep transfer_school list tooltip text in sync with progress's current GRS school."""
-    if progress.status != "transferred":
-        progress.transfer_school = None
-        return
-    school_id = progress.school_id
-    if not school_id:
-        return
-    school = await load_grs_school(db, school_id)
-    if school:
-        progress.transfer_school = school.name
-
-
-async def apply_progress_transfer_school(
-    db,
-    progress,
-    transfer_grs_school_id: int | None,
-) -> None:
-    """Transferred: update only student_progress current GRS fields (admission unchanged)."""
-    if progress.status != "transferred":
-        return
-    if not transfer_grs_school_id:
-        return
-    school = await load_grs_school(db, transfer_grs_school_id)
-    if not school:
-        raise HTTPException(400, "Transfer school not found.")
-    exam = await admission_exam_for_progress(db, progress)
-    if not exam:
-        raise HTTPException(
-            400,
-            "No admitted admission record for this student/year to validate the transfer school.",
-        )
-    allowed = await school_type_names_for_exam_type(db, exam.exam_type_id)
-    validate_transfer_school_type_for_exam(
-        exam_type_id=exam.exam_type_id,
-        school_type=school.school_type,
-        allowed_school_type_names=allowed,
-    )
-    apply_grs_school_fields_to_progress(progress, school)
-    progress.transfer_school = school.name
-
-
-def pop_transfer_grs_school_id(updates: dict) -> int | None:
-    """Write-only PATCH field; not stored on student_progress."""
-    tid = updates.pop("transfer_grs_school_id", None)
-    return int(tid) if tid is not None else None
-
-
 def merge_progress_payload(progress, data: dict) -> dict:
     """Apply mark/status rules to an update/create payload."""
     validate_marks_write(progress, data)
     if "status" in data:
         data["status"] = validate_status_write(progress, data["status"], data)
-    apply_transfer_field_clears(progress, data)
-    validate_transfer_fields(progress, data)
-    pop_transfer_grs_school_id(data)
     return data
+
+
+UNADMIT_ALLOWED_STATUSES = frozenset({"enrolled", "promoted"})
+
+
+def validate_progress_allows_unadmit(exam, progress) -> None:
+    """Revert Admitted only while progress is still in the first GRS year (entry class/year)."""
+    if exam.admission_class not in (5, 8):
+        raise HTTPException(
+            400,
+            "Cannot revert admission: admission class must be 5 or 8.",
+        )
+    expected_track = track_from_admission_class(exam.admission_class)
+    if progress.track != expected_track:
+        raise HTTPException(
+            400,
+            "Cannot revert admission: progress track does not match this admission class.",
+        )
+    expected_class = exam.admission_class + 1
+    expected_year = exam.school_start_year + 1
+    if progress.class_in_year != expected_class:
+        raise HTTPException(
+            400,
+            f"Cannot revert admission: progress is in class {progress.class_in_year}; "
+            f"revert is only allowed in the first GRS year (class {expected_class}).",
+        )
+    if progress.academic_year != expected_year:
+        raise HTTPException(
+            400,
+            f"Cannot revert admission: progress academic year is {progress.academic_year}; "
+            f"revert is only allowed for academic year {expected_year}.",
+        )
+    entry = entry_class_for_track(progress.track)
+    for c in classes_for_track(progress.track):
+        if c != entry and get_mark(progress, c) is not None:
+            raise HTTPException(
+                400,
+                f"Cannot revert admission: progress has marks for class {c} beyond the entry year.",
+            )
+    if progress.status not in UNADMIT_ALLOWED_STATUSES:
+        raise HTTPException(
+            400,
+            f"Cannot revert admission: progress status is '{progress.status}'; "
+            "only Enrolled or Promoted (first-year journey) can be reverted.",
+        )
+
+
+async def delete_progress_on_unadmit(db, exam, *, was_admitted: bool, final_admitted: bool) -> None:
+    """When admitted flips true → false, remove the student's progress row if eligible."""
+    if not was_admitted or final_admitted:
+        return
+    from sqlalchemy import select, delete
+    from app.models.students import StudentProgress
+
+    result = await db.execute(
+        select(StudentProgress).where(StudentProgress.student_id == exam.student_id).limit(1)
+    )
+    progress = result.scalar_one_or_none()
+    if not progress:
+        return
+    validate_progress_allows_unadmit(exam, progress)
+    await db.execute(delete(StudentProgress).where(StudentProgress.id == progress.id))
 
 
 async def ensure_progress_from_admitted_exam(db, exam) -> None:
@@ -407,8 +375,7 @@ async def ensure_progress_from_admitted_exam(db, exam) -> None:
     if existing:
         for key in ("school_id", "academic_year", "class_in_year", "track"):
             setattr(existing, key, fields[key])
-        if existing.status != "transferred":
-            await sync_progress_grs_fields_from_school_id(db, existing, fields["school_id"])
+        await sync_progress_grs_fields_from_school_id(db, existing, fields["school_id"])
         return
     obj = StudentProgress(**fields)
     await sync_progress_grs_fields_from_school_id(db, obj, fields["school_id"])

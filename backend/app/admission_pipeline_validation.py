@@ -175,9 +175,6 @@ def validate_student_exam_write(
     if show("roll_number") and _is_blank(data.get("roll_number")):
         raise HTTPException(422, "Roll number is required.")
 
-    if show("reason_not_appeared") and not data.get("no_exam_reason_id"):
-        raise HTTPException(422, "Reason not appeared is required.")
-
     if show("scores"):
         ids = subject_ids or []
         if not ids:
@@ -195,9 +192,6 @@ def validate_student_exam_write(
 
     at_selected_only = pipeline_stage(flags) == STAGE_INDEX["selected"]
 
-    def _has_grs_school() -> bool:
-        return bool(data.get("admitted_school_id"))
-
     school_name_satisfies_type = show("school_name") and data.get("admitted_school_id")
     if not school_name_satisfies_type and show("school_type") and _is_blank(data.get("school_type")):
         if not (at_selected_only and data.get("no_admit_reason_id")):
@@ -207,12 +201,11 @@ def validate_student_exam_write(
         if not (at_selected_only and data.get("no_admit_reason_id")):
             raise HTTPException(422, "School name is required.")
 
-    if show("reason_not_admitted") and not data.get("no_admit_reason_id"):
-        if not (at_selected_only and _has_grs_school()):
-            raise HTTPException(
-                422,
-                "Either select a GRS school or provide a reason not admitted.",
-            )
+
+def merged_pipeline_admitted(merged: Mapping[str, Any]) -> bool:
+    """Whether the merged exam payload is in the Admitted stage (normalized flags)."""
+    flags = normalize_pipeline_stages(_stage_flags(merged))
+    return bool(flags.get("admitted"))
 
 
 def validate_school_type_for_exam_type(

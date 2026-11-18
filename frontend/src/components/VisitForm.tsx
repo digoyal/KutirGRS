@@ -28,6 +28,7 @@ import {
   type VisitPhotoLocation,
 } from "../utils/visitPhotoGeolocation";
 import { describeVisitPhotoDistance } from "../utils/geoHaversine";
+import { scopeDistricts } from "../utils/geoFilters";
 
 const MEDIA_BASE = mediaBase();
 
@@ -523,10 +524,11 @@ export function VisitForm({
   const allClusters = mode === "add" ? addLookups.allClusters : (editClusters.data ?? []);
 
   const unscoped = hasGlobalDataScope(user?.title);
-  const scopedDistricts =
-    unscoped || !user
-      ? allDistricts
-      : allDistricts.filter((d) => user.district_ids.includes(d.id));
+  const scopedDistricts = scopeDistricts(allDistricts, user ?? undefined, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+    kutirs: kutirs,
+  });
   const scopedClusters =
     unscoped || !user
       ? allClusters

@@ -154,7 +154,11 @@ export default function BulkApplyPage() {
   const areaMap = useMemo(() => new Map(allAreas.map((a) => [a.id, a])), [allAreas]);
   const clusterMap = useMemo(() => new Map(allClusters.map((c) => [c.id, c])), [allClusters]);
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+    kutirs: allKutirs,
+  });
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
   const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 

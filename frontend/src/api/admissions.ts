@@ -74,7 +74,7 @@ export interface StudentExamCreate {
 export type ProgressStatus =
   | "enrolled"
   | "promoted"
-  | "transferred"
+  | "transferred_to_local"
   | "dropped_out"
   | "graduated"
   | "admitted_to_college";
@@ -91,7 +91,6 @@ export interface StudentProgress {
   class_in_year: number | null;
   track: ProgressTrack;
   status: ProgressStatus;
-  transfer_school: string | null;
   marks_6: number | null;
   marks_7: number | null;
   marks_8: number | null;
@@ -113,8 +112,6 @@ export interface StudentProgressCreate {
   class_in_year?: number | null;
   track?: ProgressTrack;
   status?: ProgressStatus;
-  transfer_school?: string | null;
-  transfer_grs_school_id?: number | null;
   marks_6?: number | null;
   marks_7?: number | null;
   marks_8?: number | null;

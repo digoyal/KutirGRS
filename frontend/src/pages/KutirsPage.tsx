@@ -206,7 +206,10 @@ export default function KutirsPage() {
   const districtMap = useMemo(() => new Map(allDistricts.map((d) => [d.id, d])), [allDistricts]);
   const donorMap    = useMemo(() => new Map(donors.map((d) => [d.id, d])), [donors]);
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+  });
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
 
   useGeoFilterAutoSelect({

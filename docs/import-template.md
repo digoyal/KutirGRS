@@ -45,16 +45,31 @@ Processed in this order only:
 
 There is **no States sheet** — districts reference existing `states` rows (Madhya Pradesh, Jharkhand, Chhattisgarh).
 
+## Template vs importer (row 1)
+
+Downloaded `GRS_Import_Template.xlsx` row‑1 headers match what `import_data.py` persists today (plus optional `score_<subject>` on Admissions). **Removed from the template** (not in product schema; importer ignores or maps only from old uploads):
+
+| Sheet | Column removed | Still OK on manual/old uploads? |
+|-------|----------------|----------------------------------|
+| `4_Donors` | `contact` | Yes — legacy column maps to `email` / `phone` if present |
+| `19_Admissions` | `form_received` | Ignored (dropped in migration `023`; not a pipeline stage) |
+
+All other `SHEET_ORDER` sheets: **no gaps** — see audit note in Project store `internal/import-template-drop-deleted-fields.md`.
+
+**Kept** after schema alignment: Students `exam_year`; Admissions `exam_type_name`, `result_declared`; Progress `track`, `marks_6`…`marks_12`, and `previous_year_percentage` (importer maps to the mark for `class_in_year` when per-grade marks are blank).
+
 ## Notable columns
 
 - **Users `title`:** Teacher, Cluster Coordinator, Education Coordinator, District Anchor, Regional Head, Admin, **SysAdmin**. Geo assignment is via `userid` on Zones / Districts / Areas / Clusters / Kutirs — not on the Users sheet.
 - **Districts:** `state_name`, `parivaar_presence` (yes/no, default yes).
 - **Schools / ExamCenters:** `street`, `city`, `district_name`, `state`, `pincode` (not a free-text `address`).
-- **Donors:** `name`, `email`, `phone`, `notes` (also editable in UI under Lookups → Donors). Legacy `contact` column in old sheets is accepted: values with `@` map to email, otherwise phone.
+- **Donors:** `name`, `email`, `phone`, `notes` (also editable in UI under Lookups → Donors). The downloaded template has **no** `contact` column; re-uploaded workbooks may still include it — values with `@` map to email, otherwise phone.
 - **Kutirs `donor_name`:** optional; resolved to `donor_id` by donor name (must already exist from `4_Donors`).
 - **Kutir type:** Seva Kutir | Shiksha Kutir | Non-Kutir.
 - **Parent-scoped names (not globally unique):** cluster names are unique **within a district**; kutir names are unique **within a cluster**. Import accepts name alone when that name matches **exactly one** row (including `14_Clusters` skip); if 2+ match, set parents. Creating a new cluster still needs `area_name` (and `district_name` if the area name is ambiguous).
-- **Years:** `school_start_year` / `academic_year` are **integers** (e.g. `2025`). UI display `2025-26` is not used on import.
+- **Years:** `school_start_year` / `academic_year` / **`exam_year`** (Students) are **integers** (e.g. `2025`). UI display `2025-26` is not used on import.
+- **Students `exam_year`:** optional; upserted on re-import (`COALESCE` — blank cell does not clear an existing value).
 - **Admissions / Progress:** resolve students by `first_name` + `last_name` + hierarchical kutir key — **no `student_id`**. Progress resolves school by `school_name` only — **no `school_id`**.
-- **Admissions pipeline:** `eligible`, `applied`, `admit_card`, `appeared`, `selected`, `admitted` (+ optional `score_<subject>` columns).
+- **Admissions pipeline:** `eligible`, `applied`, `admit_card`, `appeared`, **`result_declared`**, `selected`, `admitted`, optional **`exam_type_name`**, and optional `score_<subject>` columns. **`form_received`** is not in the download template and is **ignored** by the importer if present in an old file (removed from schema in migration `023`).
+- **Progress:** optional **`track`** (`six_twelve` | `nine_twelve`; inferred from `class_in_year` when blank), **`marks_6` … `marks_12`**, and legacy **`previous_year_percentage`** (maps to the mark column for `class_in_year` when per-grade marks are blank).
 - **Re-import:** matched rows **upsert** (update) for Schools, ExamCenters, Donors, Kutirs, Students, Admissions (+ scores), Progress, KutirVisits. Users and name-only lookup/geo sheets stay create-or-skip. Match keys: see [`docs/KutirGRS_PRD.md`](./KutirGRS_PRD.md) §5.9 / §8.10.

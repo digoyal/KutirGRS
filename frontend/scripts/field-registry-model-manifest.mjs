@@ -90,7 +90,6 @@ export const FIELD_REGISTRY_MODEL_ENTITIES = [
       "updated_at",
       "student_id",
       "track",
-      "transfer_school",
     ],
     virtualRegistryKeys: ["student", "district"],
     columnRegistryKey: {

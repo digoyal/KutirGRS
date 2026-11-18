@@ -158,7 +158,11 @@ export default function AdmissionsPage() {
   const areaMap         = new Map(allAreas.map(a => [a.id, a]));
   const clusterMap      = new Map(allClusters.map(c => [c.id, c]));
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+    kutirs: allKutirs,
+  });
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
   const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 

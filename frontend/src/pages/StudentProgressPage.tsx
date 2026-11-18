@@ -185,7 +185,11 @@ export default function StudentProgressPage() {
     [allDistricts],
   );
 
-  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped);
+  const scopedDistricts = scopeDistricts(allDistricts, user, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+    kutirs: allKutirs,
+  });
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
   const scopedKutirs = scopeKutirs(allKutirs, user, unscoped);
 
@@ -381,13 +385,8 @@ export default function StudentProgressPage() {
             case "status": {
               const st = p.status as ProgressStatus;
               const b = STATUS_BADGES[st] ?? STATUS_BADGES.enrolled;
-              const detail =
-                st === "transferred" && p.transfer_school
-                  ? p.transfer_school
-                  : undefined;
               return (
                 <span
-                  title={detail}
                   style={{
                     background: b.bg,
                     color: b.fg,

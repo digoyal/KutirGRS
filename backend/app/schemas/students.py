@@ -178,7 +178,6 @@ class StudentProgressBase(BaseModel):
     class_in_year: Optional[int] = None
     track: str  # six_twelve | nine_twelve
     status: str = "enrolled"
-    transfer_school: Optional[str] = None
     marks_6: Optional[Decimal] = None
     marks_7: Optional[Decimal] = None
     marks_8: Optional[Decimal] = None
@@ -190,15 +189,12 @@ class StudentProgressBase(BaseModel):
 
 class StudentProgressCreate(StudentProgressBase):
     track: Optional[str] = None  # inferred from admitted exam when omitted
-    transfer_grs_school_id: Optional[int] = None  # write-only → student_progress GRS fields on transfer
 
 class StudentProgressUpdate(BaseModel):
     academic_year: Optional[int] = None
     class_in_year: Optional[int] = None
     track: Optional[str] = None
     status: Optional[str] = None
-    transfer_school: Optional[str] = None
-    transfer_grs_school_id: Optional[int] = None
     marks_6: Optional[Decimal] = None
     marks_7: Optional[Decimal] = None
     marks_8: Optional[Decimal] = None

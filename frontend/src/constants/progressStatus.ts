@@ -3,7 +3,7 @@ import type { ProgressStatus } from "../api/admissions";
 export const PROGRESS_STATUSES: ProgressStatus[] = [
   "enrolled",
   "promoted",
-  "transferred",
+  "transferred_to_local",
   "dropped_out",
   "graduated",
   "admitted_to_college",
@@ -11,6 +11,7 @@ export const PROGRESS_STATUSES: ProgressStatus[] = [
 
 /** Remarks field is shown on forms/list only for these statuses. */
 export const PROGRESS_STATUSES_WITH_REMARKS: ProgressStatus[] = [
+  "transferred_to_local",
   "dropped_out",
   "admitted_to_college",
 ];
@@ -18,14 +19,18 @@ export const PROGRESS_STATUSES_WITH_REMARKS: ProgressStatus[] = [
 export function progressStatusShowsRemarks(
   status: ProgressStatus | string | null | undefined,
 ): boolean {
-  return status === "dropped_out" || status === "admitted_to_college";
+  return (
+    status === "transferred_to_local" ||
+    status === "dropped_out" ||
+    status === "admitted_to_college"
+  );
 }
 
 /** Short labels for badges, table cells, and summary tiles. */
 export const STATUS_LABELS: Record<ProgressStatus, string> = {
   enrolled: "Enrolled",
   promoted: "Promoted",
-  transferred: "Transferred",
+  transferred_to_local: "Transferred To Local",
   dropped_out: "Dropped out",
   graduated: "Graduated",
   admitted_to_college: "Admitted to College",
@@ -35,7 +40,7 @@ export const STATUS_LABELS: Record<ProgressStatus, string> = {
 export const STATUS_OPTIONS: { value: ProgressStatus; label: string }[] = [
   { value: "enrolled", label: "Enrolled" },
   { value: "promoted", label: "Promoted" },
-  { value: "transferred", label: "Transferred" },
+  { value: "transferred_to_local", label: "Transferred To Local" },
   { value: "dropped_out", label: "Dropped out" },
   { value: "graduated", label: "Graduated" },
   { value: "admitted_to_college", label: "Admitted to College" },
@@ -64,7 +69,7 @@ export const STATUS_BADGES: Record<
 > = {
   enrolled: { bg: "var(--status-success-bg)", fg: "var(--status-success-fg)", prefix: "✓ " },
   promoted: { bg: "var(--badge-blue-bg)", fg: "var(--badge-blue-fg)", prefix: "↑ " },
-  transferred: { bg: "var(--badge-blue-bg)", fg: "var(--badge-blue-fg)", prefix: "→ " },
+  transferred_to_local: { bg: "var(--badge-blue-bg)", fg: "var(--badge-blue-fg)", prefix: "→ " },
   dropped_out: { bg: "var(--status-danger-bg)", fg: "var(--status-danger-fg)", prefix: "" },
   graduated: {
     bg: "var(--badge-green-bg, #d1fae5)",
@@ -93,7 +98,7 @@ export const STATUS_TILES: Record<
     border: "var(--badge-blue-fg)",
     fg: "var(--badge-blue-fg)",
   },
-  transferred: {
+  transferred_to_local: {
     bg: "var(--badge-blue-bg)",
     border: "var(--badge-blue-fg)",
     fg: "var(--badge-blue-fg)",

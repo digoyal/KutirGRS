@@ -6,11 +6,12 @@
 import React, { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ViewField, ViewSection, viewStyles } from "@parivaar/ui";
-import { listDistricts } from "../api/geo";
+import { listAreas, listClusters, listDistricts } from "../api/geo";
 import { useAuth } from "../context/AuthContext";
 import { hasGlobalDataScope } from "../constants/roles";
 import { examCenterFieldLabel } from "../constants/examCentersFields";
 import { grs } from "../styles/grs";
+import { scopeDistricts } from "../utils/geoFilters";
 
 const STATES = ["Madhya Pradesh", "Jharkhand", "Chhattisgarh"];
 
@@ -60,11 +61,21 @@ export function ExamCenterForm({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
   });
+  const { data: allAreas = [] } = useQuery({
+    queryKey: ["all-areas"],
+    queryFn: () => listAreas(),
+    enabled: isAdd,
+  });
+  const { data: allClusters = [] } = useQuery({
+    queryKey: ["all-clusters"],
+    queryFn: () => listClusters(),
+    enabled: isAdd,
+  });
 
-  const scopedDistricts =
-    unscoped || !user
-      ? allDistricts
-      : allDistricts.filter((d) => user.district_ids.includes(d.id));
+  const scopedDistricts = scopeDistricts(allDistricts, user ?? undefined, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+  });
 
   const districtOptions = isAdd ? scopedDistricts : allDistricts;
 

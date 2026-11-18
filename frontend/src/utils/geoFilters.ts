@@ -63,14 +63,67 @@ export function defaultsFromUser(user: GeoScopedUser | null | undefined): GeoFil
   return { district: "", cluster: "", kutir: "" };
 }
 
+export type ScopeDistrictsGeo = {
+  areas: AreaLike[];
+  clusters: ClusterLike[];
+  kutirs?: KutirLike[];
+};
+
+/**
+ * District IDs for scoped UI when session `district_ids` is empty/stale.
+ * Prefer direct `district_ids`; else cluster→area→district; else kutir→cluster→district.
+ */
+export function effectiveDistrictIdsForUser(
+  user: GeoScopedUser,
+  areas: AreaLike[],
+  clusters: ClusterLike[],
+  kutirs?: KutirLike[],
+): number[] {
+  const areaById = new Map(areas.map((a) => [a.id, a]));
+  const clusterById = new Map(clusters.map((c) => [c.id, c]));
+  const derived = new Set<number>();
+
+  const clusterIds =
+    user.cluster_ids.length > 0
+      ? user.cluster_ids
+      : kutirs && user.kutir_ids.length > 0
+        ? [
+            ...new Set(
+              user.kutir_ids
+                .map((kid) => kutirs.find((k) => k.id === kid)?.cluster_id)
+                .filter((id): id is number => id != null),
+            ),
+          ]
+        : [];
+
+  for (const cid of clusterIds) {
+    const cluster = clusterById.get(cid);
+    if (!cluster) continue;
+    const districtId = areaById.get(cluster.area_id)?.district_id;
+    if (districtId != null) derived.add(districtId);
+  }
+
+  const direct = user.district_ids.length > 0 ? user.district_ids : [];
+  if (derived.size > 0) {
+    return [...new Set([...direct, ...derived])];
+  }
+  if (direct.length > 0) return [...new Set(direct)];
+  return user.district_ids;
+}
+
 export function scopeDistricts<T extends NamedId>(
   all: T[],
   user: GeoScopedUser | null | undefined,
   /** True for Admin / SysAdmin (unrestricted). */
   unscoped: boolean,
+  geo?: ScopeDistrictsGeo,
 ): T[] {
   if (unscoped || !user) return all;
-  return all.filter((d) => user.district_ids.includes(d.id));
+  const ids = geo
+    ? effectiveDistrictIdsForUser(user, geo.areas, geo.clusters, geo.kutirs)
+    : user.district_ids;
+  if (ids.length === 0) return [];
+  return all.filter((d) => ids.includes(d.id));
 }
 
 export function scopeClusters<T extends NamedId>(

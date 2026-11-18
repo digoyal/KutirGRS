@@ -20,6 +20,7 @@ import { hasGlobalDataScope } from "../constants/roles";
 import { studentFieldLabel } from "../constants/studentsFields";
 import { grs } from "../styles/grs";
 import { useStudentFormLookups } from "../hooks/useStudentFormLookups";
+import { scopeDistricts } from "../utils/geoFilters";
 import { validateStudentForm } from "../utils/studentFormValidation";
 import { formatAcademicYear } from "../utils/academicYear";
 
@@ -201,10 +202,11 @@ export const StudentForm = forwardRef<StudentFormHandle, StudentFormProps>(funct
 
   const areaMap = useMemo(() => new Map(allAreas.map((a) => [a.id, a])), [allAreas]);
 
-  const scopedDistricts =
-    unscoped || !user
-      ? allDistricts
-      : allDistricts.filter((d) => user.district_ids.includes(d.id));
+  const scopedDistricts = scopeDistricts(allDistricts, user ?? undefined, unscoped, {
+    areas: allAreas,
+    clusters: allClusters,
+    kutirs: allKutirs,
+  });
   const scopedClusters =
     unscoped || !user
       ? allClusters
