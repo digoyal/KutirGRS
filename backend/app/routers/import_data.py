@@ -142,6 +142,66 @@ async def _resolve_area_id(
     return rows[0], None
 
 
+async def _resolve_area_id_cluster_import(
+    db,
+    *,
+    area_name: str,
+) -> tuple[int | None, str | None]:
+    """`14_Clusters` only — match area by name system-wide (no district_name column)."""
+    if not area_name:
+        return None, "Empty area_name"
+    rows = (
+        await db.execute(
+            text("SELECT id FROM areas WHERE lower(name) = lower(:a)"),
+            {"a": area_name},
+        )
+    ).scalars().all()
+    if len(rows) == 0:
+        return None, f"Area '{area_name}' not found"
+    if len(rows) > 1:
+        return None, (
+            f"Duplicate area name '{area_name}' ({len(rows)} matches system-wide) "
+            "— fix area data before import"
+        )
+    return rows[0], None
+
+
+def _area_name_system_unique_violation(
+    *,
+    name: str,
+    target_district_id: int,
+    matching_district_ids: list[int],
+) -> str | None:
+    """`11_Areas` — area names must be unique system-wide (case-insensitive)."""
+    if not matching_district_ids:
+        return None
+    if len(matching_district_ids) > 1:
+        return (
+            f"Area name '{name}' must be unique system-wide ({len(matching_district_ids)} "
+            "rows in DB) — fix `11_Areas` / area data before import"
+        )
+    if matching_district_ids[0] != target_district_id:
+        return (
+            f"Area name '{name}' must be unique system-wide (already exists in another "
+            "district) — fix `11_Areas` data before import"
+        )
+    return None
+
+
+async def _area_name_import_blocked(db, name: str, dist_id: int) -> str | None:
+    district_ids = (
+        await db.execute(
+            text("SELECT district_id FROM areas WHERE lower(name) = lower(:n)"),
+            {"n": name},
+        )
+    ).scalars().all()
+    return _area_name_system_unique_violation(
+        name=name,
+        target_district_id=dist_id,
+        matching_district_ids=list(district_ids),
+    )
+
+
 async def _resolve_cluster_id(
     db,
     *,
@@ -177,6 +237,11 @@ async def _resolve_cluster_id(
             return None, f"Cluster '{cluster_name}' not found in {' / '.join(scope_bits)}"
         return None, f"Cluster '{cluster_name}' not found"
     if len(rows) > 1:
+        if district_name:
+            return None, (
+                f"Ambiguous cluster '{cluster_name}' ({len(rows)} matches in district "
+                f"'{district_name}') — duplicate cluster name in district"
+            )
         hint = []
         if not district_name:
             hint.append("district_name")
@@ -195,9 +260,8 @@ async def _resolve_kutir_id(
     kutir_name: str,
     cluster_name: str = "",
     district_name: str = "",
-    area_name: str = "",
 ) -> tuple[int | None, str | None]:
-    """Kutir by name; filter by parents when provided. Unique name alone is OK."""
+    """Kutir by name; filter by cluster/district when provided. Unique name alone is OK."""
     if not kutir_name:
         return None, "Empty kutir_name"
     sql = """
@@ -215,14 +279,9 @@ async def _resolve_kutir_id(
     if district_name:
         sql += " AND lower(d.name) = lower(:d)"
         params["d"] = district_name
-    if area_name:
-        sql += " AND lower(a.name) = lower(:a)"
-        params["a"] = area_name
     rows = (await db.execute(text(sql), params)).scalars().all()
     if len(rows) == 0:
         scope_bits = []
-        if area_name:
-            scope_bits.append(f"area '{area_name}'")
         if cluster_name:
             scope_bits.append(f"cluster '{cluster_name}'")
         if district_name:
@@ -231,14 +290,17 @@ async def _resolve_kutir_id(
             return None, f"Kutir '{kutir_name}' not found under {' / '.join(scope_bits)}"
         return None, f"Kutir '{kutir_name}' not found"
     if len(rows) > 1:
+        if cluster_name and district_name:
+            return None, (
+                f"Ambiguous kutir '{kutir_name}' ({len(rows)} matches in cluster "
+                f"'{cluster_name}') — duplicate kutir name in cluster"
+            )
         hint = []
         if not district_name:
             hint.append("district_name")
         if not cluster_name:
             hint.append("cluster_name")
-        if not area_name:
-            hint.append("area_name")
-        need = ", ".join(hint) if hint else "more parent columns"
+        need = " and ".join(hint) if hint else "more parent columns"
         return None, (
             f"Ambiguous kutir '{kutir_name}' ({len(rows)} matches) — set {need}"
         )
@@ -418,6 +480,10 @@ async def _import_areas(rows, db):
             if not uid:
                 errors.append(f"User '{username}' not found — areas will be created without user assignment")
         for name in [n.strip() for n in raw_name.split(",") if n.strip()]:
+            blocked = await _area_name_import_blocked(db, name, dist_id)
+            if blocked:
+                errors.append(f"{blocked} — district '{dist_name}'")
+                continue
             exists = (await db.execute(
                 text("SELECT id FROM areas WHERE lower(name)=lower(:n) AND district_id=:d"),
                 {"n": name, "d": dist_id}
@@ -448,7 +514,6 @@ async def _import_clusters(rows, db):
     for r in rows:
         raw_name = _str(r.get("name"))
         area_name = _str(r.get("area_name"))
-        district_name = _str(r.get("district_name"))
         if not raw_name:
             errors.append("Empty name — row skipped"); continue
         username = _str(r.get("userid"))
@@ -462,8 +527,8 @@ async def _import_clusters(rows, db):
 
         area_id = None
         if area_name:
-            area_id, err = await _resolve_area_id(
-                db, area_name=area_name, district_name=district_name,
+            area_id, err = await _resolve_area_id_cluster_import(
+                db, area_name=area_name,
             )
             if err:
                 errors.append(f"{err} — cluster '{raw_name}' skipped"); continue
@@ -472,7 +537,7 @@ async def _import_clusters(rows, db):
             # Name-only (or incomplete parents): skip if exactly one existing match
             if area_id is None:
                 exists_id, cerr = await _resolve_cluster_id(
-                    db, cluster_name=name, district_name=district_name, area_name="",
+                    db, cluster_name=name, district_name="", area_name="",
                 )
                 if exists_id:
                     skipped += 1
@@ -485,11 +550,7 @@ async def _import_clusters(rows, db):
                 if cerr and cerr.startswith("Ambiguous"):
                     errors.append(f"{cerr} — cluster '{name}' skipped"); continue
                 # Not found and no area → cannot create
-                errors.append(
-                    f"Cluster '{name}' not found — set area_name"
-                    + (" (and district_name if needed)" if not district_name else "")
-                    + " to create"
-                )
+                errors.append(f"Cluster '{name}' not found — set area_name to create")
                 continue
 
             exists = (await db.execute(
@@ -675,9 +736,8 @@ async def _import_kutirs(rows, db):
             errors.append("Empty name — row skipped"); continue
         cluster_name = _str(r.get("cluster_name"))
         dist_name = _str(r.get("district_name"))
-        area_name = _str(r.get("area_name"))
         cluster_id, err = await _resolve_cluster_id(
-            db, cluster_name=cluster_name, district_name=dist_name, area_name=area_name,
+            db, cluster_name=cluster_name, district_name=dist_name,
         )
         if err:
             errors.append(f"{err} — kutir '{name}' skipped"); continue
@@ -746,7 +806,6 @@ async def _import_students(rows, db):
             kutir_name=_str(r.get("kutir_name")),
             cluster_name=_str(r.get("cluster_name")),
             district_name=_str(r.get("district_name")),
-            area_name=_str(r.get("area_name")),
         )
         if err:
             errors.append(f"{err} — student '{first} {last}' skipped"); continue
@@ -900,7 +959,6 @@ async def _import_admissions(rows, db):
             kutir_name=kutir_name,
             cluster_name=_str(r.get("cluster_name")),
             district_name=_str(r.get("district_name")),
-            area_name=_str(r.get("area_name")),
         )
         if kerr:
             errors.append(f"{kerr} — admissions row skipped"); continue
@@ -1074,7 +1132,6 @@ async def _import_progress(rows, db):
             kutir_name=kutir_name,
             cluster_name=_str(r.get("cluster_name")),
             district_name=_str(r.get("district_name")),
-            area_name=_str(r.get("area_name")),
         )
         if kerr:
             errors.append(f"{kerr} — progress row skipped"); continue
@@ -1151,18 +1208,6 @@ async def _import_progress(rows, db):
             "m9": _mark("marks_9"), "m10": _mark("marks_10"), "m11": _mark("marks_11"), "m12": _mark("marks_12"),
             "rm": _str(r.get("remarks")) or None,
         }
-        # Legacy template column
-        pct_raw = r.get("previous_year_percentage")
-        if pct_raw not in (None, "") and params["cl"]:
-            legacy = _float(pct_raw)
-            key = f"m{params['cl']}" if params["cl"] <= 12 else None
-            if key == "m6": params["m6"] = legacy
-            elif key == "m7": params["m7"] = legacy
-            elif key == "m8": params["m8"] = legacy
-            elif key == "m9": params["m9"] = legacy
-            elif key == "m10": params["m10"] = legacy
-            elif key == "m11": params["m11"] = legacy
-            elif key == "m12": params["m12"] = legacy
 
         progress_id: int | None = None
         if exists_rows:
@@ -1223,7 +1268,6 @@ async def _import_kutir_visits(rows, db):
             kutir_name=kutir_name,
             cluster_name=_str(r.get("cluster_name")),
             district_name=_str(r.get("district_name")),
-            area_name=_str(r.get("area_name")),
         )
         if kerr:
             errors.append(f"{kerr} — visit row skipped"); continue
