@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -68,20 +68,37 @@ async def list_kutirs(
     cluster_id: Optional[int] = Query(None),
     district_id: Optional[int] = Query(None),
     kutir_type: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
     limit: Optional[int] = Query(None),
     offset: Optional[int] = Query(0),
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
+    needs_geo_join = district_id is not None and not cluster_id
+
     def _apply_filters(q):
+        if needs_geo_join:
+            q = (
+                q.join(Cluster, Kutir.cluster_id == Cluster.id)
+                .join(Area, Cluster.area_id == Area.id)
+            )
         if scope is not None:
             q = q.where(Kutir.id.in_(scope))
         if cluster_id:
             q = q.where(Kutir.cluster_id == cluster_id)
-        if district_id:
-            q = q.where(Kutir.district_id == district_id)
+        elif district_id:
+            q = q.where(
+                or_(Kutir.district_id == district_id, Area.district_id == district_id)
+            )
         if kutir_type:
             q = q.where(Kutir.kutir_type == kutir_type)
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            q = q.where(
+                (Kutir.name.ilike(term))
+                | (Kutir.street.ilike(term))
+                | (Kutir.pincode.ilike(term))
+            )
         return q
 
     count_q = _apply_filters(select(func.count()).select_from(Kutir))

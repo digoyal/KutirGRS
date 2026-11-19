@@ -1,7 +1,7 @@
-import { useState, useMemo, type CSSProperties, type ReactNode } from "react";
+import { useState, useMemo, useRef, useCallback, type CSSProperties, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listKutirs, deleteKutir, type Kutir } from "../api/kutirs";
+import { listKutirsPaged, deleteKutir, type Kutir } from "../api/kutirs";
 import { listDonors } from "../api/donors";
 import { useAuth } from "../context/AuthContext";
 import { listClusters, listAreas, listDistricts } from "../api/geo";
@@ -15,7 +15,7 @@ import { persistFilters, usePersistedFilterRestore } from "../hooks/usePersisted
 import { KUTIRS_FIELDS, KUTIRS_FIELD_KEYS } from "../constants/kutirsFields";
 import { canManageKutirs as roleCanManageKutirs, hasGlobalDataScope } from "../constants/roles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { buildRegistryExportColumns } from "../utils/registryExport";
+import { buildRegistryExportColumns, exportFetchLimit } from "../utils/registryExport";
 import {
   countActiveFilters,
   scopeClusters,
@@ -187,12 +187,40 @@ export default function KutirsPage() {
 
   useBfcacheReload();
 
-  const saved = usePersistedFilterRestore<{ district?: FilterId; cluster?: FilterId }>(STORAGE_KEY);
+  const saved = usePersistedFilterRestore<{
+    district?: FilterId;
+    cluster?: FilterId;
+    search?: string;
+    page?: number;
+  }>(STORAGE_KEY);
   const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? "");
   const [filterCluster, setFilterCluster] = useState<FilterId>(saved?.cluster ?? "");
+  const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(saved?.search ?? "");
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(saved?.page ?? 1);
   const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
 
-  const { data: kutirs = [], isLoading } = useQuery({ queryKey: ["kutirs"], queryFn: () => listKutirs() });
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => { setDebouncedSearch(q); setPage(1); }, 300);
+  };
+
+  const { data: kutirsPage, isLoading } = useQuery({
+    queryKey: ["kutirs", filterDistrict, filterCluster, debouncedSearch, page],
+    queryFn: () => listKutirsPaged({
+      cluster_id: filterCluster !== "" ? filterCluster : undefined,
+      district_id: filterCluster !== "" ? undefined : (filterDistrict !== "" ? filterDistrict : undefined),
+      search: debouncedSearch || undefined,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+  });
+  const kutirs = kutirsPage?.items ?? [];
+  const kutirTotal = kutirsPage?.total ?? 0;
+
   const { data: allDistricts = [] } = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
@@ -227,17 +255,6 @@ export default function KutirsPage() {
     skipClusterAuto: saved?.cluster != null,
   });
 
-  const displayed = kutirs.filter(k => {
-    if (filterCluster !== "" && k.cluster_id !== filterCluster) return false;
-    if (filterDistrict !== "" && filterCluster === "") {
-      const cl = clusterMap.get(k.cluster_id);
-      if (!cl) return false;
-      const ar = areaMap.get(cl.area_id);
-      if (!ar || ar.district_id !== filterDistrict) return false;
-    }
-    return true;
-  });
-
   const deleteMut = useMutation({
     mutationFn: deleteKutir,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["kutirs"] }),
@@ -245,7 +262,7 @@ export default function KutirsPage() {
 
   function saveFilters() {
     persistFilters(STORAGE_KEY, {
-      district: filterDistrict, cluster: filterCluster,
+      district: filterDistrict, cluster: filterCluster, search: searchQuery, page,
     });
   }
 
@@ -276,20 +293,31 @@ export default function KutirsPage() {
     [districtMap, clusterMap, areaMap, donorMap],
   );
 
+  const getExportRows = useCallback(async () => {
+    const { items } = await listKutirsPaged({
+      cluster_id: filterCluster !== "" ? filterCluster : undefined,
+      district_id: filterCluster !== "" ? undefined : (filterDistrict !== "" ? filterDistrict : undefined),
+      search: debouncedSearch || undefined,
+      limit: exportFetchLimit(kutirTotal),
+      offset: 0,
+    });
+    return items;
+  }, [filterDistrict, filterCluster, debouncedSearch, kutirTotal]);
+
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
       <GrsTable
         title="Kutirs"
         columns={columns}
-        data={displayed}
+        data={kutirs}
         rowKey={r => r.id}
         isLoading={isLoading}
-        emptyMessage={kutirs.length === 0
-          ? "No kutirs yet. Add geo data first (Zone → District → Area → Cluster), then add kutirs."
-          : "No kutirs match the current filters."}
+        emptyMessage="No kutirs found."
+        pagination={{ page, pageSize: PAGE_SIZE, total: kutirTotal, onPageChange: setPage }}
         searchable
-        searchPlaceholder="Search kutirs…"
-        searchFn={(r, q) => r.name.toLowerCase().includes(q)}
+        searchPlaceholder="Search by name, street, pincode…"
+        externalSearch={searchQuery}
+        onExternalSearch={handleSearch}
         activeFilterCount={countActiveFilters(filterDistrict, filterCluster)}
         filters={
           <GeoFilterBar
@@ -298,6 +326,7 @@ export default function KutirsPage() {
             onChange={({ district, cluster }) => {
               setFilterDistrict(district);
               setFilterCluster(cluster);
+              setPage(1);
             }}
             districts={scopedDistricts}
             clusters={scopedClusters}
@@ -308,6 +337,7 @@ export default function KutirsPage() {
         }
         exportFilename="kutirs"
         exportColumns={exportColumns}
+        getExportRows={getExportRows}
         printTitle="Kutirs"
         onAdd={canManageKutirs ? () => navigate("/kutirs/new") : undefined}
         actions={r => ({

@@ -49,6 +49,7 @@ export interface KutirsListParams {
   cluster_id?: number;
   district_id?: number;
   kutir_type?: string;
+  search?: string;
   limit?: number;
   offset?: number;
 }
