@@ -25,6 +25,7 @@ from app.admission_uniqueness import admission_uniqueness_violation
 from app.models.students import StudentProgress
 from app.progress_logic import recompute_class_in_year_from_marks
 from app.roles import TITLES as _ROLE_TITLES
+from app.student_validation import normalize_indian_mobile
 
 router = APIRouter(prefix="/import", tags=["Import"])
 
@@ -52,6 +53,17 @@ def _str(val: Any) -> str:
     if val is None:
         return ""
     return str(val).strip()
+
+
+_STUDENT_BY_NAME_KUTIR_SQL = (
+    "SELECT id FROM students WHERE lower(first_name)=lower(:f) "
+    "AND coalesce(lower(last_name), '')=coalesce(lower(:l), '') AND kutir_id=:k LIMIT 1"
+)
+
+
+def _student_last_name_for_db(val: Any) -> str | None:
+    s = _str(val)
+    return s if s else None
 
 def _yn(val: Any) -> bool:
     return _str(val).lower() in ("yes", "true", "1", "y")
@@ -811,8 +823,7 @@ async def _import_students(rows, db):
             errors.append(f"{err} — student '{first} {last}' skipped"); continue
         # May be multiple duplicates already — take first id for match/upsert
         exists_rows = (await db.execute(
-            text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
-                 "AND lower(last_name)=lower(:l) AND kutir_id=:k LIMIT 1"),
+            text(_STUDENT_BY_NAME_KUTIR_SQL),
             {"f": first, "l": last, "k": kutir_id}
         )).scalars().all()
         cat_name = _str(r.get("category_name"))
@@ -840,15 +851,34 @@ async def _import_students(rows, db):
         exam_year = _int(exam_year_raw) if exam_year_raw not in (None, "") else None
         if exam_year_raw not in (None, "") and exam_year is None:
             errors.append(f"Bad exam_year '{exam_year_raw}' for '{first} {last}' — imported without exam_year")
-        params = {"fn": first, "ln": last, "ge": gender, "db": dob, "ki": kutir_id,
+        student_label = f"{first} {last}".strip()
+        phone_raw = r.get("phone")
+        phone_norm, phone_err = normalize_indian_mobile(
+            phone_raw if phone_raw not in (None, "") else None,
+            required=False,
+            field_label="Phone",
+        )
+        if phone_err and _str(phone_raw):
+            errors.append(f"{phone_err} for '{student_label}' — row skipped")
+            continue
+        alt_raw = r.get("alt_contact_phone")
+        alt_norm, alt_err = normalize_indian_mobile(
+            alt_raw if alt_raw not in (None, "") else None,
+            required=False,
+            field_label="Alt phone",
+        )
+        if alt_err and _str(alt_raw):
+            errors.append(f"{alt_err} for '{student_label}' — row skipped")
+            continue
+        params = {"fn": first, "ln": _student_last_name_for_db(r.get("last_name")), "ge": gender, "db": dob, "ki": kutir_id,
                "ca": cat_id, "sc": subcat_id,
                "ey": exam_year,
                "fa": _str(r.get("father_name")) or None,
                "mo": _str(r.get("mother_name")) or None,
-               "ph": _str(r.get("phone")) or None,
+               "ph": phone_norm,
                "em": _str(r.get("email")) or None,
                "an": _str(r.get("alt_contact_name")) or None,
-               "ap": _str(r.get("alt_contact_phone")) or None,
+               "ap": alt_norm,
                "aa": _yn(r.get("aadhaar")),
                "cc": _yn(r.get("category_cert")),
                "bc": _yn(r.get("birth_cert")),
@@ -963,8 +993,7 @@ async def _import_admissions(rows, db):
         if kerr:
             errors.append(f"{kerr} — admissions row skipped"); continue
         sid_rows = (await db.execute(
-            text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
-                 "AND lower(last_name)=lower(:l) AND kutir_id=:k LIMIT 1"),
+            text(_STUDENT_BY_NAME_KUTIR_SQL),
             {"f": first, "l": last, "k": kutir_id}
         )).scalars().all() if first else []
         sid = sid_rows[0] if sid_rows else None
@@ -1136,8 +1165,7 @@ async def _import_progress(rows, db):
         if kerr:
             errors.append(f"{kerr} — progress row skipped"); continue
         sid_rows = (await db.execute(
-            text("SELECT id FROM students WHERE lower(first_name)=lower(:f) "
-                 "AND lower(last_name)=lower(:l) AND kutir_id=:k LIMIT 1"),
+            text(_STUDENT_BY_NAME_KUTIR_SQL),
             {"f": first, "l": last, "k": kutir_id}
         )).scalars().all() if first else []
         sid = sid_rows[0] if sid_rows else None

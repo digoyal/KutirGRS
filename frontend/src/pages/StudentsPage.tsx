@@ -23,6 +23,7 @@ import {
   type FilterId,
   countActiveFilters,
 } from "../utils/geoFilters";
+import { studentLabel } from "../utils/studentLabel";
 import { hasGlobalDataScope } from "../constants/roles";
 import { displayPhone } from "../utils/displayPhone";
 import { buildRegistryExportColumns, exportFetchLimit } from "../utils/registryExport";
@@ -53,11 +54,11 @@ function studentColRenderers(kutirMap: Map<number, KutirLike>): Record<string, S
     name: {
       render: (s) => (
         <Link to={`/students/${s.id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
-          {`${s.first_name} ${s.last_name}`}
+          {studentLabel(s)}
         </Link>
       ),
-      csvValue: (s) => `${s.first_name} ${s.last_name}`,
-      sortValue: (s) => `${s.first_name} ${s.last_name}`.toLowerCase(),
+      csvValue: (s) => studentLabel(s),
+      sortValue: (s) => studentLabel(s).toLowerCase(),
     },
     exam_year: {
       render: (s) =>
@@ -389,7 +390,7 @@ export default function StudentsPage() {
                   setDeleteError("");
                   setPendingDelete({
                     id: s.id,
-                    name: `${s.first_name} ${s.last_name}`,
+                    name: studentLabel(s),
                   });
                 },
               }

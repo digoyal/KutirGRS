@@ -20,7 +20,7 @@ class Student(Base, TimestampMixin):
         Integer, ForeignKey("kutirs.id", ondelete="SET NULL"), nullable=True
     )
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     photo: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     gender: Mapped[str] = mapped_column(String(10), nullable=False)   # Boy / Girl
     dob: Mapped[Optional[date_type]] = mapped_column(Date, nullable=True)

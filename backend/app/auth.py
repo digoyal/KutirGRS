@@ -255,6 +255,17 @@ def require_district_in_geo_scope(
         raise HTTPException(status_code=404, detail=detail)
 
 
+def require_zone_in_geo_scope(
+    zone_id: Optional[int],
+    gs: GeoScope,
+    *,
+    detail: str = "Not found",
+) -> None:
+    """404 if the caller is zone-scoped and zone_id is missing or outside scope."""
+    if gs.zone_ids is not None and (zone_id is None or zone_id not in gs.zone_ids):
+        raise HTTPException(status_code=404, detail=detail)
+
+
 async def get_user_geo_scope(user, db: AsyncSession) -> GeoScope:
     from app.roles import has_global_data_scope
 

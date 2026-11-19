@@ -21,7 +21,10 @@ import { studentFieldLabel } from "../constants/studentsFields";
 import { grs } from "../styles/grs";
 import { useStudentFormLookups } from "../hooks/useStudentFormLookups";
 import { scopeDistricts } from "../utils/geoFilters";
-import { validateStudentForm } from "../utils/studentFormValidation";
+import {
+  normalizePhoneInput,
+  validateStudentForm,
+} from "../utils/studentFormValidation";
 import { formatAcademicYear } from "../utils/academicYear";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -63,7 +66,7 @@ export function emptyStudentForm(): StudentFormState {
 
 export function studentFormFromDetail(s: {
   first_name: string;
-  last_name: string;
+  last_name: string | null;
   gender: string;
   kutir_id: number | null;
   dob: string | null;
@@ -299,6 +302,44 @@ export const StudentForm = forwardRef<StudentFormHandle, StudentFormProps>(funct
    * Pass `label` for form-only fields (not in STUDENTS_FIELDS).
    * Otherwise label comes from studentFieldLabel(key).
    */
+  function phoneField(
+    key: "phone" | "alt_contact_phone",
+    opts?: { required?: boolean; label?: string },
+  ) {
+    const raw = form[key];
+    const fieldLabel =
+      opts?.label != null
+        ? `${opts.label}${opts.required ? " *" : ""}`
+        : studentFieldLabel(String(key), { required: opts?.required });
+    if (readOnly) {
+      return (
+        <ViewField label={fieldLabel}>
+          {(raw as string | null | undefined) || null}
+        </ViewField>
+      );
+    }
+    return (
+      <div>
+        <label style={grs.fieldLabel}>{fieldLabel}</label>
+        <input
+          style={grs.input}
+          type="text"
+          inputMode="numeric"
+          autoComplete="tel"
+          maxLength={10}
+          value={(raw as string | null | undefined) ?? ""}
+          onChange={(e) => {
+            const digits = normalizePhoneInput(e.target.value).slice(0, 10);
+            setForm((f) => ({
+              ...f,
+              [key]: digits || (opts?.required ? "" : null),
+            }));
+          }}
+        />
+      </div>
+    );
+  }
+
   function textField(
     key: keyof StudentFormState,
     opts?: { type?: string; required?: boolean; label?: string },
@@ -438,7 +479,7 @@ export const StudentForm = forwardRef<StudentFormHandle, StudentFormProps>(funct
             )}
           </div>
           {textField("first_name", { required: true, label: "First Name" })}
-          {textField("last_name", { required: true, label: "Last Name" })}
+          {textField("last_name", { label: "Last Name" })}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           {readOnly ? (
@@ -508,7 +549,7 @@ export const StudentForm = forwardRef<StudentFormHandle, StudentFormProps>(funct
           )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {textField("phone", { required: true })}
+          {phoneField("phone", { required: true })}
           {textField("email", { type: "email" })}
         </div>
       </section>
@@ -521,7 +562,7 @@ export const StudentForm = forwardRef<StudentFormHandle, StudentFormProps>(funct
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {textField("alt_contact_name")}
-          {textField("alt_contact_phone")}
+          {phoneField("alt_contact_phone")}
         </div>
       </section>
 

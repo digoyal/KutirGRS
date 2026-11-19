@@ -4,7 +4,7 @@ export interface Student {
   id: number;
   kutir_id: number | null;
   first_name: string;
-  last_name: string;
+  last_name: string | null;
   gender: string;
   dob: string | null;
   phone: string | null;
@@ -29,7 +29,7 @@ export interface Student {
 
 export interface StudentCreate {
   first_name: string;
-  last_name: string;
+  last_name?: string | null;
   gender: string;
   kutir_id?: number | null;
   dob?: string | null;
@@ -83,13 +83,30 @@ export async function getStudent(id: number): Promise<Student> {
   return data;
 }
 
+export function normalizeStudentLastName(
+  last_name: string | null | undefined,
+): string | null {
+  if (last_name == null) return null;
+  const s = last_name.trim();
+  return s ? s : null;
+}
+
+/** Normalize optional string fields before create/update (blank last name → null). */
+export function studentWritePayload(form: StudentCreate): StudentCreate {
+  return { ...form, last_name: normalizeStudentLastName(form.last_name) };
+}
+
 export async function createStudent(payload: StudentCreate): Promise<Student> {
-  const { data } = await api.post("/students", payload);
+  const { data } = await api.post("/students", studentWritePayload(payload));
   return data;
 }
 
 export async function updateStudent(id: number, payload: Partial<StudentCreate>): Promise<Student> {
-  const { data } = await api.patch(`/students/${id}`, payload);
+  const body = { ...payload };
+  if ("last_name" in body) {
+    body.last_name = normalizeStudentLastName(body.last_name);
+  }
+  const { data } = await api.patch(`/students/${id}`, body);
   return data;
 }
 

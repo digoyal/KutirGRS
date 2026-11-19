@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { FormPageShell } from "@parivaar/ui";
-import { createStudent } from "../api/students";
+import { createStudent, studentWritePayload } from "../api/students";
+import { apiErrorDetail } from "../utils/apiError";
 import {
   StudentForm,
   emptyStudentForm,
@@ -27,12 +28,11 @@ export default function StudentAddPage() {
     setSaving(true);
     setError(null);
     try {
-      await createStudent(form);
+      await createStudent(studentWritePayload(form));
       qc.invalidateQueries({ queryKey: ["students"] });
       navigate(-1);
     } catch (e: unknown) {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(detail ?? "Failed to create student");
+      setError(apiErrorDetail(e, "Failed to create student"));
       setSaving(false);
     }
   }

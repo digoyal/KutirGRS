@@ -13,6 +13,8 @@ import {
   type StudentFormState,
 } from "../components/StudentForm";
 import { grs } from "../styles/grs";
+import { apiErrorDetail } from "../utils/apiError";
+import { studentLabel } from "../utils/studentLabel";
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -70,8 +72,7 @@ export default function StudentDetailPage() {
       }
     },
     onError: (e: unknown) => {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setSaveError(detail ?? "Save failed");
+      setSaveError(apiErrorDetail(e, "Save failed"));
     },
   });
 
@@ -111,7 +112,7 @@ export default function StudentDetailPage() {
             ← Back
           </button>
           <h2 className="grs-page-title" style={{ margin: 0, fontSize: 20 }}>
-            {s.first_name} {s.last_name}
+            {studentLabel(s)}
           </h2>
           {!editing && (
             <button

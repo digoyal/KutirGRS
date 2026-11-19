@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, computed_field
+from pydantic import BaseModel, EmailStr, Field, computed_field, field_validator
 from app.progress_logic import enabled_mark_classes as compute_enabled_marks
 from app.schemas.lookups import SubjectRef  # noqa: F401  (re-exported for ExamScoreOut)
 
@@ -10,7 +10,17 @@ from app.schemas.lookups import SubjectRef  # noqa: F401  (re-exported for ExamS
 class StudentBase(BaseModel):
     kutir_id: Optional[int] = None
     first_name: str = Field(..., max_length=100)
-    last_name: str = Field(..., max_length=100)
+    last_name: Optional[str] = Field(None, max_length=100)
+
+    @field_validator("last_name", mode="before")
+    @classmethod
+    def blank_last_name_none(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s if s else None
+        return v  # type: ignore[return-value]
     gender: str                           # Boy / Girl
     dob: Optional[date] = None
     phone: Optional[str] = None
@@ -35,6 +45,16 @@ class StudentUpdate(BaseModel):
     kutir_id: Optional[int] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+
+    @field_validator("last_name", mode="before")
+    @classmethod
+    def blank_last_name_none(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s if s else None
+        return v  # type: ignore[return-value]
     gender: Optional[str] = None
     dob: Optional[date] = None
     phone: Optional[str] = None

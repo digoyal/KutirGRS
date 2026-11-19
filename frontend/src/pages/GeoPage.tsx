@@ -45,7 +45,7 @@ export default function GeoPage() {
   const globalScope = hasGlobalDataScope(role);
   const canWrite: Record<Tab, boolean> = {
     zones:     geoOk && globalScope,
-    districts: geoOk && globalScope,
+    districts: geoOk && (globalScope || role === "Regional Head"),
     areas:     geoOk && (globalScope || ["Regional Head", "District Anchor"].includes(role)),
     clusters:  geoOk && (globalScope || ["Regional Head", "District Anchor", "Education Coordinator"].includes(role)),
   };
@@ -209,7 +209,14 @@ export default function GeoPage() {
         onAdd={canWrite[tab] ? () => {
           setShowForm(true);
           setEditRow(null);
-          setForm(tab === "districts" ? { parivaar_presence: false } : {});
+          const initial =
+            tab === "districts"
+              ? {
+                  parivaar_presence: false,
+                  ...(zones.length === 1 ? { zone_id: zones[0].id } : {}),
+                }
+              : {};
+          setForm(initial);
           setFormError("");
         } : undefined}
         addLabel="+ Add"

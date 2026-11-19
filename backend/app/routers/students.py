@@ -29,7 +29,11 @@ from app.config import settings
 from app.admission_uniqueness import assert_admission_uniqueness, admission_duplicate_detail
 from app.exam_type_school_types import school_type_names_for_exam_type
 from app.db_integrity import raise_http_for_integrity, raise_http_for_programming
-from app.student_validation import validate_student_write, student_merged_for_update
+from app.student_validation import (
+    normalize_student_phones,
+    validate_student_write,
+    student_merged_for_update,
+)
 from app.admission_pipeline_validation import (
     STAGE_KEYS,
     parse_pipeline_stage_filter,
@@ -202,8 +206,10 @@ async def create_student(
     scope: Optional[set[int]] = Depends(get_scope),
 ):
     require_kutir_in_scope(data.kutir_id, scope, detail="Student not found")
-    validate_student_write(data.model_dump())
-    student = Student(**data.model_dump())
+    payload = data.model_dump()
+    validate_student_write(payload)
+    normalize_student_phones(payload)
+    student = Student(**payload)
     db.add(student)
     await db.commit()
     await db.refresh(student)
@@ -237,7 +243,12 @@ async def update_student(
     update = data.model_dump(exclude_unset=True)
     if "kutir_id" in update:
         require_kutir_in_scope(update["kutir_id"], scope, detail="Student not found")
-    validate_student_write(student_merged_for_update(obj, update))
+    merged = student_merged_for_update(obj, update)
+    validate_student_write(merged)
+    normalize_student_phones(merged)
+    for k in list(update.keys()):
+        if k in ("phone", "alt_contact_phone"):
+            update[k] = merged[k]
     for k, v in update.items():
         setattr(obj, k, v)
     await db.commit()

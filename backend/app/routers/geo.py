@@ -10,6 +10,7 @@ from app.auth import (
     get_geo_scope,
     GeoScope,
     require_district_in_geo_scope,
+    require_zone_in_geo_scope,
 )
 from app.geo_assignments import list_geo_assignment_rows
 from app.roles import MANAGE_GEOGRAPHY, MANAGE_EXAM_CENTERS
@@ -171,7 +172,13 @@ async def list_districts(
     return result.scalars().all()
 
 @router.post("/districts", response_model=DistrictOut, status_code=201)
-async def create_district(body: DistrictCreate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
+async def create_district(
+    body: DistrictCreate,
+    db: AsyncSession = Depends(get_db),
+    gs: GeoScope = Depends(get_geo_scope),
+    _=Depends(require_roles(MANAGE_GEOGRAPHY)),
+):
+    require_zone_in_geo_scope(body.zone_id, gs, detail="Not found")
     obj = District(**body.model_dump())
     db.add(obj)
     await db.commit()
@@ -186,21 +193,37 @@ async def get_district(district_id: int, db: AsyncSession = Depends(get_db), _=D
     return obj
 
 @router.put("/districts/{district_id}", response_model=DistrictOut)
-async def update_district(district_id: int, body: DistrictUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
+async def update_district(
+    district_id: int,
+    body: DistrictUpdate,
+    db: AsyncSession = Depends(get_db),
+    gs: GeoScope = Depends(get_geo_scope),
+    _=Depends(require_roles(MANAGE_GEOGRAPHY)),
+):
     obj = await db.get(District, district_id)
     if not obj:
         raise HTTPException(404, "District not found")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    require_zone_in_geo_scope(obj.zone_id, gs, detail="Not found")
+    data = body.model_dump(exclude_unset=True)
+    if "zone_id" in data:
+        require_zone_in_geo_scope(data["zone_id"], gs, detail="Not found")
+    for k, v in data.items():
         setattr(obj, k, v)
     await db.commit()
     await db.refresh(obj)
     return obj
 
 @router.delete("/districts/{district_id}", status_code=204)
-async def delete_district(district_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_roles(MANAGE_GEOGRAPHY))):
+async def delete_district(
+    district_id: int,
+    db: AsyncSession = Depends(get_db),
+    gs: GeoScope = Depends(get_geo_scope),
+    _=Depends(require_roles(MANAGE_GEOGRAPHY)),
+):
     obj = await db.get(District, district_id)
     if not obj:
         raise HTTPException(404, "District not found")
+    require_zone_in_geo_scope(obj.zone_id, gs, detail="Not found")
     await delete_district_if_allowed(db, obj)
 
 

@@ -57,6 +57,7 @@ Downloaded `GRS_Import_Template.xlsx` row‑1 headers match what `import_data.py
 | `19_Admissions` | `form_received` | Ignored (dropped in migration `023`; not a pipeline stage) |
 | `14_Clusters` | `district_name` | Ignored on re-upload — area is resolved by `area_name` only; duplicate area names error |
 | `17_Kutirs` | `area_name` | Ignored on re-upload — cluster resolved by `cluster_name` + `district_name` only |
+| `18_Students` | `street`, `pincode` | Ignored on old uploads — columns dropped from schema in migration `036` (student address not stored) |
 | `18_Students`, `19_Admissions`, `20_Progress`, `21_KutirVisits` | `area_name` | Ignored on re-upload — kutir resolved by `kutir_name` + `cluster_name` + `district_name` only |
 | `20_Progress` | `transfer_school` | Ignored — column dropped in migration `041`; use `status=transferred_to_local` + `remarks` |
 | `20_Progress` | `previous_year_percentage`, `previous_year_marks` | Ignored — use `marks_6` … `marks_12` only |
@@ -75,6 +76,7 @@ All other `SHEET_ORDER` sheets: **no gaps** — see audit note in Project store 
 - **Kutir type:** Seva Kutir | Shiksha Kutir | Non-Kutir.
 - **Area names (globally unique):** on `11_Areas`, each area `name` must be unique **system-wide** (case-insensitive). Re-import of the same `name` + `district_name` still **skips** (create-or-skip). Creating a new area fails if that name already exists in **another** district, or if the DB already has **duplicate** rows for that name — fix `11_Areas` / geo data before import.
 - **Parent-scoped names (not globally unique):** cluster names are unique **within a district**; kutir names are unique **within a cluster**. Import accepts name alone when that name matches **exactly one** row (including `14_Clusters` skip); if 2+ match, set parents on downstream sheets (`17_Kutirs`: `cluster_name` + `district_name`; Students/Admissions/Progress/Visits: `kutir_name` + `cluster_name` + `district_name`). Creating a new cluster needs `name` + `area_name` (optional `userid`); area is matched by `area_name` only — zero matches or duplicate area names system-wide are import errors.
+- **Students:** no `street` / `pincode` on the download template — kutir linkage via `kutir_name` + `cluster_name` + `district_name` only (same as Admissions / Progress).
 - **Years:** `school_start_year` / `academic_year` / **`exam_year`** (Students) are **integers** (e.g. `2025`). UI display `2025-26` is not used on import.
 - **Students `exam_year`:** optional; upserted on re-import (`COALESCE` — blank cell does not clear an existing value).
 - **Admissions / Progress:** resolve students by `first_name` + `last_name` + hierarchical kutir key — **no `student_id`**. Progress resolves school by `school_name` only — **no `school_id`**.

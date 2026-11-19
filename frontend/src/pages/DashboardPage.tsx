@@ -141,5 +141,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   nav: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
   userInfo: { marginTop: "auto", padding: "8px 0", borderTop: "1px solid #2d4a7a", textAlign: "left" as const },
-  main: { flex: 1, padding: "0", overflowY: "auto", minHeight: 0, minWidth: 0 },
+  /* overflow on .grs-main is CSS-only so list-hub :has() rules can set overflow:hidden */
+  main: { flex: 1, padding: "0", minHeight: 0, minWidth: 0 },
 };
