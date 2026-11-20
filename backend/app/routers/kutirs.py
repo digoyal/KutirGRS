@@ -24,6 +24,20 @@ from app.schemas.kutirs import KutirCreate, KutirUpdate, KutirOut, KutirDetail, 
 router = APIRouter(prefix="/kutirs", tags=["Kutirs"])
 
 
+async def _sync_kutir_district_from_cluster(db: AsyncSession, kutir: Kutir) -> None:
+    """Backfill denormalized district_id from cluster→area when missing."""
+    if kutir.district_id is not None or not kutir.cluster_id:
+        return
+    row = await db.execute(
+        select(Area.district_id)
+        .join(Cluster, Cluster.area_id == Area.id)
+        .where(Cluster.id == kutir.cluster_id)
+    )
+    district_id = row.scalar_one_or_none()
+    if district_id is not None:
+        kutir.district_id = district_id
+
+
 async def _teachers_by_kutir_ids(
     db: AsyncSession, kutir_ids: list[int]
 ) -> dict[int, list[TeacherMin]]:
@@ -148,6 +162,7 @@ async def create_kutir(
     obj = Kutir(**data)
     db.add(obj)
     await db.flush()
+    await _sync_kutir_district_from_cluster(db, obj)
     geocode_message: str | None = None
     if not has_manual_coords:
         geocode_message = await try_geocode_kutir(db, obj)
@@ -186,6 +201,8 @@ async def update_kutir(
     address_changed = bool(ADDRESS_FIELDS.intersection(data.keys()))
     for k, v in data.items():
         setattr(obj, k, v)
+    if "cluster_id" in data or obj.district_id is None:
+        await _sync_kutir_district_from_cluster(db, obj)
     manual_coords_update = "latitude" in data or "longitude" in data
     if manual_coords_update:
         if obj.latitude is not None and obj.longitude is not None:

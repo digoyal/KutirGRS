@@ -7,7 +7,7 @@ import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from sqlalchemy import select
+from sqlalchemy import false, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -145,6 +145,27 @@ async def _get_assigned_ids(title: str, user_id: int, db: AsyncSession):
     return z_ids, d_ids, a_ids, c_ids, k_ids
 
 
+def kutir_ids_in_districts_select(district_ids: Collection[int]):
+    """Kutir ids in districts via denormalized district_id or cluster→area (matches kutirs list filters)."""
+    from app.models.geo import Area, Cluster
+    from app.models.kutirs import Kutir
+
+    if not district_ids:
+        return select(Kutir.id).where(false())
+    return (
+        select(Kutir.id)
+        .select_from(Kutir)
+        .join(Cluster, Kutir.cluster_id == Cluster.id)
+        .join(Area, Cluster.area_id == Area.id)
+        .where(
+            or_(
+                Kutir.district_id.in_(district_ids),
+                Area.district_id.in_(district_ids),
+            )
+        )
+    )
+
+
 async def get_user_kutir_scope(user, db: AsyncSession) -> Optional[set[int]]:
     """
     Return the set of kutir_ids the user may access, or None for unrestricted
@@ -183,7 +204,7 @@ async def get_user_kutir_scope(user, db: AsyncSession) -> Optional[set[int]]:
     if title == "District Anchor":
         if not d_ids:
             return set()
-        rows = await db.execute(select(Kutir.id).where(Kutir.district_id.in_(d_ids)))
+        rows = await db.execute(kutir_ids_in_districts_select(d_ids))
         return {r[0] for r in rows.all()}
 
     if title == "Regional Head":
@@ -193,7 +214,7 @@ async def get_user_kutir_scope(user, db: AsyncSession) -> Optional[set[int]]:
         d_ids = {r[0] for r in dist.all()}
         if not d_ids:
             return set()
-        rows = await db.execute(select(Kutir.id).where(Kutir.district_id.in_(d_ids)))
+        rows = await db.execute(kutir_ids_in_districts_select(d_ids))
         return {r[0] for r in rows.all()}
 
     return set()  # unknown title
