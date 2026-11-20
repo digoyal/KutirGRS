@@ -2,12 +2,19 @@ import { useEffect } from "react";
 import type {
   AreaLike,
   ClusterLike,
+  DistrictLike,
   FilterId,
   KutirLike,
   KutirOptionsMode,
   NamedId,
 } from "../utils/geoFilters";
-import { autoPickFilterId, autoPickScalarFilter, clustersForDistrict, kutirsForFilter } from "../utils/geoFilters";
+import {
+  autoPickFilterId,
+  autoPickScalarFilter,
+  clustersForDistrict,
+  districtsForZone,
+  kutirsForFilter,
+} from "../utils/geoFilters";
 
 export type ClusterAutoSelectMode =
   /** Progress/Students/Admissions/Visits: district-filtered cluster list (same as GeoFilterBar). */
@@ -65,7 +72,7 @@ function kutirSelectShown(visibility: KutirVisibility, cluster: FilterId): boole
  * {@link GeoFilterBar}) has exactly one entry and the current value is empty
  * (“All” / “-- Select --”), pick that option automatically.
  *
- * - Cascades in one pass: one district → one cluster → one kutir.
+ * - Cascades in one pass: one zone → one district → one cluster → one kutir (zone optional).
  * - Re-runs when upstream filters change (e.g. district pick leaves one cluster).
  * - Does **not** override non-empty values (including role defaults).
  * - Use `skip*Auto` when session restore intentionally stored a key (see Visits);
@@ -75,6 +82,10 @@ function kutirSelectShown(visibility: KutirVisibility, cluster: FilterId): boole
  */
 export function useGeoFilterAutoSelect(opts: {
   scopedDistricts: NamedId[];
+  /** When set with {@link setFilterZone}, district list uses `districtsForZone(scopedDistricts, zone)`. */
+  scopedZones?: NamedId[];
+  filterZone?: FilterId;
+  setFilterZone?: (id: FilterId) => void;
   scopedClusters?: ClusterLike[];
   scopedKutirs?: KutirLike[];
   areas?: AreaLike[];
@@ -93,6 +104,7 @@ export function useGeoFilterAutoSelect(opts: {
   /** Kept for call-site compatibility; auto-pick uses visible option counts only. */
   unscoped?: boolean;
   clusterMode?: ClusterAutoSelectMode;
+  skipZoneAuto?: boolean;
   skipDistrictAuto?: boolean;
   skipClusterAuto?: boolean;
   skipKutirAuto?: boolean;
@@ -100,6 +112,9 @@ export function useGeoFilterAutoSelect(opts: {
 }): void {
   const {
     scopedDistricts,
+    scopedZones,
+    filterZone = "",
+    setFilterZone,
     scopedClusters = [],
     scopedKutirs = [],
     areas = [],
@@ -116,12 +131,14 @@ export function useGeoFilterAutoSelect(opts: {
     defaultCluster = "",
     defaultKutir = "",
     clusterMode = "scoped-non-admin",
+    skipZoneAuto = false,
     skipDistrictAuto = false,
     skipClusterAuto = false,
     skipKutirAuto = false,
     autoSelectMode = "list-hub",
   } = opts;
 
+  const zoneEnabled = setFilterZone != null && scopedZones != null;
   const hasAll = autoSelectMode === "list-hub";
 
   const areaMap = areas.length > 0 ? new Map(areas.map((a) => [a.id, a])) : undefined;
@@ -131,13 +148,28 @@ export function useGeoFilterAutoSelect(opts: {
   useEffect(() => {
     const districtOnly = clusterMode === "none" && !setFilterKutir;
 
+    const zoneAtStart = filterZone;
     const districtAtStart = filterDistrict;
     const clusterAtStart = filterCluster;
     const kutirAtStart = filterKutir;
 
+    let zone = zoneAtStart;
     let district = districtAtStart;
     let cluster = clusterAtStart;
     let kutir = kutirAtStart;
+
+    if (zoneEnabled) {
+      const zonePick = autoPickFilterId(scopedZones, zone, true, {
+        hasAll,
+        skip: skipZoneAuto,
+        cascade: false,
+      });
+      if (zonePick !== null) zone = zonePick;
+    }
+
+    const districtsVisible = zoneEnabled
+      ? districtsForZone(scopedDistricts as DistrictLike[], zone)
+      : scopedDistricts;
 
     const clustersForBar = (d: FilterId): NamedId[] => {
       if (clusterMode === "none") return [];
@@ -153,19 +185,21 @@ export function useGeoFilterAutoSelect(opts: {
         areaMap,
       });
 
-    const districtPick = autoPickFilterId(scopedDistricts, district, true, {
+    const cascadeDistricts = zoneEnabled && zone !== zoneAtStart;
+    const districtPick = autoPickFilterId(districtsVisible, district, true, {
       hasAll,
       skip: skipDistrictAuto,
-      cascade: false,
+      cascade: cascadeDistricts,
     });
     if (districtPick !== null) district = districtPick;
 
     if (districtOnly) {
+      if (zoneEnabled && zone !== zoneAtStart) setFilterZone(zone);
       if (district !== districtAtStart) setFilterDistrict(district);
       return;
     }
 
-    const cascadeClusters = district !== districtAtStart;
+    const cascadeClusters = district !== districtAtStart || cascadeDistricts;
 
     if (clusterMode !== "none") {
       const list = clustersForBar(district);
@@ -192,11 +226,16 @@ export function useGeoFilterAutoSelect(opts: {
       if (kutirPick !== null) kutir = kutirPick;
     }
 
+    if (zoneEnabled && zone !== zoneAtStart) setFilterZone(zone);
     if (district !== districtAtStart) setFilterDistrict(district);
     if (cluster !== clusterAtStart) setFilterCluster(cluster);
     if (setFilterKutir && kutir !== kutirAtStart) setFilterKutir(kutir);
   }, [
     scopedDistricts,
+    scopedZones,
+    filterZone,
+    setFilterZone,
+    zoneEnabled,
     scopedClusters,
     scopedKutirs,
     filterDistrict,
@@ -209,6 +248,7 @@ export function useGeoFilterAutoSelect(opts: {
     kutirVisibility,
     defaultCluster,
     defaultKutir,
+    skipZoneAuto,
     skipDistrictAuto,
     skipClusterAuto,
     skipKutirAuto,

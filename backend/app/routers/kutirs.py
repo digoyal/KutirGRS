@@ -67,6 +67,7 @@ async def list_kutirs(
     response: Response,
     cluster_id: Optional[int] = Query(None),
     district_id: Optional[int] = Query(None),
+    zone_id: Optional[int] = Query(None),
     kutir_type: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     limit: Optional[int] = Query(None),
@@ -74,7 +75,9 @@ async def list_kutirs(
     db: AsyncSession = Depends(get_db),
     scope: Optional[set[int]] = Depends(get_scope),
 ):
-    needs_geo_join = district_id is not None and not cluster_id
+    needs_geo_join = not cluster_id and (
+        district_id is not None or zone_id is not None
+    )
 
     def _apply_filters(q):
         if needs_geo_join:
@@ -89,6 +92,14 @@ async def list_kutirs(
         elif district_id:
             q = q.where(
                 or_(Kutir.district_id == district_id, Area.district_id == district_id)
+            )
+        elif zone_id:
+            zone_districts = select(District.id).where(District.zone_id == zone_id)
+            q = q.where(
+                or_(
+                    Kutir.district_id.in_(zone_districts),
+                    Area.district_id.in_(zone_districts),
+                )
             )
         if kutir_type:
             q = q.where(Kutir.kutir_type == kutir_type)

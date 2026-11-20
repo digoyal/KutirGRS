@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listKutirsPaged, deleteKutir, type Kutir } from "../api/kutirs";
 import { listDonors } from "../api/donors";
 import { useAuth } from "../context/AuthContext";
-import { listClusters, listAreas, listDistricts } from "../api/geo";
+import { listClusters, listAreas, listDistricts, listZones } from "../api/geo";
 import { GrsTable } from "../components/GrsTable";
 import type { Col } from "../components/GrsTable";
 import { GeoFilterBar } from "../components/GeoFilterBar";
@@ -18,12 +18,24 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { buildRegistryExportColumns, exportFetchLimit } from "../utils/registryExport";
 import {
   countActiveFilters,
+  districtsForZone,
   scopeClusters,
   scopeDistricts,
   type FilterId,
 } from "../utils/geoFilters";
 
 const STORAGE_KEY = "kutirs_filter_state";
+
+function kutirsListGeoParams(
+  filterZone: FilterId,
+  filterDistrict: FilterId,
+  filterCluster: FilterId,
+): { cluster_id?: number; district_id?: number; zone_id?: number } {
+  if (filterCluster !== "") return { cluster_id: filterCluster };
+  if (filterDistrict !== "") return { district_id: filterDistrict };
+  if (filterZone !== "") return { zone_id: filterZone };
+  return {};
+}
 
 type KutirColRenderer = {
   render?: (r: Kutir) => ReactNode;
@@ -188,11 +200,13 @@ export default function KutirsPage() {
   useBfcacheReload();
 
   const saved = usePersistedFilterRestore<{
+    zone?: FilterId;
     district?: FilterId;
     cluster?: FilterId;
     search?: string;
     page?: number;
   }>(STORAGE_KEY);
+  const [filterZone, setFilterZone] = useState<FilterId>(saved?.zone ?? "");
   const [filterDistrict, setFilterDistrict] = useState<FilterId>(saved?.district ?? "");
   const [filterCluster, setFilterCluster] = useState<FilterId>(saved?.cluster ?? "");
   const [searchQuery, setSearchQuery] = useState(saved?.search ?? "");
@@ -209,10 +223,9 @@ export default function KutirsPage() {
   };
 
   const { data: kutirsPage, isLoading } = useQuery({
-    queryKey: ["kutirs", filterDistrict, filterCluster, debouncedSearch, page],
+    queryKey: ["kutirs", filterZone, filterDistrict, filterCluster, debouncedSearch, page],
     queryFn: () => listKutirsPaged({
-      cluster_id: filterCluster !== "" ? filterCluster : undefined,
-      district_id: filterCluster !== "" ? undefined : (filterDistrict !== "" ? filterDistrict : undefined),
+      ...kutirsListGeoParams(filterZone, filterDistrict, filterCluster),
       search: debouncedSearch || undefined,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
@@ -221,6 +234,7 @@ export default function KutirsPage() {
   const kutirs = kutirsPage?.items ?? [];
   const kutirTotal = kutirsPage?.total ?? 0;
 
+  const { data: allZones = [] } = useQuery({ queryKey: ["zones"], queryFn: listZones });
   const { data: allDistricts = [] } = useQuery({
     queryKey: ["districts", { parivaar_presence: true }],
     queryFn: () => listDistricts(undefined, { parivaar_presence: true }),
@@ -238,19 +252,55 @@ export default function KutirsPage() {
     areas: allAreas,
     clusters: allClusters,
   });
+  const scopedZones = useMemo(() => {
+    if (unscoped) return allZones;
+    const zoneIds = new Set(scopedDistricts.map((d) => d.zone_id));
+    return allZones.filter((z) => zoneIds.has(z.id));
+  }, [unscoped, allZones, scopedDistricts]);
+  const zoneFilteredDistricts = useMemo(
+    () => districtsForZone(scopedDistricts, filterZone),
+    [scopedDistricts, filterZone],
+  );
   const scopedClusters = scopeClusters(allClusters, user, unscoped);
 
+  const setFilterZoneAuto = useCallback(
+    (id: FilterId) => {
+      setFilterZone(id);
+      setPage(1);
+    },
+    [],
+  );
+  const setFilterDistrictAuto = useCallback(
+    (id: FilterId) => {
+      setFilterDistrict(id);
+      setPage(1);
+    },
+    [],
+  );
+  const setFilterClusterAuto = useCallback(
+    (id: FilterId) => {
+      setFilterCluster(id);
+      setPage(1);
+    },
+    [],
+  );
+
   useGeoFilterAutoSelect({
+    scopedZones,
     scopedDistricts,
+    filterZone,
+    setFilterZone: setFilterZoneAuto,
     scopedClusters,
     areas: allAreas,
     filterDistrict,
     filterCluster,
-    setFilterDistrict,
-    setFilterCluster,
+    setFilterDistrict: setFilterDistrictAuto,
+    setFilterCluster: setFilterClusterAuto,
     clusterDisable: "no-district",
     unscoped,
     clusterMode: "filtered",
+    autoSelectMode: "list-hub",
+    skipZoneAuto: saved?.zone != null,
     skipDistrictAuto: saved?.district != null,
     skipClusterAuto: saved?.cluster != null,
   });
@@ -262,7 +312,11 @@ export default function KutirsPage() {
 
   function saveFilters() {
     persistFilters(STORAGE_KEY, {
-      district: filterDistrict, cluster: filterCluster, search: searchQuery, page,
+      zone: filterZone,
+      district: filterDistrict,
+      cluster: filterCluster,
+      search: searchQuery,
+      page,
     });
   }
 
@@ -295,14 +349,13 @@ export default function KutirsPage() {
 
   const getExportRows = useCallback(async () => {
     const { items } = await listKutirsPaged({
-      cluster_id: filterCluster !== "" ? filterCluster : undefined,
-      district_id: filterCluster !== "" ? undefined : (filterDistrict !== "" ? filterDistrict : undefined),
+      ...kutirsListGeoParams(filterZone, filterDistrict, filterCluster),
       search: debouncedSearch || undefined,
       limit: exportFetchLimit(kutirTotal),
       offset: 0,
     });
     return items;
-  }, [filterDistrict, filterCluster, debouncedSearch, kutirTotal]);
+  }, [filterZone, filterDistrict, filterCluster, debouncedSearch, kutirTotal]);
 
   return (
     <div className="grs-page" style={{ padding: "24px 28px" }}>
@@ -318,17 +371,21 @@ export default function KutirsPage() {
         searchPlaceholder="Search by name, street, pincode…"
         externalSearch={searchQuery}
         onExternalSearch={handleSearch}
-        activeFilterCount={countActiveFilters(filterDistrict, filterCluster)}
+        activeFilterCount={countActiveFilters(filterZone, filterDistrict, filterCluster)}
         filters={
           <GeoFilterBar
+            showZone
+            zone={filterZone}
+            zones={scopedZones}
             district={filterDistrict}
             cluster={filterCluster}
-            onChange={({ district, cluster }) => {
+            onChange={({ zone, district, cluster }) => {
+              setFilterZone(zone);
               setFilterDistrict(district);
               setFilterCluster(cluster);
               setPage(1);
             }}
-            districts={scopedDistricts}
+            districts={zoneFilteredDistricts}
             clusters={scopedClusters}
             areas={allAreas}
             showKutir={false}

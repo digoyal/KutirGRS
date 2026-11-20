@@ -48,6 +48,7 @@ export interface KutirCreate {
 export interface KutirsListParams {
   cluster_id?: number;
   district_id?: number;
+  zone_id?: number;
   kutir_type?: string;
   search?: string;
   limit?: number;

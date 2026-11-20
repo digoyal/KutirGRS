@@ -12,11 +12,12 @@ import {
 } from "../utils/geoFilters";
 
 export type GeoFilterChange = {
+  zone: FilterId;
   district: FilterId;
   cluster: FilterId;
   kutir: FilterId;
   /** Which level the user changed (downstream levels already cleared). */
-  changed: "district" | "cluster" | "kutir";
+  changed: "zone" | "district" | "cluster" | "kutir";
 };
 
 export type ClusterDisableMode =
@@ -40,6 +41,12 @@ export interface GeoFilterBarProps {
   cluster?: FilterId;
   kutir?: FilterId;
   onChange: (next: GeoFilterChange) => void;
+
+  showZone?: boolean;
+  zone?: FilterId;
+  zones?: NamedId[];
+  zoneEmptyLabel?: string;
+  zoneLabel?: string;
 
   districts: NamedId[];
   /** Required when showCluster or kutirMode needs area→district */
@@ -69,6 +76,7 @@ export interface GeoFilterBarProps {
   clusterLabel?: string;
   kutirLabel?: string;
 
+  zoneStyle?: CSSProperties;
   districtEmptyLabel?: string;
   clusterEmptyLabel?: string;
   kutirEmptyLabel?: string;
@@ -102,6 +110,11 @@ export function GeoFilterBar({
   cluster = "",
   kutir = "",
   onChange,
+  showZone = false,
+  zone = "",
+  zones = [],
+  zoneEmptyLabel = "All Zones",
+  zoneLabel = "Zone",
   districts,
   clusters = [],
   areas = [],
@@ -118,6 +131,7 @@ export function GeoFilterBar({
   districtStyle,
   clusterStyle,
   kutirStyle,
+  zoneStyle,
   labeled = false,
   districtLabel = "District",
   clusterLabel = "Cluster",
@@ -169,13 +183,32 @@ export function GeoFilterBar({
   const content = (
     <>
       {leading}
+      {showZone && (
+        <Field labeled={labeled} label={zoneLabel}>
+          <select
+            style={{ ...baseStyle, ...zoneStyle }}
+            value={zone}
+            onChange={(e) => {
+              const next = parseId(e.target.value);
+              onChange({ zone: next, district: "", cluster: "", kutir: "", changed: "zone" });
+            }}
+          >
+            <option value="">{zoneEmptyLabel}</option>
+            {zones.map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       <Field labeled={labeled} label={districtLabel}>
         <select
           style={{ ...baseStyle, ...districtStyle }}
           value={district}
           onChange={(e) => {
             const next = parseId(e.target.value);
-            onChange({ district: next, cluster: "", kutir: "", changed: "district" });
+            onChange({ zone, district: next, cluster: "", kutir: "", changed: "district" });
           }}
         >
           <option value="">{districtEmptyLabel}</option>
@@ -195,7 +228,7 @@ export function GeoFilterBar({
             disabled={clusterDisabled}
             onChange={(e) => {
               const next = parseId(e.target.value);
-              onChange({ district, cluster: next, kutir: "", changed: "cluster" });
+              onChange({ zone, district, cluster: next, kutir: "", changed: "cluster" });
             }}
           >
             <option value="">{clusterEmptyLabel}</option>
@@ -220,7 +253,7 @@ export function GeoFilterBar({
             disabled={kutirDisabled}
             onChange={(e) => {
               const next = parseId(e.target.value);
-              onChange({ district, cluster, kutir: next, changed: "kutir" });
+              onChange({ zone, district, cluster, kutir: next, changed: "kutir" });
             }}
           >
             <option value="">{kutirEmptyLabel}</option>

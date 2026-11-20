@@ -22,6 +22,19 @@ export interface NamedId {
   name: string;
 }
 
+export interface DistrictLike extends NamedId {
+  zone_id: number;
+}
+
+/** District options narrowed by zone (empty zone = all districts). */
+export function districtsForZone<T extends DistrictLike>(
+  districts: T[],
+  filterZone: FilterId,
+): T[] {
+  if (filterZone === "") return districts;
+  return districts.filter((d) => d.zone_id === filterZone);
+}
+
 export interface AreaLike {
   id: number;
   district_id: number;
